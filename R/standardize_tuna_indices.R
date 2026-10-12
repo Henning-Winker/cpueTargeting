@@ -5,8 +5,8 @@
 #'
 #' Each model is `year` plus a targeting term:
 #' * `Base`: no targeting term.
-#' * `DPC`: `s(PC1) + s(PC2)` from the catch composition (direct principal
-#'   components, Winker et al. 2013, 2014).
+#' * `DPC`: `s(PC1) + ... + s(PCn)` from the catch composition (direct
+#'   principal components, Winker et al. 2013, 2014), with `n = n_pc`.
 #' * `Cluster`: fishing tactic from k-means clustering of the catch
 #'   composition (as a factor).
 #' * `HBF`: HBF as a factor (tuna model only).
@@ -39,6 +39,8 @@
 #'   They can use any column of the returned `data`, including `Xs`, `Ys`,
 #'   `period` (10-year block as a factor) and `HBF_period` (HBF x period).
 #' @param vessel_re Logical; add a random vessel effect `s(vessel, bs = "re")`.
+#' @param n_pc Number of principal components used by the DPC models
+#'   (default 2, as in the CPUE guidelines; at most the number of species).
 #' @param n_clusters Number of fishing tactics for the `Cluster` model.
 #' @param seed Seed for the k-means clustering.
 #' @param engine `"gam"` (default) or `"bam"` with `discrete = TRUE`, which is
@@ -63,7 +65,7 @@
 standardize_tuna_indices <- function(simulation, models = NULL,
                                      spatial_res = 5, spatial_k = NULL,
                                      add_models = NULL, vessel_re = FALSE,
-                                     n_clusters = 3, seed = 1,
+                                     n_pc = 2, n_clusters = 3, seed = 1,
                                      engine = c("gam", "bam"), label = NULL) {
   engine <- match.arg(engine)
   if (!requireNamespace("mgcv", quietly = TRUE)) {
@@ -87,8 +89,11 @@ standardize_tuna_indices <- function(simulation, models = NULL,
   d <- d[keep, , drop = FALSE]
   composition <- (catch[keep, , drop = FALSE] / rowSums(catch[keep, , drop = FALSE]))^0.25
   pca <- stats::prcomp(composition, scale. = TRUE)
-  d$PC1 <- pca$x[, 1]
-  d$PC2 <- pca$x[, 2]
+  if (n_pc < 1 || n_pc > ncol(pca$x)) {
+    stop("`n_pc` must be between 1 and ", ncol(pca$x), call. = FALSE)
+  }
+  pc_names <- colnames(pca$x)          # PC1, PC2, ... (all kept in `data`)
+  for (j in seq_along(pc_names)) d[[pc_names[j]]] <- pca$x[, j]
   if (!is.null(seed)) set.seed(seed)
   d$FT <- factor(stats::kmeans(composition, centers = n_clusters, nstart = 20)$cluster)
 
@@ -110,7 +115,7 @@ standardize_tuna_indices <- function(simulation, models = NULL,
   }
 
   # Targeting terms
-  dpc <- c("s(PC1, k = 3)", "s(PC2, k = 3)")
+  dpc <- sprintf("s(PC%d, k = 3)", seq_len(n_pc))
   targeting <- list(Base = character(0), DPC = dpc, Cluster = "FT")
   if (has_hbf) {
     targeting$HBF <- "HBF"
@@ -148,10 +153,11 @@ standardize_tuna_indices <- function(simulation, models = NULL,
   newdata <- data.frame(year = factor(years, levels = years),
                         Xs = stats::median(d$Xs), Ys = stats::median(d$Ys),
                         Xobs = stats::median(d$Xobs), Yobs = stats::median(d$Yobs),
-                        PC1 = 0, PC2 = 0, period = factor(1, levels = levels(d$period)),
+                        period = factor(1, levels = levels(d$period)),
                         FT = factor(mode_level(d$FT), levels = levels(d$FT)),
                         vessel = factor(levels(d$vessel)[1], levels = levels(d$vessel)),
                         hbs = 1)
+  for (pc in pc_names) newdata[[pc]] <- 0
   if (has_hbf) {
     newdata$HBF <- factor(mode_level(d$HBF), levels = levels(d$HBF))
     newdata$HBF_period <- factor(mode_level(d$HBF_period[d$period == "1"]),

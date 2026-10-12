@@ -119,5 +119,8 @@ test_that("fits at different resolutions can be combined", {
   expect_equal(levels(ab$indices$model), c("Base", "HBF+S", "Base+S (1x1)"))
   expect_equal(nrow(ab$diagnostics), 4 * 3)
   expect_error(bind_comparisons(a, a), "not unique")
+  pc3 <- standardize_tuna_indices(sim, models = "DPC+S", n_pc = 3, engine = "bam")
+  expect_true(grepl("s(PC3, k = 3)", pc3$formulas[["DPC+S"]], fixed = TRUE))
+  expect_error(standardize_tuna_indices(sim, models = "DPC", n_pc = 5), "n_pc")
   expect_s3_class(plot_diagnostics(ab), "ggplot")
 })

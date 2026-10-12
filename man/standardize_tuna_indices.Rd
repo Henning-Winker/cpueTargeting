@@ -2,7 +2,8 @@
 \alias{standardize_tuna_indices}
 \title{Standardise simulated CPUE with alternative targeting covariates}
 \usage{
-standardize_tuna_indices(simulation, models = NULL, spatial_res = 5, spatial_k = NULL, add_models = NULL, vessel_re = FALSE,
+standardize_tuna_indices(simulation, models = NULL, spatial_res = 5,
+  spatial_k = NULL, add_models = NULL, vessel_re = FALSE, n_pc = 2,
   n_clusters = 3, seed = 1, engine = c("gam", "bam"), label = NULL)
 }
 \arguments{
@@ -20,6 +21,8 @@ e.g. \code{c(HBF_period = "year + s(Xs, Ys, k = 8) + HBF_period")}. They can
 use any column of the returned \code{data}, including \code{Xs}, \code{Ys},
 \code{period} (10-year block as a factor) and \code{HBF_period} (HBF x period).}
 \item{vessel_re}{Logical; add a random vessel effect \code{s(vessel, bs = "re")}.}
+\item{n_pc}{Number of principal components used by the DPC models (default
+2, as in the CPUE guidelines; at most the number of species).}
 \item{n_clusters}{Number of fishing tactics for the \code{Cluster} model.}
 \item{seed}{Seed for the k-means clustering.}
 \item{engine}{\code{"gam"} (default) or \code{"bam"} with \code{discrete = TRUE},
@@ -36,8 +39,8 @@ species and compares the annual indices with the true biomass trend.}
 \details{Each model is \code{year} plus a targeting term:
 \itemize{
 \item \code{Base}: no targeting term.
-\item \code{DPC}: \code{s(PC1) + s(PC2)} from the catch composition (direct
-principal components).
+\item \code{DPC}: \code{s(PC1) + ... + s(PCn)} from the catch composition
+(direct principal components), with \code{n = n_pc}.
 \item \code{Cluster}: fishing tactic from k-means clustering of the catch
 composition (as a factor).
 \item \code{HBF}: HBF as a factor (tuna model only).
