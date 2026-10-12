@@ -24,11 +24,14 @@
 #'   (`set_cv`; e.g. line angle, currents), so HBF is an imperfect proxy for
 #'   depth. Hooks within a set are lognormally spread around the set's median
 #'   (`hook_cv`).
-#' * **Targeting**: species prices change in three 10-year blocks: ALB
-#'   (shallow, cool water), then BET (deep, warm water), then BFT (deep, cool
-#'   water), loosely following the historical shift from albacore to bigeye
-#'   targeting and the later interest in recovering southern bluefin. Skippers
-#'   choose where to fish and which HBF to use from the expected catch value.
+#' * **Targeting**: species prices change in two 15-year blocks: ALB
+#'   (shallow, cool water), then BFT (deep, cool water), loosely following the
+#'   historical shift away from albacore and the later interest in southern
+#'   bluefin. Both live in the cool south, so the switch is mainly in depth
+#'   (vertical targeting). Skippers choose where to fish and which HBF to use
+#'   from the expected catch value.
+#' * **Effort** rises from 400 to 800 sets per year until year 15 and then
+#'   declines back to 400, so pressure on some species is relieved.
 #'
 #' All values are conceptual and meant to be tuned. With the same seed,
 #' scenarios that differ only in the thermocline settings share the same SST
@@ -38,12 +41,10 @@
 #' Two presets are available:
 #' * `"default"`: moderate targeting (prices differ by a factor of 2 between
 #'   the target species and the others, `preference = 1.25`,
-#'   `HBF_choice_temp = 0.2`); nominal CPUE is biased by roughly 10-20% by
-#'   decade.
+#'   `HBF_choice_temp = 0.2`).
 #' * `"stress_test"`: extreme targeting (prices differ by a factor of 4,
 #'   `preference = 1.5`, `HBF_choice_temp = 0.15`); abrupt, fleet-wide target
-#'   switches with nominal CPUE biased by up to a factor of two. These are the
-#'   settings of the first runs of the vignette.
+#'   switches.
 #'
 #' @param preset `"default"` or `"stress_test"`.
 #' @return A named list accepted by [simulate_tuna()].
@@ -51,14 +52,13 @@
 #' @examples
 #' s <- tuna_settings()
 #' extreme <- tuna_settings("stress_test")
-#' extreme$price[c(1, 11, 21), ]
+#' extreme$price[c(1, 16), ]
 tuna_settings <- function(preset = c("default", "stress_test")) {
   preset <- match.arg(preset)
   s <- tuna_settings_default()
   if (preset == "stress_test") {
-    s$price <- matrix(c(rep(c(1.0, 0.5, 0.5, 2.0), 10),   # years 1-10: ALB
-                        rep(c(1.0, 2.0, 1.0, 0.5), 10),   # years 11-20: BET
-                        rep(c(0.5, 1.0, 2.0, 0.5), 10)),  # years 21-30: BFT
+    s$price <- matrix(c(rep(c(1.0, 0.5, 0.5, 2.0), 15),   # years 1-15: ALB
+                        rep(c(0.5, 1.0, 2.0, 0.5), 15)),  # years 16-30: BFT
                       ncol = 4, byrow = TRUE)
     s$preference <- 1.5
     s$HBF_choice_temp <- 0.15
@@ -78,8 +78,7 @@ tuna_settings_default <- function() {
     species  = c("YFT", "BET", "BFT", "ALB"),
     B0       = c(400000, 300000, 150000, 350000), # carrying capacity (t)
     r        = c(0.30, 0.18, 0.12, 0.25),         # intrinsic growth rate
-    B_start  = c(0.7, 0.6, 0.5, 0.2), # initial biomass / carrying capacity (1 = unfished);
-                                      #   ALB starts depleted and recovers
+    B_start  = c(0.7, 0.6, 0.4, 0.6), # initial biomass / carrying capacity (1 = unfished)
     sst_opt  = c(25, 24, 20, 21),     # preferred SST (deg C)
     sst_tol  = c(3, 3.5, 3, 3.5),     # SD of SST preference (deg C)
     depth_mu = c(90, 260, 240, 110),  # mean depth (m): YFT, ALB shallow; BET, BFT deep
@@ -109,12 +108,13 @@ tuna_settings_default <- function() {
 
     # Fleet -------------------------------------------------------------------
     # columns: YFT, BET, BFT, ALB
-    price = matrix(c(rep(c(1.0, 0.75, 0.75, 1.5), 10),   # years 1-10: ALB
-                     rep(c(1.0, 1.5, 1.0, 0.75), 10),    # years 11-20: BET
-                     rep(c(0.75, 1.0, 1.5, 0.75), 10)),  # years 21-30: BFT
+    price = matrix(c(rep(c(1.0, 0.75, 0.75, 1.5), 15),   # years 1-15: ALB
+                     rep(c(0.75, 1.0, 1.5, 0.75), 15)),  # years 16-30: BFT
                    ncol = 4, byrow = TRUE),
     n_vessels = 30,
-    effort = 800,             # asymptotic number of sets per year (~19,000 in 30 years)
+    effort = round(c(seq(400, 800, length.out = 15),   # sets per year: one value per
+                     seq(800, 400, length.out = 15))), #   year, or a single value for a
+                                                       #   logistic increase to it
     effort_cv = 0.2,
     q = 3,                    # mean catchability per set at full vertical overlap;
                               #   with effort, sets how strongly stocks are fished down
@@ -412,6 +412,9 @@ check_tuna_settings <- function(s) {
   }
   if (any(s$sst_tol <= 0) || any(s$depth_sd <= 0)) {
     stop("`sst_tol` and `depth_sd` must be positive.", call. = FALSE)
+  }
+  if (length(s$effort) != 1 && length(s$effort) < s$n_years) {
+    stop("`effort` must be a single value or one value per year.", call. = FALSE)
   }
   if (any(s$B_start <= 0)) stop("`B_start` must be positive.", call. = FALSE)
   if (s$HBF_choice_temp <= 0) stop("`HBF_choice_temp` must be positive.", call. = FALSE)

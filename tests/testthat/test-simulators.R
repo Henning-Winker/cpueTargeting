@@ -6,7 +6,7 @@ small_bathymetric <- function() {
 small_tuna <- function() {
   s <- tuna_settings()
   modifyList(s, list(n_years = 6, nx = 15, ny = 15, effort = 200,
-                     price = s$price[c(1, 1, 11, 11, 21, 21), ]))
+                     price = s$price[c(1, 1, 1, 16, 16, 16), ]))
 }
 
 test_that("bathymetric model returns consistent output", {
@@ -196,4 +196,15 @@ test_that("B_start sets initial depletion", {
   expect_error(simulate_tuna(s, seed = 1, plots = FALSE), "B_start")
   s$B_start <- c(1, 1)
   expect_error(simulate_tuna(s, seed = 1, plots = FALSE), "B_start")
+})
+
+test_that("effort can be given per year", {
+  s <- small_tuna()
+  s$effort <- c(50, 50, 300, 300, 50, 50)
+  s$effort_cv <- 0.01
+  sim <- simulate_tuna(s, seed = 1, plots = FALSE)
+  n <- tapply(sim$Data$SetID, sim$Data$year, function(x) length(unique(x)))
+  expect_true(all(n[3:4] > 4 * n[c(1, 2, 5, 6)]))
+  s$effort <- c(50, 50)
+  expect_error(simulate_tuna(s, seed = 1, plots = FALSE), "effort")
 })

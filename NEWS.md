@@ -71,18 +71,18 @@
 * `n_clusters` defaults to `n_pc + 1` (Winker et al. 2014), i.e. 4 clusters.
 * `label`, `bind_comparisons()` and `select_models()` to combine and reuse
   fits (e.g. a 1 x 1 spatial control).
-* Default `effort` in `tuna_settings()` reduced to 800 sets per year.
 * Deep species are deeper and narrower by default (BET 260 m, SD 50; BFT
   240 m, SD 55), so deep gear clearly targets them while most sets still
   catch all four species.
-* Default prices follow ALB (years 1-10), BET (11-20), BFT (21-30), with a
+* Default prices follow ALB (years 1-15), then BFT (16-30), with a
   moderate contrast (target species worth 1.5, others 0.75-1.0) and moderate
   skipper response (`preference = 1.25`, `HBF_choice_temp = 0.2`).
 * More contrast in the true trends: `q` raised from 0.2 to 3, and new
   per-species setting `B_start` (initial biomass / carrying capacity; default
-  0.7, 0.6, 0.5, 0.2) and a higher ALB growth rate (`r` = 0.25). ALB recovers from 20% to
-  about 40% of carrying capacity, while YFT, BET and BFT are fished down to
-  about 45%, 30% and 15%.
+  0.7, 0.6, 0.4, 0.6) and a higher ALB growth rate (`r` = 0.25).
+* `effort` can be one value per year. By default it rises from 400 to 800
+  sets per year until year 15 and then declines, so ALB and YFT recover in
+  the second half while BFT declines.
 * `tuna_settings("stress_test")` keeps the earlier extreme targeting (price
   contrast 2.0 vs 0.5, `preference = 1.5`, `HBF_choice_temp = 0.15`).
 
