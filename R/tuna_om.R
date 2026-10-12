@@ -1,334 +1,350 @@
-	                                                     
-## Main function to generate data (the OM)
-generate_tuna_scenario_data <- function(Sim_Settings){
-		
-	# Required packages are declared in DESCRIPTION.
-	# fields supplies a circulant-embedding Gaussian-field simulator.
-	required <- c("fields", "ggplot2", "reshape2", "tweedie")
-	missing <- required[!vapply(required, requireNamespace, logical(1), quietly=TRUE)]
-	if(length(missing)) stop("Install these required packages first: ",
-	                         paste(missing, collapse=", "), call.=FALSE)
+#' Default settings for the longline tuna scenario
+#'
+#' Four tuna species in a conceptual Southern Hemisphere ocean (y points north,
+#' towards the equator, so the north is warm).
+#'
+#' * **Horizontal habitat** is a normal preference for sea surface temperature
+#'   (`sst_opt`, `sst_tol`). Yellowfin (YFT) and bigeye (BET) prefer warm water;
+#'   southern bluefin (BFT) and albacore (ALB) prefer cooler water. Wide
+#'   tolerances keep the species mixed rather than separated.
+#' * **Vertical habitat** is a normal depth profile (`depth_mu`, `depth_sd`, in
+#'   m). Within each pair one species is shallow (YFT, ALB) and one deep (BET,
+#'   BFT). A thermocline-depth anomaly field (`thermocline_sd`) shifts all
+#'   profiles up or down together in each cell, so the catch of a given gear
+#'   configuration varies in space. Set `thermocline_sd = 0` for the same
+#'   vertical profile everywhere.
+#' * **Hook depth** follows the catenary model of Bigelow et al. (2002) for
+#'   each HBF (hooks between floats), with between-set variation in the
+#'   mainline angle `phi`, within-set hook-depth variation and shoaling by
+#'   currents.
+#' * **Targeting**: species prices change in three 10-year blocks (YFT, then
+#'   BET, then BFT). Skippers choose where to fish and which HBF to use from
+#'   the expected catch value.
+#'
+#' All values are conceptual and meant to be tuned.
+#'
+#' @return A named list accepted by [simulate_tuna()].
+#' @export
+tuna_settings <- function() {
+  list(
+    n_years = 30,
+    nx = 50, ny = 50,          # grid size (cells)
+    obs_res = 5,               # reported positions: centres of 5 x 5 blocks
 
-  ## generate mvt matrix of an animal from a cell to the other 
-	Mvt_matrix <- function(Pop_param, Depth_eff, Dist_eff, Lat_eff, Depth_func, Dist_func="Exp", Lat_func, x,y,data.bathym){
-		Mvt_mat <- matrix(0,(length(x)*length(y)),(length(x)*length(y)))
-		for (loc in 1:(length(x)*length(y))){ 
-			Mvt_mat[loc,] <- Mvt_upd1(loc, Pop_param, Depth_eff=Depth_eff, Dist_eff=Dist_eff, Lat_eff=Lat_eff, Depth_func=Depth_func, Dist_func=Dist_func, Lat_func=Lat_func,x,y, data.bathym)
-		}	
-		return(Mvt_mat)
-	}
-		
-  ## for updating the population distribution according to different different covariates (depth and/or dist), using joint prob
-	Mvt_upd1 <- function(loc, Pop_param, Depth_eff, Dist_eff, Lat_eff, Depth_func, Dist_func="Exp", Lat_func, x,y, data.bathym){
-		Di1 <- Pop_param[1]  	# 1st value for dist function
-		Di2 <- Pop_param[2]  	# 2nd value for dist function
-		De1 <- Pop_param[3]  	# 1st value for depth function
-		De2 <- Pop_param[4]	 	# 2nd value for depth function
-		Lat1 <- Pop_param[5]  	# 1st value for lat/long function
-		Lat2 <- Pop_param[6]	# 2nd value for lat/long function
-		
-		a1 <- which(abs(data.bathym$x-data.bathym$x[loc])<=length(x)/2)
-		a2 <- which(abs(data.bathym$x-data.bathym$x[loc])>length(x)/2)
-		a3 <- which(abs(data.bathym$y-data.bathym$y[loc])<=length(y)/2)
-		a4 <- which(abs(data.bathym$y-data.bathym$y[loc])>length(y)/2)
-		Data.bathym <- list()
-		Data.bathym$x[a1] <- data.bathym$x[a1]
-		Data.bathym$x[a2] <- data.bathym$x[a2]#-length(x)
-		Data.bathym$y[a3] <- data.bathym$y[a3]
-		Data.bathym$y[a4] <- data.bathym$y[a4]#-length(y)
-		Dist <- sqrt((Data.bathym$x-Data.bathym$x[loc])^2+(Data.bathym$y-Data.bathym$y[loc])^2)
-		
-		Prob1 <- 1
-		if(Dist_eff=="T"){
-			Prob1 <- dexp(Dist, rate=1/Di1)
-		}
-		
-		Prob2 <- 1
-		if(Depth_eff=="T"){
-			if(Depth_func=="Norm") Prob2 <- dnorm(data.bathym$z, De1, De2*De1)
-			if(Depth_func=="Exp") Prob2 <- dexp(data.bathym$z, rate=1/De1)
-			if(Depth_func=="Lognorm") { SD <- sqrt(log(De2^2+1)); Prob2 <- dlnorm(data.bathym$z, (log(De1)-SD^2/2), SD) }
-			if(Depth_func=="Unif") Prob2 <- dunif(data.bathym$z, De1, De2)
-		}
-		
-		Prob3 <- 1
-		if(Lat_eff=="T"){
-			if(Lat_func=="Norm") Prob3 <- dnorm(data.bathym$x, Lat1, Lat2)
-			if(Lat_func=="Exp") Prob3 <- dexp(data.bathym$x, rate=1/Lat1)
-			if(Lat_func=="Lognorm") Prob3 <- dlnorm(data.bathym$x, (log(Lat1)-Lat2^2/2), Lat2)
-			if(Lat_func=="Unif") Prob3 <- dunif(data.bathym$x, Lat1, Lat2)
-		}
-		
-		Prob <- Prob1*Prob2*Prob3/sum(Prob1*Prob2*Prob3)
-		return(Prob)
-	}
+    # Species ----------------------------------------------------------------
+    species  = c("YFT", "BET", "BFT", "ALB"),
+    B0       = c(400000, 300000, 150000, 350000), # carrying capacity (t)
+    r        = c(0.30, 0.18, 0.12, 0.18),         # intrinsic growth rate
+    sst_opt  = c(25, 24, 20, 21),     # preferred SST (deg C)
+    sst_tol  = c(3, 3.5, 3, 3.5),     # SD of SST preference (deg C)
+    depth_mu = c(90, 200, 180, 110),  # mean depth (m)
+    depth_sd = c(60, 80, 80, 60),     # SD of depth (m)
+    dispersal = rep(1.5, 4),          # mean movement distance per year (cells)
 
-  ## Calculate the initial population distribution
-	Stable_pop_dist <- function(Mvt_mat_adult, B0){
-		Pop1 <- rep(B0/(length(Range_X)*length(Range_Y)), (length(Range_X)*length(Range_Y)))
-		Mvt_mat_adult1 <- t(Mvt_mat_adult)
-		for (Time in seq_len(1000)){
-			Pop <- Mvt_mat_adult1%*%Pop1
-			change <- max(abs(Pop-Pop1))/max(1,max(abs(Pop1)))
-			Pop1 <- Pop
-			if(change < 1e-8) break
-		}
-		Initpop_adult_mat <- matrix(Pop1, nrow=length(Range_X), ncol=length(Range_Y))
-		return(Initpop_adult_mat)
-	}
+    # Environment ------------------------------------------------------------
+    sst_mean = 23,            # mean SST (deg C)
+    sst_gradient = 10,        # SST increase from south to north (deg C)
+    sst_noise = 1,            # SD of the random SST field (deg C)
+    sst_scale = 6,            # correlation scale of the SST field (cells)
+    thermocline_sd = 30,      # SD of the thermocline-depth anomaly field (m)
+    thermocline_scale = 8,    # correlation scale of the anomaly field (cells)
+    current_speed = 0.2,      # mean surface current (m/s); 0 = no shoaling
+    current_cv = 0.5,         # set-to-set CV of current speed
+    max_depth = 500,          # depth range of vertical profiles (m)
+    depth_bin = 10,           # vertical resolution (m)
 
-	attach(Sim_Settings, name="sim_settings")
-	    on.exit(detach("sim_settings"), add=TRUE)
+    # Longline gear (Bigelow et al. 2002) --------------------------------------
+    HBF_levels = c(5, 10, 15, 20),
+    phi_mean = 60, phi_sd = 11.3, # mainline angle at the float (degrees)
+    branch_line = 26.3,       # m
+    float_line = 19.4,        # m
+    hook_spacing = 50,        # mainline length between branch lines (m)
+    shoal_slope = -0.025,     # curvature of the shoaling function
 
-	#### Set the bathymetry field
-	# Same purpose as the former RandomFields::RMgauss/RFsimulate calls.
-	# `fields::circulantEmbedding` is maintained and avoids the archived
-	# RandomFields dependency.
-	grid <- list(x=Range_X, y=Range_Y)
-	cov_obj <- fields::circulantEmbeddingSetup(
-	  grid, cov.args=list(Covariance="Exponential", aRange=SpatialScale, p=2))
-	Bathym <- SD_O * fields::circulantEmbedding(cov_obj)
-	data.bathym <- data.frame(ID = length(Range_X)*length(Range_Y), x = rep(Range_X, length(Range_Y))+0.5, y = rep(Range_Y, each=length(Range_X))+0.5, z=as.vector(Bathym))
-	data.bathym$z = data.bathym$z+abs(min(data.bathym$z))	# to avoid getting negative depth here depth takes positive real number
-	#data.bathym$Depth = -data.bathym$z
-	jet.colors <- colorRampPalette(c("#00007F", "blue", "#007FFF", "cyan", "#7FFF7F", "yellow", "#FF7F00", "red", "#7F0000"))
-	
-	
-	df = data.bathym
-	df$Depth = -df$z
-	
-	pdepth = ggplot() +
-	  geom_raster(data = df, aes(x = x, y = y, fill = Depth)) + 
-	  scale_fill_gradientn(colors = (jet.colors(10))) + 
-	  coord_quickmap(xlim = c(1,NA), ylim=c(1,NA),expand = FALSE)+ggtitle("Bathymetry")
-	
-	#### Set the pop mvt param
-	Par_mvt_adult <- rbind(Fish_dist_par1, Fish_dist_par2, Fish_depth_par1, Fish_depth_par2, Fish_range_par1, Fish_range_par2);
-	Mvt_mat_adult <- lapply(1:n_species, function(xxx) Mvt_matrix(Par_mvt_adult[,xxx], Depth_eff="T", Dist_eff="T", Lat_eff="T", Dist_func=func_mvt_dist[xxx], Depth_func=func_mvt_depth[xxx], Lat_func=func_mvt_lat[xxx], Range_X, Range_Y, data.bathym))
+    # Fleet -------------------------------------------------------------------
+    price = matrix(c(rep(c(2.0, 0.5, 0.5, 1.0), 10),   # years 1-10: YFT
+                     rep(c(0.5, 2.0, 1.0, 0.5), 10),   # years 11-20: BET
+                     rep(c(0.5, 1.0, 2.0, 0.5), 10)),  # years 21-30: BFT
+                   ncol = 4, byrow = TRUE),
+    n_vessels = 30,
+    effort = 1500,            # asymptotic number of sets per year
+    effort_cv = 0.2,
+    q = 0.2,                  # mean catchability per set at full vertical overlap
+    vessel_cv = 0.2,          # between-vessel CV in catchability
+    tweedie_power = 1.2,      # set-level noise in catchability
+    tweedie_phi = 0.1,
+    preference = 1.5,         # concentration of effort on high-value cells
+    HBF_choice_temp = 0.15,   # lower = skippers pick the best HBF more strictly
+    avail_ref = 100           # vertical availability of 1 = fish spread evenly
+                              # over a 100-m layer fished by all hooks
+  )
+}
 
-	# Vertical fish-habitat and HBF-to-hook-depth parameters are separate from
-	# the bathymetric preference above. The defaults are illustrative; set them
-	# from fishery-specific information before scientific use.
-	if(!exists("Fish_vertical_mu")) Fish_vertical_mu <- rep(200, n_species)
-	if(!exists("Fish_vertical_sd")) Fish_vertical_sd <- rep(80, n_species)
-	if(!exists("HBF_levels")) HBF_levels <- c(5, 8, 11)
-	if(!exists("HBF_depth_mean")) HBF_depth_mean <- c("5"=120, "8"=180, "11"=240)
-	if(!exists("HBF_depth_sd")) HBF_depth_sd <- c("5"=30, "8"=40, "11"=55)
-	if(!exists("HBF_hook_sd")) HBF_hook_sd <- c("5"=45, "8"=60, "11"=75)
-	if(!exists("HBF_choice_temp")) HBF_choice_temp <- 0.5
-	if(length(Fish_vertical_mu)!=n_species || length(Fish_vertical_sd)!=n_species)
-	  stop("Fish_vertical_mu and Fish_vertical_sd must have one value per species.")
-	if(any(Fish_vertical_sd<=0) || any(HBF_depth_sd<=0) || any(HBF_hook_sd<=0))
-	  stop("Vertical and hook-depth standard deviations must be positive.")
-	if(HBF_choice_temp<=0 || any(HBF_depth_mean<=0))
-	  stop("HBF_choice_temp and HBF_depth_mean values must be positive.")
-	if(!all(HBF_levels %in% names(HBF_depth_mean)) ||
-	   !all(HBF_levels %in% names(HBF_depth_sd)) ||
-	   !all(HBF_levels %in% names(HBF_hook_sd)))
-	  stop("HBF depth vectors must be named by every value in HBF_levels.")
+#' Simulate a longline fishery for four tuna species with vertical targeting
+#'
+#' Extends the bathymetric Run 22 operating model with a vertical dimension
+#' following the habitat-based approach of Bigelow et al. (2002). The
+#' catchability of a set for a species is the vessel's catchability times the
+#' overlap between the set's hook-depth distribution and the species' vertical
+#' distribution in that cell (Bigelow's effective effort). See
+#' [tuna_settings()] for the processes and parameters.
+#'
+#' @param settings A named list, usually a modified [tuna_settings()].
+#' @param seed Optional integer seed for reproducibility.
+#' @param plots Logical; build the diagnostic ggplots in `Plots`.
+#'
+#' @return A list with
+#' * `Data`: one row per set and species with `year`, `SetID`, `X`, `Y`,
+#'   `Xobs`, `Yobs`, `vessel`, `HBF`, `sst`, `thermocline` (anomaly, m),
+#'   `Species`, `Sp`, `CPUE`, and the latent truth `hook_depth` (mean hook
+#'   depth of the set), `vertical_avail` (realised vertical overlap) and
+#'   `hbs_avail` (overlap predicted from HBF alone, as in a habitat-based
+#'   standardisation);
+#' * `Biomass`: annual nominal and true indices, scaled to mean 1;
+#' * `Biomass.XY`: initial density by cell and species;
+#' * `Env`: SST and thermocline anomaly by cell;
+#' * `Plots`: diagnostic ggplots (if `plots = TRUE`);
+#' * `settings`: the settings used.
+#'
+#' @references Bigelow, K.A., Hampton, J. and Miyabe, N. (2002) Application of
+#'   a habitat-based model to estimate effective longline fishing effort and
+#'   relative abundance of Pacific bigeye tuna (*Thunnus obesus*). Fisheries
+#'   Oceanography 11, 143-155.
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#' om <- simulate_tuna(seed = 42)
+#' head(om$Data)
+#' om$Plots$CPUE
+#' }
+simulate_tuna <- function(settings = tuna_settings(), seed = NULL, plots = TRUE) {
+  if (!is.list(settings) || is.null(names(settings))) {
+    stop("`settings` must be a named list.", call. = FALSE)
+  }
+  if (!is.null(seed)) set.seed(seed)
+  s <- utils::modifyList(tuna_settings(), settings)
+  check_tuna_settings(s)
+  species <- s$species
+  ns <- length(species)
 
-	# Normal-profile overlap, scaled to [0,1]. Actual mean hook depth is latent;
-	# its set-to-set variation conditional on HBF is the proxy uncertainty.
-	vertical_overlap <- function(fish_mu, fish_sd, gear_mu, gear_sd) {
-	  sqrt(2 * fish_sd * gear_sd / (fish_sd^2 + gear_sd^2)) *
-	    exp(-0.5 * (fish_mu - gear_mu)^2 / (fish_sd^2 + gear_sd^2))
-	}
-				
-	#### Biomass dynamics: similarly to the work from Caruthers, we assume that there is a regional carrying capacity
-	# Initial population distribution 
-	B1 = B0*0.5*rlnorm(4,0,0.2)
-	Pop_adult <- sapply(1:n_species, function(x) Stable_pop_dist(Mvt_mat_adult[[x]], B1[x]))				
-	
+  # Grid and environment -------------------------------------------------------
+  n_cells <- s$nx * s$ny
+  x <- rep(seq_len(s$nx), s$ny) + 0.5
+  y <- rep(seq_len(s$ny), each = s$nx) + 0.5
+  sst <- s$sst_mean + s$sst_gradient * (y - mean(y)) / s$ny +
+    as.vector(simulate_grf(s$nx, s$ny, s$sst_noise, s$sst_scale))
+  thermocline <- as.vector(simulate_grf(s$nx, s$ny, s$thermocline_sd, s$thermocline_scale))
 
-	
-	Bxy = data.frame(Pop_adult)
-	colnames(Bxy) = paste0("Species",1:n_species)
-	Bxy = cbind(df,Bxy)[,-c(1,4)]
-	names(Bxy)
-	
-	Bxy = reshape2::melt(Bxy, id.vars = c("x", "y","Depth"))
-	colnames(Bxy) = c(names(Bxy)[-5],"Density")
-	#reshape2::dcast(Bxy1, x+ y+Depth ~ variable)               
-	
-	pbxy =  ggplot() +
-	  geom_raster(data = Bxy, aes(x = x, y = y, fill = log(Density+1))) + facet_wrap(~variable)+
-	  scale_fill_gradientn(colors = (jet.colors(10))) + 
-	  coord_quickmap(xlim = c(0.5,NA), ylim=c(0.5,NA),expand = FALSE)+ggtitle("True spatial densisities")
-	
-	Biomass <- list()
-	Biomass[[1]] <- Pop_adult
-	Biomass[[1]] <- apply(Biomass[[1]], 2,function(x) replace(x, which(x<=0), 0))
-		
-	#### Vessel dynamics
+  # Horizontal habitat and movement --------------------------------------------
+  habitat <- vapply(seq_len(ns), function(i) stats::dnorm(sst, s$sst_opt[i], s$sst_tol[i]),
+                    numeric(n_cells))
+  kernels <- dispersal_kernels(x, y, s$dispersal)
+  movement <- lapply(seq_len(ns), function(i) movement_operator(kernels[[i]], habitat[, i]))
 
-	# generate total effort by year (total effort is randomly sampled with log normal error around a logistic type function)
-	Sig_effort <- sqrt(log(CV_effort^2+1))
-	Effort <- c(); Mean_Effort <- c()		
-	Effort_area_year <- list()
-	Sig_vessel <- sqrt(log(CV_vessel^2+1))
-	qq_vessel <- rlnorm(Nvessels, log(qq_original)-Sig_vessel^2/2, Sig_vessel)		
-		
-	# use of tweedie distribution to generate catch data for individual boat
-	I <- list()	
-	xi <- xi	 # that controls for the value of power such that the variance is var[Y] = phi*mu^xi
-	phi <- phi	  	
-	Catch_area_year <- list(); Catch_area_year_ind <- c()
-	set_id_counter <- 0L
+  # Vertical distributions: cells x depth bins, one matrix per species ----------
+  edges <- seq(0, s$max_depth, by = s$depth_bin)
+  mids <- edges[-1] - s$depth_bin / 2
+  fish_profile <- lapply(seq_len(ns), function(i) {
+    p <- stats::dnorm(matrix(mids, n_cells, length(mids), byrow = TRUE),
+                      mean = s$depth_mu[i] + thermocline, sd = s$depth_sd[i])
+    p / rowSums(p)
+  })
+  avail_scale <- s$avail_ref / s$depth_bin
 
-	#### Updating the population and generate catch data according to the above specifications
-	for (iyear in 1:n_years){
-		
-		### do vessel change their fishing preference over the year (this ONLY controls vessel concentration factor) 
-		if(Changing_preference==TRUE) Preference <- 2-exp(-0.1*iyear)
-		
-		### Assigning total effort in a year		
-		Mean_Effort[iyear] <- (Tot_effort/(1+exp(-0.1*iyear)))		# mean effort by year
-		Effort[iyear] <- trunc(rlnorm(1, log(Mean_Effort[iyear])-Sig_effort^2/2, Sig_effort))		# effort by year
-			
-		### Determining the predicted area specific CPUE
-		map.size <- length(Range_X)*length(Range_Y)
-			
-		### changing the catchability "qq" every year depending on whether a specific area is closed or not
-		if (iyear>=year.depth.restriction){
-			catchability <- rep(1,map.size)
-			if(length(depth.restriction)==2) catchability <- replace(catchability, which(data.bathym$z >= depth.restriction[1] & data.bathym$z <= depth.restriction[2]), 0)
-			if(is.character(depth.restriction) && length(depth.restriction)==1 && depth.restriction=="random") catchability <- replace(catchability, sample(1:map.size, size=min(20,map.size)), 0)
-			qq <- catchability
-		} else { qq <- qq_original }
-		
-		### Expected value includes the best HBF configuration available at each
-		### cell, so both spatial and gear targeting affect effort allocation.
-		catchability_cell <- if(length(qq)==1) rep(qq,map.size) else qq
-		gear_value <- sapply(HBF_levels, function(h) {
-		  ov <- vapply(seq_len(n_species), function(s) {
-		    vertical_overlap(Fish_vertical_mu[s], Fish_vertical_sd[s],
-		                    HBF_depth_mean[as.character(h)], HBF_hook_sd[as.character(h)])
-		  }, numeric(1))
-		  qmat <- matrix(1-exp(-catchability_cell),nrow=map.size,ncol=n_species)
-		  pmat <- matrix(price_fish[iyear,]*ov,nrow=map.size,ncol=n_species,byrow=TRUE)
-		  rowSums(Biomass[[iyear]] * qmat * pmat)
-		})
-		CPUE_tot <- apply(gear_value, 1, max)
-		CPUE_tot[!is.finite(CPUE_tot) | CPUE_tot<0] <- 0
-		if(sum(CPUE_tot^Preference)<=0) stop("No positive expected catch available for effort allocation.")
-				
-		### Distribute the total effort according to the above predicted CPUE
-		p <- CPUE_tot^Preference/sum(CPUE_tot^Preference);min(p);max(p)		
-		Effort_area_year[[iyear]] <- rmultinom(1, size=Effort[iyear], p=p)
-			
-		### Then calculate the total catch in each area  
-		aa <- c(); AA <- c()			
-		Catch_year_area_mat <- matrix(0, nrow=(length(Range_X)*length(Range_Y)), ncol=n_species)
-		
-		for (xyz in which(Effort_area_year[[iyear]]>0)){
-			which.vessel.fished <- sample(1:Nvessels, Effort_area_year[[iyear]][xyz], replace=TRUE)
-				
-			# Select HBF in response to expected species value at this cell, then
-			# draw latent set depth around the broad HBF-depth relationship.
-			gear_score <- sapply(HBF_levels, function(h) {
-			  ov <- vapply(seq_len(n_species), function(s) {
-			    vertical_overlap(Fish_vertical_mu[s], Fish_vertical_sd[s],
-			                    HBF_depth_mean[as.character(h)], HBF_hook_sd[as.character(h)])
-			  }, numeric(1))
-			  qq_cell <- if(length(qq)==1) qq else qq[xyz]
-			  sum(Biomass[[iyear]][xyz,] * (1-exp(-qq_cell)) *
-			        price_fish[iyear,] * ov)
-			})
-			gear_score <- gear_score / max(1, max(abs(gear_score)))
-			gear_prob <- exp((gear_score-max(gear_score))/HBF_choice_temp)
-			gear_prob <- gear_prob/sum(gear_prob)
-			nsets <- Effort_area_year[[iyear]][xyz]
-			set_ids <- set_id_counter + seq_len(nsets)
-			set_id_counter <- set_id_counter + nsets
-			HBF <- sample(HBF_levels, nsets, replace=TRUE, prob=gear_prob)
-			hook_depth_m <- pmax(1, rnorm(nsets,
-			  mean=HBF_depth_mean[as.character(HBF)],
-			  sd=HBF_depth_sd[as.character(HBF)]))
-			gear_sd <- HBF_hook_sd[as.character(HBF)]
-			overlap <- sapply(seq_len(n_species), function(s) {
-			  vertical_overlap(Fish_vertical_mu[s], Fish_vertical_sd[s],
-			                  hook_depth_m, gear_sd)
-			})
-			if(nsets==1) overlap <- matrix(overlap,nrow=1)
+  # Expected availability for each HBF (nominal gear: mean angle, no currents)
+  hbf_profile <- nominal_hook_profiles(s, edges)
+  expected_avail <- lapply(fish_profile, function(p) p %*% t(hbf_profile) * avail_scale)
 
-			# This is the code using the continuous function (as suggested by Andre: more realistic)
-			if(do.tweedie==TRUE) rand.vessel <- matrix(sapply(1:n_species, function(x) tweedie::rtweedie(nsets, xi=xi, mu=qq_vessel[which.vessel.fished], phi=phi)),ncol=n_species)
-			if(do.tweedie==FALSE) rand.vessel <- matrix(sapply(1:n_species, function(x) qq_vessel[which.vessel.fished]),ncol=n_species)
-			effective_q <- rand.vessel * overlap
-			catch_area_vessel <- matrix(vapply(seq_len(n_species), function(Y) {
-			  hum <- Biomass[[iyear]][xyz,Y]*(1-exp(-sum(effective_q[,Y])))
-			  if (hum == 0) return(rep(0, nsets))
-			  hum*effective_q[,Y]/sum(effective_q[,Y])
-			}, numeric(nsets)), nrow=nsets, ncol=n_species)
-			catch_area_vessel <- data.frame(
-			  year=rep(iyear,nsets), SetID=set_ids,
-			  X=rep(data.bathym$x[xyz],nsets), Y=rep(data.bathym$y[xyz],nsets),
-			  depth=rep(data.bathym$z[xyz],nsets), vessel=which.vessel.fished,
-			  HBF=HBF, hook_depth_m=hook_depth_m,
-			  as.data.frame(overlap), as.data.frame(catch_area_vessel),
-			  check.names=FALSE)
-			colnames(catch_area_vessel) <- c("year", "SetID", "X", "Y", "depth", "vessel",
-			  "HBF", "hook_depth_m", paste0("overlap_Sp",1:n_species), paste0("Sp",1:n_species))
-			Catch_year_area_mat[xyz,] <- colSums(catch_area_vessel[,paste0("Sp",1:n_species),drop=FALSE])
-			
-			AA <- rbind(AA, catch_area_vessel)
-		}
-		
-		Catch_area_year_ind <- rbind(Catch_area_year_ind, AA)
-		Catch_area_year[[iyear]] <- Catch_year_area_mat
-		
-   	### Then update the population
-		Biomass[[iyear+1]] <- Biomass[[iyear]]+r*Biomass[[iyear]]*(1-Biomass[[iyear]]/Biomass[[1]])-Catch_area_year[[iyear]]
-		Biomass[[iyear+1]] <- apply(Biomass[[iyear+1]],2,function(x) replace(x, which(is.na(x)==TRUE | x<=0),0))
-		
-		### population mvt at the end of year			
-		if (no.mvt==FALSE)	Biomass[[iyear+1]] <- sapply(1:n_species, function(x) t(Mvt_mat_adult[[x]])%*%Biomass[[iyear+1]][,x])
-		if (no.mvt==TRUE)	Biomass[[iyear+1]] <- Biomass[[iyear+1]]
+  # Initial biomass = carrying capacity = B0 (with lognormal noise), spread
+  # over the stable distribution of the movement process --------------------
+  b_init <- s$B0 * stats::rlnorm(ns, 0, 0.2)
+  biomass <- vapply(seq_len(ns), function(i) movement[[i]]$stable * b_init[i],
+                    numeric(n_cells))
+  carrying <- biomass
 
-		Biomass[[iyear+1]] <- apply(Biomass[[iyear+1]],2,function(x) replace(x, which(is.na(x)==TRUE | x<=0),0))
+  # Fleet ------------------------------------------------------------------------
+  sig_vessel <- sqrt(log(s$vessel_cv^2 + 1))
+  q_vessel <- stats::rlnorm(s$n_vessels, log(s$q) - sig_vessel^2 / 2, sig_vessel)
+  n_hbf <- length(s$HBF_levels)
 
-	}
-		
-	    dhist = reshape2::melt(data.frame(Catch_area_year_ind[,paste0("Sp",1:n_species)]))
-    ph = ggplot(data=dhist)+geom_histogram(aes(x=value),bins=80,fill="grey",col=1)+facet_wrap(~variable, scales = "free")+theme_bw()+xlab("CPUE")+ylab("Frequency")
-    
-		
-	#### Return data                                                                # v.names="CPUE", 
-	#Raw_data <- reshape(Catch_area_year_ind, varying=paste0("Sp",1:n_species), timevar="Species", times=1:n_species, direction="long") 
-	Obs <- NULL
-	for(i in 1:n_species) Obs = rbind(Obs, cbind(Catch_area_year_ind[,c("year","SetID","X","Y","depth","vessel","HBF","hook_depth_m")], "Species"=i, "vertical_overlap"=Catch_area_year_ind[,paste0("overlap_Sp",i)], "CPUE"=Catch_area_year_ind[,paste0("Sp",i)]))
-	Bio <- t(sapply(1:n_years, function(x) colSums(Biomass[[x]])))
-	
-	
-	Obs = data.frame(Obs)
-	Obs$Xobs = round(Obs$X/5)*5+5/2
-	Obs$Yobs = round(Obs$Y/5)*5+5/2
-	Obs$Sp = paste0("Sp",Obs$Species)	
-	Obs = Obs[,c("year","SetID","X","Y","Xobs","Yobs","Species","Sp","CPUE","HBF","hook_depth_m","vertical_overlap","depth","vessel")]
-	
-	bio = t(t(Bio)/(apply(Bio,2,mean)))
-	idx = reshape2::dcast(aggregate(CPUE~year+Sp,Obs,mean),year~Sp)
-	t(t(idx[-1])/(apply(idx[-1],2,mean)))
-	bio = data.frame(reshape2::melt(bio))
-	names(bio) = c("year","Sp","True")
-  
-	idx = reshape2::dcast(aggregate(CPUE~year+Sp,Obs,mean),year~Sp)
-  idx  = t(t(idx[-1])/(apply(idx[-1],2,mean)))
-  idx = data.frame(reshape2::melt(idx))
-  names(idx) = c("year","Sp","Nominal")
-  idx = data.frame(idx,True=bio$True)
-  
-  pidx = ggplot(idx)+
-    geom_line(aes(year,Nominal))+geom_point(aes(year,Nominal),pch=21,fill="grey")+
-    theme_bw()+facet_wrap(~Sp)+geom_line(aes(year,True),linewidth=1.,col="darkblue")+
-    geom_hline(yintercept = 1,linetype=2)
-  
-  plots = list()
-  plots$Depth = pdepth
-  plots$SpDens = pbxy
-  plots$Hist = ph
-  plots$CPUE = pidx+facet_wrap(~Sp,scale="free")  
-  
-  Return = list("Data"= Obs, "Biomass"=idx,"Biomass.XY"=Bxy,"Plots"=plots)
-	return(Return)
-}		
+  records <- vector("list", s$n_years)
+  total_biomass <- matrix(0, s$n_years, ns)
+  set_counter <- 0L
+
+  for (yr in seq_len(s$n_years)) {
+    total_biomass[yr, ] <- colSums(biomass)
+    n_sets <- annual_effort(yr, s$effort, s$effort_cv)
+
+    # Expected value of each cell x HBF combination
+    value_hbf <- matrix(0, n_cells, n_hbf)
+    for (i in seq_len(ns)) {
+      value_hbf <- value_hbf + s$price[yr, i] * biomass[, i] * (1 - exp(-s$q * expected_avail[[i]]))
+    }
+    best <- value_hbf[cbind(seq_len(n_cells), max.col(value_hbf, ties.method = "first"))]
+    if (sum(best) <= 0) stop("No positive expected catch in year ", yr, call. = FALSE)
+
+    # Where to fish (spatial targeting)
+    p_cell <- best^s$preference / sum(best^s$preference)
+    cell <- rep.int(seq_len(n_cells), stats::rmultinom(1, n_sets, p_cell)[, 1])
+    k <- length(cell)
+
+    # Which HBF to use (vertical targeting)
+    w <- (value_hbf[cell, , drop = FALSE] / best[cell])^(1 / s$HBF_choice_temp)
+    hbf <- s$HBF_levels[sample_rows(w)]
+
+    # Realised hook depths and vertical overlap of each set
+    hooks <- set_hook_profiles(hbf, s, edges)
+    avail <- vapply(seq_len(ns), function(i) {
+      rowSums(hooks$profile * fish_profile[[i]][cell, , drop = FALSE]) * avail_scale
+    }, numeric(k))
+    avail <- matrix(avail, k, ns)
+    hbs <- vapply(seq_len(ns), function(i) {
+      expected_avail[[i]][cbind(cell, match(hbf, s$HBF_levels))]
+    }, numeric(k))
+    hbs <- matrix(hbs, k, ns)
+
+    # Catch
+    vessel <- sample.int(s$n_vessels, k, replace = TRUE)
+    q_set <- matrix(rtweedie_cp(rep(q_vessel[vessel], ns), s$tweedie_power, s$tweedie_phi),
+                    k, ns) * avail
+    catch <- allocate_catch(biomass, cell, q_set)
+
+    records[[yr]] <- list(
+      sets = data.frame(year = yr, SetID = set_counter + seq_len(k),
+                        X = x[cell], Y = y[cell], vessel = vessel, HBF = hbf,
+                        sst = sst[cell], thermocline = thermocline[cell],
+                        hook_depth = hooks$mean_depth),
+      catch = catch$set, avail = avail, hbs = hbs)
+    set_counter <- set_counter + k
+
+    biomass <- schaefer_update(biomass, carrying, s$r, catch$cell)
+    biomass <- vapply(seq_len(ns), function(i) move_biomass(movement[[i]], biomass[, i]),
+                      numeric(n_cells))
+  }
+
+  sets <- do.call(rbind, lapply(records, `[[`, "sets"))
+  catch <- do.call(rbind, lapply(records, `[[`, "catch"))
+  avail <- do.call(rbind, lapply(records, `[[`, "avail"))
+  hbs <- do.call(rbind, lapply(records, `[[`, "hbs"))
+  sets$Xobs <- coarse_coord(sets$X, s$obs_res)
+  sets$Yobs <- coarse_coord(sets$Y, s$obs_res)
+  set_cols <- c("year", "SetID", "X", "Y", "Xobs", "Yobs", "vessel", "HBF",
+                "sst", "thermocline")
+  data <- do.call(rbind, lapply(seq_len(ns), function(i) {
+    data.frame(sets[, set_cols], Species = i, Sp = species[i], CPUE = catch[, i],
+               hook_depth = sets$hook_depth, vertical_avail = avail[, i],
+               hbs_avail = hbs[, i])
+  }))
+  rownames(data) <- NULL
+
+  env <- data.frame(x = x, y = y, SST = sst, thermocline = thermocline)
+  out <- list(
+    Data = data,
+    Biomass = index_table(data, total_biomass, species),
+    Biomass.XY = density_table(env, carrying, species),
+    Env = env,
+    settings = s
+  )
+  if (plots) out$Plots <- plot_om(out)
+  out
+}
+
+#' Draw one column index per row with probabilities proportional to `w`
+#' @noRd
+sample_rows <- function(w) {
+  w[!is.finite(w)] <- 0
+  w[rowSums(w) == 0, ] <- 1
+  cum <- w
+  if (ncol(w) > 1) for (j in 2:ncol(w)) cum[, j] <- cum[, j - 1] + w[, j]
+  u <- stats::runif(nrow(w)) * cum[, ncol(w)]
+  pmin(rowSums(u > cum) + 1L, ncol(w))
+}
+
+#' Hook depths along one basket of longline (Bigelow et al. 2002, eq. 2)
+#'
+#' Catenary depth of hook `j` (1 to `hbf`) for mainline angle `phi` (degrees).
+#' `hbf` and `phi` must be the same length or length one.
+#'
+#' @return Depth (m) of each hook; the vectors are recycled hook-by-hook.
+#' @noRd
+catenary_depth <- function(j, hbf, phi, s) {
+  n <- hbf + 1
+  half_length <- s$hook_spacing * n / 2
+  cot2 <- 1 / tan(phi * pi / 180)^2
+  s$branch_line + s$float_line +
+    half_length * (sqrt(1 + cot2) - sqrt((1 - 2 * j / n)^2 + cot2))
+}
+
+#' Hook-depth distribution (proportion of hooks per depth bin) of individual sets
+#'
+#' For every set, the depth of each hook comes from the catenary with a
+#' set-specific mainline angle `phi ~ N(phi_mean, phi_sd)`, is reduced by
+#' current shoaling (Bigelow et al. 2002, eq. 4-5), and varies within the set
+#' with SD `8.73 + 4.4 j` (eq. 3), where `j` counts hooks from the nearest float.
+#'
+#' @return A list with `profile` (sets x depth bins) and `mean_depth`.
+#' @noRd
+set_hook_profiles <- function(hbf, s, edges) {
+  k <- length(hbf)
+  phi <- pmin(pmax(stats::rnorm(k, s$phi_mean, s$phi_sd), 30), 85)
+  speed <- if (s$current_speed > 0) {
+    sig <- sqrt(log(s$current_cv^2 + 1))
+    stats::rlnorm(k, log(s$current_speed) - sig^2 / 2, sig)
+  } else rep(0, k)
+  shoaling <- pmin(0.985 * speed, 0.9)     # proportion (eq. 4), capped
+
+  set <- rep.int(seq_len(k), hbf)          # one row per hook
+  j <- sequence(hbf)
+  depth <- catenary_depth(j, hbf[set], phi[set], s)
+  median_depth <- stats::ave(depth, set, FUN = stats::median)
+  depth <- depth - depth * shoaling[set] / (1 + exp(s$shoal_slope * (depth - median_depth)))
+  sd_hook <- 8.73 + 4.4 * pmin(j, hbf[set] + 1 - j)
+
+  profile <- hook_bin_mass(depth, sd_hook, edges)
+  list(profile = rowsum(profile, set) / hbf,
+       mean_depth = as.vector(rowsum(depth, set)) / hbf)
+}
+
+#' Expected hook-depth distribution of each HBF level (mean angle, no currents)
+#' @noRd
+nominal_hook_profiles <- function(s, edges) {
+  t(vapply(s$HBF_levels, function(h) {
+    j <- seq_len(h)
+    depth <- catenary_depth(j, h, s$phi_mean, s)
+    colMeans(hook_bin_mass(depth, 8.73 + 4.4 * pmin(j, h + 1 - j), edges))
+  }, numeric(length(edges) - 1)))
+}
+
+#' Proportion of each hook's normal depth distribution in each bin
+#'
+#' Mass above the surface or below `max_depth` is reassigned proportionally,
+#' so every row sums to one.
+#' @noRd
+hook_bin_mass <- function(depth, sd, edges) {
+  cdf <- stats::pnorm(outer(depth, edges, function(d, e) e - d) / sd)
+  mass <- cdf[, -1, drop = FALSE] - cdf[, -ncol(cdf), drop = FALSE]
+  mass / rowSums(mass)
+}
+
+#' Basic checks on tuna settings
+#' @noRd
+check_tuna_settings <- function(s) {
+  ns <- length(s$species)
+  per_species <- c("B0", "r", "sst_opt", "sst_tol", "depth_mu", "depth_sd", "dispersal")
+  bad <- per_species[vapply(per_species, function(v) length(s[[v]]) != ns, logical(1))]
+  if (length(bad)) stop("These settings need one value per species: ",
+                        paste(bad, collapse = ", "), call. = FALSE)
+  if (!is.matrix(s$price) || ncol(s$price) != ns || nrow(s$price) < s$n_years) {
+    stop("`price` must be a matrix with one row per year and one column per species.",
+         call. = FALSE)
+  }
+  if (any(s$sst_tol <= 0) || any(s$depth_sd <= 0)) {
+    stop("`sst_tol` and `depth_sd` must be positive.", call. = FALSE)
+  }
+  if (s$HBF_choice_temp <= 0) stop("`HBF_choice_temp` must be positive.", call. = FALSE)
+  if (s$max_depth %% s$depth_bin != 0) {
+    stop("`max_depth` must be a multiple of `depth_bin`.", call. = FALSE)
+  }
+  invisible(TRUE)
+}

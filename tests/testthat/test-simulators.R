@@ -1,0 +1,61 @@
+small_bathymetric <- function() {
+  modifyList(bathymetric_settings(), list(n_years = 5, Range_X = 1:15, Range_Y = 1:15,
+                                          Tot_effort = 100))
+}
+
+small_tuna <- function() {
+  s <- tuna_settings()
+  modifyList(s, list(n_years = 6, nx = 15, ny = 15, effort = 200,
+                     price = s$price[c(1, 1, 11, 11, 21, 21), ]))
+}
+
+test_that("bathymetric model returns consistent output", {
+  sim <- simulate_bathymetric(small_bathymetric(), seed = 1, plots = FALSE)
+  expect_named(sim, c("Data", "Biomass", "Biomass.XY", "Env", "settings"))
+  expect_true(all(c("year", "SetID", "X", "Y", "Xobs", "Yobs", "Sp", "CPUE",
+                    "depth", "vessel") %in% names(sim$Data)))
+  expect_equal(nrow(sim$Data), 4 * length(unique(sim$Data$SetID)))
+  expect_false(anyNA(sim$Data$CPUE))
+  expect_true(all(sim$Data$CPUE >= 0))
+  expect_equal(nrow(sim$Biomass), 5 * 4)
+  expect_equal(as.vector(tapply(sim$Biomass$True, sim$Biomass$Sp, mean)), rep(1, 4))
+})
+
+test_that("simulations are reproducible with a seed", {
+  a <- simulate_tuna(small_tuna(), seed = 9, plots = FALSE)
+  b <- simulate_tuna(small_tuna(), seed = 9, plots = FALSE)
+  expect_identical(a$Data, b$Data)
+})
+
+test_that("tuna model returns HBF, latent overlap and sensible values", {
+  sim <- simulate_tuna(small_tuna(), seed = 2, plots = FALSE)
+  d <- sim$Data
+  expect_true(all(c("HBF", "sst", "thermocline", "hook_depth",
+                    "vertical_avail", "hbs_avail") %in% names(d)))
+  expect_true(all(d$HBF %in% tuna_settings()$HBF_levels))
+  expect_true(all(d$vertical_avail >= 0))
+  expect_false(anyNA(d$CPUE))
+  expect_equal(levels(sim$Biomass$Sp), c("YFT", "BET", "BFT", "ALB"))
+  # deeper gear sets fish deeper
+  depth_by_hbf <- tapply(d$hook_depth, d$HBF, mean)
+  expect_true(all(diff(depth_by_hbf) > 0))
+  sets <- as_set_data(d)
+  expect_equal(nrow(sets), length(unique(d$SetID)))
+  expect_true(all(c("YFT", "BET", "BFT", "ALB") %in% names(sets)))
+})
+
+test_that("plots are built", {
+  sim <- simulate_tuna(small_tuna(), seed = 3)
+  expect_true(all(c("Env", "SpDens", "Hist", "CPUE", "HBF") %in% names(sim$Plots)))
+  expect_s3_class(sim$Plots$CPUE, "ggplot")
+  expect_s3_class(plot_tuna_vertical_distributions(), "ggplot")
+})
+
+test_that("standardisation runs and returns indices for all models", {
+  skip_if_not_installed("mgcv")
+  sim <- simulate_tuna(small_tuna(), seed = 4, plots = FALSE)
+  res <- standardize_tuna_indices(sim, models = c("Base", "HBF", "HBS"))
+  expect_equal(nrow(res$indices), 4 * 3 * 6)
+  expect_false(anyNA(res$indices$index))
+  expect_s3_class(plot_indices(res), "ggplot")
+})

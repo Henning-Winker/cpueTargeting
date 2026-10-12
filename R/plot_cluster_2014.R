@@ -23,20 +23,27 @@ plot_cluster_2014 <- function(simulation) {
          call. = FALSE)
   }
 
-  biomass <- reshape2::melt(simulation$biomass, id.vars = "year",
-                            variable.name = "species",
-                            value.name = "biomass")
+  to_long <- function(df, id, names_to, values_to) {
+    cols <- setdiff(names(df), id)
+    out <- data.frame(rep(df[[id]], length(cols)),
+                      factor(rep(cols, each = nrow(df)), levels = cols),
+                      unlist(df[cols], use.names = FALSE))
+    names(out) <- c(id, names_to, values_to)
+    out
+  }
+  biomass <- to_long(simulation$biomass, "year", "species", "biomass")
   p_biomass <- ggplot2::ggplot(biomass,
-      ggplot2::aes(x = year, y = biomass, colour = species, group = species)) +
+      ggplot2::aes(x = .data$year, y = .data$biomass, colour = .data$species,
+                   group = .data$species)) +
     ggplot2::geom_line(linewidth = 0.9) +
     ggplot2::labs(title = "True biomass trajectories", x = "Year",
                   y = "Biomass", colour = "Species") +
     ggplot2::theme_bw()
 
-  effort <- reshape2::melt(simulation$effort, id.vars = "year",
-                           variable.name = "habitat", value.name = "share")
+  effort <- to_long(simulation$effort, "year", "habitat", "share")
   p_effort <- ggplot2::ggplot(effort,
-      ggplot2::aes(x = year, y = share, colour = habitat, group = habitat)) +
+      ggplot2::aes(x = .data$year, y = .data$share, colour = .data$habitat,
+                   group = .data$habitat)) +
     ggplot2::geom_line(linewidth = 0.9) +
     ggplot2::geom_point(size = 1.5) +
     ggplot2::scale_y_continuous(limits = c(0, 1)) +
@@ -44,13 +51,9 @@ plot_cluster_2014 <- function(simulation) {
                   y = "Proportion of effort", colour = "Habitat") +
     ggplot2::theme_bw()
 
-  catches <- reshape2::melt(
-    simulation$data[, c("trip", "year", grep("^(KOB|GLBK|HAKE|PANG|CRPN|SNTR|ROMN|DRGD|RSTM|SHRK)$",
-      names(simulation$data), value = TRUE)), drop = FALSE],
-    id.vars = c("trip", "year"), variable.name = "species",
-    value.name = "cpue"
-  )
-  p_catches <- ggplot2::ggplot(catches, ggplot2::aes(x = log10(cpue + 1))) +
+  species <- setdiff(names(simulation$biomass), "year")
+  catches <- to_long(simulation$data[, c("trip", species)], "trip", "species", "cpue")
+  p_catches <- ggplot2::ggplot(catches, ggplot2::aes(x = log10(.data$cpue + 1))) +
     ggplot2::geom_histogram(bins = 40, fill = "grey65", colour = "white") +
     ggplot2::facet_wrap(~species, scales = "free_y") +
     ggplot2::labs(title = "Trip-level catch distributions",

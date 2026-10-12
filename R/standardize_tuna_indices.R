@@ -1,108 +1,132 @@
-#' Compare tuna CPUE indices with and without HBF adjustment
+#' Standardise simulated CPUE with alternative targeting covariates
 #'
-#' Fits base, spatial, direct-principal-component, cluster, spatial-plus-HBF,
-#' and spatial-plus-DPC-plus-HBF models to a tuna simulation. The latent actual
-#' hook depth and vertical overlap are not used as predictors. Model indices
-#' are standardized to the same reference settings and returned with the
-#' operating-model biomass index for comparison.
+#' Fits Tweedie GAMs (`mgcv::gam` with `tw()`, as in the CPUE guidelines) to
+#' each species and compares the annual indices with the true biomass trend.
 #'
-#' @param simulation Output from [simulate_tuna()].
-#' @param species_names Labels for the four species, in simulator order.
-#' @param seed Optional seed for the fishing-tactic k-means classification.
+#' Candidate models (all include `year`):
+#' * `Base`: year only.
+#' * `Spatial`: + `s(Xobs, Yobs)` on the coarse reporting grid.
+#' * `DPC`: Spatial + `s(PC1)` + `s(PC2)` from the catch composition
+#'   (direct principal components, Winker et al. 2013, 2014).
+#' * `Cluster`: Spatial + fishing tactic from k-means clustering of the
+#'   catch composition.
+#' * `HBF`: Spatial + HBF as a factor (tuna model only).
+#' * `DPC_HBF`: DPC + HBF (tuna model only).
+#' * `HBS`: Spatial + `offset(log(hbs_avail))`, i.e. habitat-based
+#'   standardisation with the HBF-predicted vertical overlap as effective
+#'   effort (Bigelow et al. 2002; tuna model only, assumes the habitat model
+#'   is known).
 #'
-#' @return A list with `indices` (annual relative indices and the true biomass
-#'   index) and `diagnostics` (mean squared log error by species and model).
+#' The latent `hook_depth` and realised `vertical_avail` are never used as
+#' predictors.
+#'
+#' @param simulation Output of [simulate_tuna()] or [simulate_bathymetric()].
+#' @param models Names of the models to fit (default: all that apply).
+#' @param vessel_re Logical; add a random vessel effect `s(vessel, bs = "re")`.
+#' @param n_clusters Number of fishing tactics for the `Cluster` model.
+#' @param seed Seed for the k-means clustering.
+#'
+#' @return A list with `indices` (species, year, model, index with 95% CI and
+#'   the true index), `diagnostics` (root mean squared error of the log index
+#'   by species and model), and `data` (the set-level data used, with PCs and
+#'   tactics).
 #' @export
 #'
 #' @examples
 #' \dontrun{
 #' om <- simulate_tuna(seed = 42)
 #' comparison <- standardize_tuna_indices(om)
+#' comparison$diagnostics
+#' plot_indices(comparison)
 #' }
-standardize_tuna_indices <- function(
-    simulation, species_names = c("BET", "YFT", "ALB", "SWO"), seed = 22062017) {
+standardize_tuna_indices <- function(simulation, models = NULL, vessel_re = FALSE,
+                                     n_clusters = 3, seed = 1) {
   if (!requireNamespace("mgcv", quietly = TRUE)) {
-    stop("Install the suggested `mgcv` package to fit CPUE models.",
-         call. = FALSE)
+    stop("Install the `mgcv` package to fit CPUE models.", call. = FALSE)
   }
   if (is.null(simulation$Data) || is.null(simulation$Biomass)) {
-    stop("`simulation` must be the output from `simulate_tuna()`.",
+    stop("`simulation` must be the output of simulate_tuna() or simulate_bathymetric().",
          call. = FALSE)
   }
-  n_species <- length(species_names)
-  set_data <- simulation$Data
-  d <- reshape2::dcast(
-    set_data,
-    SetID + year + vessel + Xobs + Yobs + HBF ~ Sp,
-    value.var = "CPUE", fun.aggregate = mean
-  )
-  sp_cols <- paste0("Sp", seq_len(n_species))
-  if (!all(sp_cols %in% names(d))) {
-    stop("Could not find the expected species catch columns in simulation data.",
-         call. = FALSE)
+  species <- levels(simulation$Biomass$Sp)
+  d <- as_set_data(simulation$Data)
+  has_hbf <- "HBF" %in% names(d)
+  if (has_hbf) {
+    hbs <- as_set_data(simulation$Data, value = "hbs_avail")
+    for (sp in species) d[[paste0("hbs_", sp)]] <- hbs[[sp]]
   }
-  catch <- as.matrix(d[, sp_cols, drop = FALSE])
-  catch[!is.finite(catch)] <- 0
-  composition <- catch + 1e-8
-  composition <- composition / rowSums(composition)
-  pca_data <- as.data.frame(composition^(1 / 4))
-  pca <- stats::prcomp(pca_data, center = TRUE, scale. = TRUE)
-  pcs <- as.data.frame(pca$x[, 1:2, drop = FALSE])
-  names(pcs) <- c("PC1", "PC2")
-  d <- cbind(d, pcs)
+
+  # Catch composition: proportions, fourth-root, PCA (as in the guidelines)
+  catch <- as.matrix(d[, species])
+  keep <- rowSums(catch) > 0
+  d <- d[keep, , drop = FALSE]
+  composition <- (catch[keep, , drop = FALSE] / rowSums(catch[keep, , drop = FALSE]))^0.25
+  pca <- stats::prcomp(composition, scale. = TRUE)
+  d$PC1 <- pca$x[, 1]
+  d$PC2 <- pca$x[, 2]
   if (!is.null(seed)) set.seed(seed)
-  d$FT <- factor(stats::kmeans(pca_data, centers = 3, nstart = 20)$cluster)
+  d$FT <- factor(stats::kmeans(composition, centers = n_clusters, nstart = 20)$cluster)
   years <- sort(unique(d$year))
   d$year <- factor(d$year, levels = years)
   d$vessel <- factor(d$vessel)
+  if (has_hbf) d$HBF <- factor(d$HBF)
 
-  forms <- list(
-    Base = y ~ year,
-    Spatial = y ~ year + mgcv::s(Xobs, Yobs, k = 8),
-    DPC = y ~ year + mgcv::s(Xobs, Yobs, k = 8) +
-      mgcv::s(PC1, k = 3) + mgcv::s(PC2, k = 3),
-    Cluster = y ~ year + mgcv::s(Xobs, Yobs, k = 8) + FT,
-    Spatial_HBF = y ~ year + mgcv::s(Xobs, Yobs, k = 8) + HBF,
-    Spatial_DPC_HBF = y ~ year + mgcv::s(Xobs, Yobs, k = 8) + HBF +
-      mgcv::s(PC1, k = 3) + mgcv::s(PC2, k = 3)
-  )
-  prediction <- data.frame(
-    year = factor(years, levels = levels(d$year)),
-    Xobs = mean(d$Xobs), Yobs = mean(d$Yobs), HBF = 8,
-    PC1 = 0, PC2 = 0, FT = levels(d$FT)[1]
-  )
+  spatial <- "s(Xobs, Yobs, k = 8)"
+  dpc <- "s(PC1, k = 3) + s(PC2, k = 3)"
+  terms <- list(Base = "year",
+                Spatial = c("year", spatial),
+                DPC = c("year", spatial, dpc),
+                Cluster = c("year", spatial, "FT"))
+  if (has_hbf) {
+    terms$HBF <- c("year", spatial, "HBF")
+    terms$DPC_HBF <- c("year", spatial, dpc, "HBF")
+    terms$HBS <- c("year", spatial, "offset(log(hbs))")
+  }
+  if (vessel_re) terms <- lapply(terms, c, 's(vessel, bs = "re")')
+  if (!is.null(models)) {
+    unknown <- setdiff(models, names(terms))
+    if (length(unknown)) stop("Unknown or inapplicable models: ",
+                              paste(unknown, collapse = ", "), call. = FALSE)
+    terms <- terms[models]
+  }
+
+  # Reference levels for prediction: only `year` changes
+  mode_level <- function(f) names(which.max(table(f)))
+  newdata <- data.frame(year = factor(years, levels = years),
+                        Xobs = stats::median(d$Xobs), Yobs = stats::median(d$Yobs),
+                        PC1 = 0, PC2 = 0,
+                        FT = factor(mode_level(d$FT), levels = levels(d$FT)),
+                        vessel = factor(levels(d$vessel)[1], levels = levels(d$vessel)),
+                        hbs = 1)
+  if (has_hbf) newdata$HBF <- factor(mode_level(d$HBF), levels = levels(d$HBF))
 
   results <- list()
-  for (s in seq_len(n_species)) {
-    d$y <- d[[sp_cols[s]]]
-    for (model_name in names(forms)) {
-      fit <- mgcv::gam(forms[[model_name]], data = d,
-        family = mgcv::Tweedie(p = 1.2), method = "REML")
-      pred <- stats::predict(fit, newdata = prediction,
-                             type = "link", se.fit = TRUE)
-      raw <- exp(as.numeric(pred$fit))
-      truth_rows <- simulation$Biomass$Sp == paste0("Sp", s)
-      truth <- simulation$Biomass$True[truth_rows]
-      if (length(truth) != length(years)) {
-        stop("True biomass index does not align with simulated years.",
-             call. = FALSE)
-      }
-      results[[length(results) + 1L]] <- data.frame(
-        species = species_names[s], year = as.integer(as.character(years)),
-        model = model_name, index = raw / mean(raw),
-        lower = exp(as.numeric(pred$fit) - 1.96 * as.numeric(pred$se.fit)) /
-          mean(raw),
-        upper = exp(as.numeric(pred$fit) + 1.96 * as.numeric(pred$se.fit)) /
-          mean(raw),
-        true = truth
-      )
+  for (sp in species) {
+    d$y <- d[[sp]]
+    if (has_hbf) d$hbs <- pmax(d[[paste0("hbs_", sp)]], 1e-6)
+    truth <- simulation$Biomass$True[simulation$Biomass$Sp == sp]
+    for (m in names(terms)) {
+      form <- stats::as.formula(paste("y ~", paste(terms[[m]], collapse = " + ")))
+      fit <- mgcv::gam(form, data = d, family = mgcv::tw(), method = "REML")
+      pred <- stats::predict(fit, newdata = newdata, type = "link", se.fit = TRUE,
+                             exclude = if (vessel_re) "s(vessel)" else NULL)
+      fit_link <- as.numeric(pred$fit)
+      se <- as.numeric(pred$se.fit)
+      scale <- mean(exp(fit_link))
+      results[[length(results) + 1]] <- data.frame(
+        species = sp, year = years, model = m,
+        index = exp(fit_link) / scale,
+        lower = exp(fit_link - 1.96 * se) / scale,
+        upper = exp(fit_link + 1.96 * se) / scale,
+        true = truth[years])
     }
   }
   indices <- do.call(rbind, results)
-  diagnostics <- stats::aggregate(
-    (log(index + 1e-8) - log(true + 1e-8))^2 ~ species + model,
-    data = indices, FUN = mean
-  )
-  names(diagnostics)[3] <- "mean_squared_log_error"
-  list(indices = indices, diagnostics = diagnostics)
+  indices$species <- factor(indices$species, levels = species)
+  indices$model <- factor(indices$model, levels = names(terms))
+  err <- (log(indices$index) - log(indices$true))^2
+  diagnostics <- stats::aggregate(list(rmse_log = err),
+                                  by = list(species = indices$species, model = indices$model),
+                                  FUN = function(e) sqrt(mean(e)))
+  list(indices = indices, diagnostics = diagnostics, data = d)
 }

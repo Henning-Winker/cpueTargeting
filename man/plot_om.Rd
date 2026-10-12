@@ -1,0 +1,15 @@
+\name{plot_om}
+\alias{plot_om}
+\title{Diagnostic plots for an operating-model run}
+\usage{
+plot_om(sim)
+}
+\arguments{
+\item{sim}{Output of \code{\link{simulate_bathymetric}} or \code{\link{simulate_tuna}}.}
+}
+\value{A named list of ggplots: \code{Env} (bathymetry, or SST and
+thermocline anomaly for the tuna model), \code{SpDens} (initial densities),
+\code{Hist} (CPUE frequencies), \code{CPUE} (nominal versus true index) and,
+for the tuna model, \code{HBF} (annual use of each HBF level). \code{Depth} is
+kept as an alias of \code{Env} for the bathymetric model.}
+\description{Diagnostic plots for an operating-model run.}

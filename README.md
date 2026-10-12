@@ -1,21 +1,15 @@
 # cpueTargeting
 
-`cpueTargeting` is an R package for simulation experiments on fishing effort,
-spatial targeting, and CPUE standardization. It keeps three related examples
-separate:
+`cpueTargeting` provides simulation tools for testing how CPUE standardisation
+copes with changes in fishing targeting. It contains three operating models:
 
-1. `simulate_cluster()` is a callable version of the multi-habitat
-   cluster simulator from Winker et al. (2014), based on
-   `SimulationCPUE_3d.R`.
-2. `simulate_bathymetric()` is the four-species Run 22 spatial operating model.
-   Species distributions are associated with bathymetry; it does not include
-   vertical availability.
-3. `simulate_tuna()` extends the spatial operating model with vertical fish
-   availability and a noisy HBF-to-hook-depth relationship.
-
-The original Run 22 and 2014 scripts are preserved in `inst/extdata` for
-reference. All plots produced by the exported package functions are ggplot2
-objects, and the package code does not use or depend on `plyr`.
+1. `simulate_cluster()`: the multi-habitat cluster example of Winker et al. (2014).
+2. `simulate_bathymetric()`: the four-species Run 22 model used for the
+   WKBMSYSPICT CPUE guidelines. Species follow bathymetry; skippers target
+   species through *where* they fish.
+3. `simulate_tuna()`: a longline tuna model that adds *how deep* they fish.
+   Hook depth by hooks between floats (HBF) follows the habitat-based model of
+   Bigelow et al. (2002).
 
 ## Installation
 
@@ -23,49 +17,111 @@ objects, and the package code does not use or depend on `plyr`.
 remotes::install_github("henning-winker/cpueTargeting")
 ```
 
-Required packages are declared in `DESCRIPTION` and installed with the
-package. Install `roxygen2` and run `roxygen2::roxygenise()` when changing
-function documentation.
+The simulators only need `ggplot2`; `mgcv` is needed for
+`standardize_tuna_indices()`.
 
 ## Quick start
 
-```{r}
+```r
 library(cpueTargeting)
 
-# Winker et al. (2014) multi-habitat cluster example
-cluster <- simulate_cluster(seed = 1)
-cluster_plots <- plot_cluster_2014(cluster)
-cluster_plots$effort
+# Run 22 bathymetric model
+run22 <- simulate_bathymetric(seed = 2)
+run22$Plots$CPUE          # nominal CPUE versus true biomass
 
-# Four-species Run 22 model with bathymetric spatial distributions
-bathymetric <- simulate_bathymetric(seed = 2)
-head(bathymetric$Data)
-bathymetric$Plots$SpDens
-
-# Tuna extension with explicit vertical availability and HBF proxy
+# Tuna model with vertical targeting
 tuna <- simulate_tuna(seed = 3)
-head(tuna$Data)
-comparison <- standardize_tuna_indices(tuna)
+tuna$Plots$Env            # SST and thermocline anomaly
+tuna$Plots$SpDens         # species densities
+tuna$Plots$HBF            # gear use over time
+tuna$Plots$CPUE           # nominal CPUE versus true biomass
 plot_tuna_vertical_distributions()
 
+# Standardise with and without HBF
+comparison <- standardize_tuna_indices(tuna)
+comparison$diagnostics
+plot_indices(comparison, models = c("Base", "DPC", "HBF", "HBS"))
+
+# One row per set (e.g. for your own GAMs)
+sets <- as_set_data(tuna$Data)
 ```
 
-Use `bathymetric_settings()` and `tuna_settings()` to inspect or edit the
-respective scenarios. Tuna vertical profiles and HBF-to-depth settings are
-illustrative placeholders that need fishery-specific calibration before
-scientific interpretation. The tuna operating model retains latent
-`hook_depth_m` and vertical overlap for validation; the analyst-facing gear
-predictor is HBF.
+## The tuna operating model
 
-## Main functions
+The ocean is a 50 x 50 grid in a conceptual Southern Hemisphere: north (top) is
+warm and south is cool.
 
-- `simulate_cluster()` and `plot_cluster_2014()`: simulate and plot the
-  Winker et al. (2014) multi-habitat cluster example.
-- `bathymetric_settings()` and `simulate_bathymetric()`: configure and run the
-  four-species bathymetric Run 22 model.
-- `tuna_settings()` and `simulate_tuna()`: configure and run the spatial and
-  vertical tuna extension.
-- `standardize_tuna_indices()`: compare base, spatial, DPC, cluster and
-  HBF-adjusted CPUE indices against simulated tuna biomass.
-- `plot_tuna_vertical_distributions()`: plot species availability and HBF
-  hook-depth profiles on a common depth axis.
+| Process | Driven by | Main settings |
+|---|---|---|
+| Horizontal distribution | SST field: north-south gradient + random field | `sst_opt`, `sst_tol`, `sst_gradient`, `sst_noise` |
+| Movement | Exponential distance kernel, weighted by habitat | `dispersal` |
+| Vertical distribution | Normal depth profile, shifted by a thermocline anomaly field | `depth_mu`, `depth_sd`, `thermocline_sd` |
+| Hook depth | Catenary by HBF; mainline angle varies between sets; hooks vary within sets; current shoaling (Bigelow et al. 2002, eq. 2-5) | `HBF_levels`, `phi_mean`, `phi_sd`, `current_speed` |
+| Catchability of a set | Vessel q x overlap between hook and fish depth distributions | `q`, `vessel_cv`, `tweedie_power`, `tweedie_phi` |
+| Spatial targeting | Effort goes to cells with high expected catch value | `price`, `preference` |
+| Vertical targeting | Skippers choose the HBF with the highest expected value | `HBF_choice_temp` |
+| Population | Schaefer model in each cell, then movement | `B0`, `r` |
+
+Default species:
+
+| Species | Water | Depth | `sst_opt` | `depth_mu` (m) |
+|---|---|---|---|---|
+| YFT (yellowfin) | warm | shallow | 25 | 90 |
+| BET (bigeye) | warm | deep | 24 | 200 |
+| BFT (southern bluefin) | cool | deep | 20 | 180 |
+| ALB (albacore) | cool | shallow | 21 | 110 |
+
+The pairs overlap in space and the species overlap in depth, so most sets catch
+all four. Prices favour YFT in years 1-10, BET in years 11-20 and BFT in years
+21-30, so the fleet moves between warm and cool water and between shallow and
+deep gear.
+
+`Data` also contains the latent truth that analysts would not see:
+`hook_depth` (mean hook depth of the set), `vertical_avail` (realised vertical
+overlap) and `hbs_avail` (overlap predicted from HBF, as used in a
+habitat-based standardisation). Set `thermocline_sd = 0` to make vertical
+availability depend on HBF only, so that an HBF factor can fully correct for
+it.
+
+To change a scenario, edit the settings list:
+
+```r
+s <- tuna_settings()
+s$depth_mu <- c(80, 250, 220, 100)   # stronger vertical separation
+s$HBF_choice_temp <- 0.05            # skippers choose gear more strictly
+sim <- simulate_tuna(s, seed = 1)
+```
+
+## Speed
+
+A default 30-year run takes a few seconds. The original code was slow because
+it built each species' 2500 x 2500 movement matrix cell by cell, iterated the
+movement 1000 times for the initial distribution, and grew data frames with
+`rbind()` inside the cell loop. The package uses the closed-form stable
+distribution, never forms the movement matrix explicitly, and simulates all
+sets of a year at once.
+
+## Original code
+
+The original Run 22 scripts (`OMcpueSIM22_original.R`,
+`Generate_scenario_data22_original.R`) and the 2014 cluster simulator are kept
+unchanged in `inst/extdata` for reference. See `NEWS.md` for differences.
+
+## References
+
+Bigelow, K.A., Hampton, J. and Miyabe, N. (2002) Application of a habitat-based
+model to estimate effective longline fishing effort and relative abundance of
+Pacific bigeye tuna (*Thunnus obesus*). Fisheries Oceanography 11, 143-155.
+
+Thorson, J.T., Fonner, R., Haltuch, M.A., Ono, K. and Winker, H. (2017)
+Accounting for spatiotemporal variation and fisher targeting when estimating
+abundance from multispecies fishery data. Canadian Journal of Fisheries and
+Aquatic Sciences 74, 1794-1807.
+
+Winker, H., Kerwath, S.E. and Attwood, C.G. (2013) Comparison of two approaches
+to standardize catch-per-unit-effort for targeting behaviour in a
+multispecies hand-line fishery. Fisheries Research 139, 118-131.
+
+Winker, H., Kerwath, S.E. and Attwood, C.G. (2014) Proof of concept for a novel
+procedure to standardize multispecies catch and effort data. Fisheries
+Research 155, 149-159.
