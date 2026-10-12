@@ -14,14 +14,9 @@ copes with changes in fishing targeting. It contains three operating models:
    Hook depth depends on hooks between floats (HBF), and habitat-based
    standardisation follows Bigelow et al. (2002).
 
-**Background document:** a full description of both simulators, how the
+**[Background document](https://henning-winker.github.io/cpueTargeting/appendix.html):** a full description of both simulators, how the
 tuna model extends the spatial simulator, and the standardisation models is
-available online at
-<https://henning-winker.github.io/cpueTargeting/appendix.html>
-([preview from the branch](https://htmlpreview.github.io/?https://github.com/Henning-Winker/cpueTargeting/blob/refactor-vertical-om/docs/appendix.html)
-until GitHub Pages is enabled), and in the installed package via
-`browseURL(system.file("appendix", "cpueTargeting_simulator_appendix.html",
-package = "cpueTargeting"))`.
+available online [here](https://henning-winker.github.io/cpueTargeting/appendix.html)
 
 ## Installation
 
