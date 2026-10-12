@@ -3,7 +3,7 @@
 \title{Standardise simulated CPUE with alternative targeting covariates}
 \usage{
 standardize_tuna_indices(simulation, models = NULL, spatial_res = 5,
-  spatial_k = NULL, add_models = NULL, vessel_re = FALSE, n_pc = 2,
+  spatial_k = NULL, add_models = NULL, vessel_re = FALSE, n_pc = 3,
   n_clusters = 3, seed = 1, engine = c("gam", "bam"), label = NULL)
 }
 \arguments{
@@ -22,7 +22,9 @@ use any column of the returned \code{data}, including \code{Xs}, \code{Ys},
 \code{period} (10-year block as a factor) and \code{HBF_period} (HBF x period).}
 \item{vessel_re}{Logical; add a random vessel effect \code{s(vessel, bs = "re")}.}
 \item{n_pc}{Number of principal components used by the DPC models (default
-2, as in the CPUE guidelines; at most the number of species).}
+3; the 2023 CPUE guidelines used 2; at most the number of species). More PCs
+capture more of the targeting signal, but also more risk of absorbing real
+changes in relative abundance.}
 \item{n_clusters}{Number of fishing tactics for the \code{Cluster} model.}
 \item{seed}{Seed for the k-means clustering.}
 \item{engine}{\code{"gam"} (default) or \code{"bam"} with \code{discrete = TRUE},

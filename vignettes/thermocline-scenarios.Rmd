@@ -306,13 +306,14 @@ Each model is `year` plus a targeting term; `+S` adds a spatial smoother
 | Base | none | ignored | catch per set |
 | Base+S | none, + space | ignored | catch per set + position |
 | Cluster+S | k-means clusters of catch composition | discrete | all species' catches |
-| DPC+S | `s(PC1) + s(PC2)` of catch composition | continuous | all species' catches |
+| DPC+S | `s(PC1) + s(PC2) + s(PC3)` of catch composition | continuous | all species' catches |
 | HBF+S | HBF factor | gear covariate | HBF from logbooks |
 
 Two additions:
 
-* **DPC+S (3 PCs)** uses the first three principal components (`n_pc = 3`).
-  With four species there are three informative PCs; the guidelines use two.
+* **DPC+S (2 PCs)** uses only the first two principal components, as in the
+  2023 CPUE guidelines. The default (`n_pc = 3`) uses three, which with four
+  species is all the information in the catch composition.
 * **Base+S (1x1)** is a control: the spatial model with exact positions.
   How far does perfect spatial information get us without any information on
   targeting? Because it is the slowest fit, it is fitted once and stored.
@@ -325,10 +326,10 @@ Two additions:
 models <- c("Base", "Base+S", "Cluster+S", "DPC+S", "HBF+S")
 
 fits_main <- lapply(sims, standardize_tuna_indices, models = models,
-                    spatial_res = 5, n_pc = 2, engine = "bam")
+                    spatial_res = 5, n_pc = 3, engine = "bam")
 
-fits_dpc3 <- lapply(sims, standardize_tuna_indices, models = "DPC+S",
-                    spatial_res = 5, n_pc = 3, engine = "bam", label = " (3 PCs)")
+fits_dpc2 <- lapply(sims, standardize_tuna_indices, models = "DPC+S",
+                    spatial_res = 5, n_pc = 2, engine = "bam", label = " (2 PCs)")
 
 control_file <- sprintf("control_1x1_%s_seed%d_effort%d.rds",
                         paste(names(scenarios), collapse = "_"), seed, base$effort)
@@ -341,7 +342,7 @@ if (file.exists(control_file)) {
   saveRDS(controls, control_file)
 }
 
-fits <- Map(bind_comparisons, fits_main, fits_dpc3, controls)
+fits <- Map(bind_comparisons, fits_main, fits_dpc2, controls)
 fits$Fixed$formulas
 ```
 
@@ -354,7 +355,7 @@ the same way.
 
 ```{r indices, fig.height = 6}
 plot_indices(fits, models = c("Base", "Base+S (1x1)", "Cluster+S",
-                              "DPC+S", "DPC+S (3 PCs)", "HBF+S"))
+                              "DPC+S (2 PCs)", "DPC+S", "HBF+S"))
 ```
 
 Annual indices are noisy. To compare the trends, show only loess smoothers
@@ -402,11 +403,15 @@ knitr::kable(rmse_wide, digits = 3, row.names = FALSE)
   thermocline. DPC uses the realised catch mix of each set, which reflects
   where the hooks actually fished relative to the fish that year, so it can
   partly correct for it.
+* **Number of PCs.** With two PCs, DPC misses part of the targeting signal
+  for some species (e.g. BFT); the third PC adds it. With four species, three
+  PCs use all the information in the catch composition.
 * **Limits of DPC.** The catch composition only shows *relative*
   catchability. If a shift changes the availability of several species in
-  the same proportion, the mix does not change and DPC cannot see it. Compare
-  `DPC+S` with `DPC+S (3 PCs)`: if the third PC helps (e.g. for BFT), the
-  missing information was in PC3; if not, it is this fundamental limit.
+  the same proportion, the mix does not change and DPC cannot see it. And the
+  more PCs are used, the more risk that real changes in relative abundance
+  are absorbed by the "targeting" terms (Winker et al. 2014 select the number
+  of PCs with a scree test for this reason).
 
 A single iteration is only an illustration; repeat over seeds before drawing
 conclusions.
