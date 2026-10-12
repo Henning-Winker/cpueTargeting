@@ -14,11 +14,14 @@ copes with changes in fishing targeting. It contains three operating models:
    Hook depth depends on hooks between floats (HBF), and habitat-based
    standardisation follows Bigelow et al. (2002).
 
-A full description of both simulators, how the tuna model extends the
-spatial simulator, and the standardisation models is in the background
-document `inst/appendix/cpueTargeting_simulator_appendix.html` (after
-installation: `system.file("appendix", "cpueTargeting_simulator_appendix.html",
-package = "cpueTargeting")`).
+**Background document:** a full description of both simulators, how the
+tuna model extends the spatial simulator, and the standardisation models is
+available online at
+<https://henning-winker.github.io/cpueTargeting/appendix.html>
+([preview from the branch](https://htmlpreview.github.io/?https://github.com/Henning-Winker/cpueTargeting/blob/refactor-vertical-om/docs/appendix.html)
+until GitHub Pages is enabled), and in the installed package via
+`browseURL(system.file("appendix", "cpueTargeting_simulator_appendix.html",
+package = "cpueTargeting"))`.
 
 ## Installation
 
@@ -143,7 +146,10 @@ sets of a year at once.
 
 The original Run 22 scripts (`OMcpueSIM22_original.R`,
 `Generate_scenario_data22_original.R`) and the 2014 cluster simulator are kept
-unchanged in `inst/extdata` for reference. See `NEWS.md` for differences.
+unchanged in `inst/extdata` for reference. The differences between the
+original code and `simulate_bathymetric()` are listed in Appendix A.8 of the
+[background document](https://henning-winker.github.io/cpueTargeting/appendix.html)
+and in `NEWS.md`.
 
 ## References
 
