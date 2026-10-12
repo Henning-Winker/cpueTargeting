@@ -43,7 +43,8 @@
 #'   (default 3; the 2023 CPUE guidelines used 2; at most the number of
 #'   species). More PCs capture more of the targeting signal, but also more
 #'   risk of absorbing real changes in relative abundance.
-#' @param n_clusters Number of fishing tactics for the `Cluster` model.
+#' @param n_clusters Number of fishing tactics for the `Cluster` models. By
+#'   default `n_pc + 1`, the rule of Winker et al. (2014).
 #' @param seed Seed for the k-means clustering.
 #' @param engine `"gam"` (default) or `"bam"` with `discrete = TRUE`, which is
 #'   much faster for large data sets.
@@ -69,7 +70,7 @@
 standardize_tuna_indices <- function(simulation, models = NULL,
                                      spatial_res = 5, spatial_k = NULL,
                                      add_models = NULL, vessel_re = FALSE,
-                                     n_pc = 3, n_clusters = 3, seed = 1,
+                                     n_pc = 3, n_clusters = n_pc + 1, seed = 1,
                                      engine = c("gam", "bam"), label = NULL) {
   engine <- match.arg(engine)
   if (!requireNamespace("mgcv", quietly = TRUE)) {
