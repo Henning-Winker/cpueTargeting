@@ -72,20 +72,19 @@ In brief:
   currents, ...), so HBF is an imperfect proxy for where the hooks are.
 * The catchability of a set for a species is the vessel's catchability times
   the overlap between hook and fish depth distributions.
-* Prices favour ALB in years 1-15 (shallow, cool water) and BFT in years
-  16-30 (deep, cool water). Both live in the cool south, so the switch is
-  mainly in depth: a test of vertical targeting. Skippers choose where to
-  fish (spatial targeting) and which HBF to use (vertical targeting) from the
-  expected catch value.
-* Effort rises from 400 to 800 sets per year until year 15 and then declines
-  back to 400 (~18,000 sets in total), so pressure is relieved in the second
-  half.
-* True trends go in different directions. `B_start` sets where each stock
-  starts relative to carrying capacity (YFT 0.7, BET 0.6, BFT 0.4, ALB 0.6)
-  and `q` how hard it is fished. ALB and YFT are fished down to about a third
-  and then recover as effort declines and the fleet moves to BFT; BET
-  declines and then levels off; BFT declines throughout, fastest once it is
-  targeted. Use `effort`, `q` and `B_start` to change these trends.
+* Prices favour ALB in years 1-10 (shallow, cool water), BET in years 11-20
+  (deep, warm water) and BFT in years 21-30 (deep, cool water), loosely
+  following the historical shift from albacore to bigeye targeting. The first
+  switch changes both location and depth, the second mainly location.
+  Skippers choose where to fish (spatial targeting) and which HBF to use
+  (vertical targeting) from the expected catch value.
+* Effort increases towards 800 sets per year and is cut by 25% in years
+  21-30 (~16,000 sets in total).
+* True trends: stocks start partly fished (`B_start`: YFT 0.7, BET 0.6, BFT
+  0.4, ALB 0.6 of carrying capacity) and `q` sets how hard they are fished.
+  YFT, BET and ALB are fished down until year 20 and then recover slightly
+  once effort is cut; BFT, targeted in years 21-30, keeps declining and then
+  levels off. Use `effort`, `q` and `B_start` to change these trends.
 
 Where the hooks fish and where the fish are. Each panel is one HBF level:
 the grey bars show the expected depth distribution of the hooks, the
@@ -120,24 +119,26 @@ the order of `species`: YFT, BET, BFT, ALB.
 Targeting changes are driven by species prices: each year skippers send
 effort to the cells, and choose the HBF, with the highest expected catch
 value (price x expected catch). `price` is a matrix with one row per year
-and one column per species. The default has two 15-year blocks:
+and one column per species. The default has three 10-year blocks:
 
 | Years | Most valuable | Where it lives | Fleet goes to |
 |---|---|---|---|
-| 1-15 | ALB | shallow, cool south | shallow gear, south |
-| 16-30 | BFT | deep, cool south | deep gear, south |
+| 1-10 | ALB | shallow, cool south | shallow gear, south |
+| 11-20 | BET | deep, warm north | deep gear, north |
+| 21-30 | BFT | deep, cool south | deep gear, south |
 
-This loosely follows the move away from albacore (canning) towards the
-sashimi market (Hoyle and Okamoto 2013), here towards southern bluefin. As
-both species live in the cool south, the switch is mainly in how deep the
-fleet fishes, i.e. vertical targeting.
+This loosely follows the historical shift from albacore (canning) to bigeye
+(sashimi) targeting in the Japanese longline fleet (Hoyle and Okamoto 2013),
+followed by increasing interest in southern bluefin as it recovers. The
+first switch changes both where and how deep the fleet fishes; the second
+mainly where, which helps to separate spatial from vertical targeting.
 
 ```{r prices}
-tuna_settings()$price[c(1, 16), ]   # one row from each block
+tuna_settings()$price[c(1, 11, 21), ]   # one row from each block
 ```
 
 To define your own sequence, build a new matrix, e.g. a single switch from
-ALB to BET, which changes both where and how deep the fleet fishes:
+ALB to BET:
 
 ```{r prices-custom, eval = FALSE}
 s <- tuna_settings()
@@ -210,7 +211,7 @@ the contrast between shallow and deep gear. Check the result with
 | Setting | Meaning | Default |
 |---|---|---|
 | `n_years` | number of years (the `price` matrix needs at least as many rows) | 30 |
-| `effort` | sets per year: one value per year, or a single value for a logistic increase towards it | 400 rising to 800 in year 15, then back to 400 |
+| `effort` | sets per year: one value per year, or a single value for a logistic increase towards it | logistic increase towards 800, cut by 25% in years 21-30 |
 | `n_vessels`, `q`, `vessel_cv` | number of vessels, mean catchability, between-vessel CV | 30, 3, 0.2 |
 | `tweedie_power`, `tweedie_phi` | set-level noise in catchability | 1.2, 0.1 |
 | `obs_res` | positions in `Data` are reported as centres of `obs_res` x `obs_res` blocks | 5 |
@@ -231,7 +232,7 @@ occasionally 50 m, a realistic range for interannual changes in thermocline
 depth over most of the tropical Pacific.
 
 ```{r scenarios}
-base <- tuna_settings()      # effort: 400 -> 800 (year 15) -> 400 sets per year
+base <- tuna_settings()      # effort: up to ~700 sets per year, cut by 25% after year 20
 
 scenarios <- list(
   Fixed  = modifyList(base, list(thermocline_sd = 30)),
@@ -308,7 +309,7 @@ plot_thermocline_effect(shifts = c(-30, 0, 30))
 
 ## Gear use
 
-The fleet sets deeper gear when BFT is valuable (years 16-30):
+The fleet sets deeper gear when BET is valuable (years 11-20):
 
 ```{r hbf-use, fig.height = 3.5}
 sims$Fixed$Plots$HBF + ggtitle("Fixed: proportion of sets by HBF")

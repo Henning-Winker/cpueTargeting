@@ -74,15 +74,15 @@
 * Deep species are deeper and narrower by default (BET 260 m, SD 50; BFT
   240 m, SD 55), so deep gear clearly targets them while most sets still
   catch all four species.
-* Default prices follow ALB (years 1-15), then BFT (16-30), with a
+* Default prices follow ALB (years 1-10), BET (11-20), BFT (21-30), with a
   moderate contrast (target species worth 1.5, others 0.75-1.0) and moderate
   skipper response (`preference = 1.25`, `HBF_choice_temp = 0.2`).
 * More contrast in the true trends: `q` raised from 0.2 to 3, and new
   per-species setting `B_start` (initial biomass / carrying capacity; default
   0.7, 0.6, 0.4, 0.6) and a higher ALB growth rate (`r` = 0.25).
-* `effort` can be one value per year. By default it rises from 400 to 800
-  sets per year until year 15 and then declines, so ALB and YFT recover in
-  the second half while BFT declines.
+* `effort` can be one value per year. By default it increases towards 800
+  sets per year and is cut by 25% in years 21-30, so YFT, BET and ALB recover
+  slightly while BFT levels off.
 * `tuna_settings("stress_test")` keeps the earlier extreme targeting (price
   contrast 2.0 vs 0.5, `preference = 1.5`, `HBF_choice_temp = 0.15`).
 

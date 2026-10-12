@@ -239,9 +239,10 @@ used in the movement model of A.2 in place of the depth and range terms, with me
 distance \(\lambda_p\) = 1.5 cells. Wide tolerances \(\tau_p\) keep the species mixed in space.
 Carrying capacity \(B_{0,p}\varepsilon_p\) is distributed at the stable distribution, and
 stocks start at a fraction \(\delta_p\) of it (<code>B_start</code>; 1 = unfished). By default
-\(\delta\) = 0.7, 0.6, 0.4 and 0.6 (YFT, BET, BFT, ALB), with \(q\) = 3. ALB and YFT are
-fished down and then recover once effort declines and the fleet moves to BFT; BET levels off;
-BFT declines throughout.</p>
+\(\delta\) = 0.7, 0.6, 0.4 and 0.6 (YFT, BET, BFT, ALB), with \(q\) = 3. Effort follows the
+logistic increase of A.3 towards 800 sets per year but is cut by 25% in years 21-30
+(<code>effort</code> can be one value per year), so YFT, BET and ALB recover slightly in the
+last decade while BFT, then targeted, levels off at a low level.</p>
 
 <h3>B.2 Vertical distribution and the thermocline</h3>
 <p>The water column (0-500 m) is divided into 10-m bins \(j\) with mid-depths \(z_j\). In cell
@@ -306,12 +307,11 @@ chooses its HBF with probability</p>
 P(h \mid s,t) \;\propto\; \left(\frac{V(s,h,t)}{\max_{h'} V(s,h',t)}\right)^{1/\tau},
 \]
 <p>where \(\tau\) (<code>HBF_choice_temp</code> = 0.2) controls how strictly the best gear is
-chosen (vertical targeting). Prices change in two 15-year blocks: albacore (shallow, cool
-water), then southern bluefin (deep, cool water), loosely following the move from albacore
-towards sashimi species (Hoyle and Okamoto 2013). Both live in the cool south, so the switch is
-mainly in how deep the fleet fishes. Effort rises linearly from 400 to 800 sets per year until
-year 15 and then declines back to 400 (<code>effort</code> can be one value per year; a single
-value gives the logistic increase of A.3).</p>
+chosen (vertical targeting). Prices change in three 10-year blocks: albacore (shallow, cool
+water), then bigeye (deep, warm water), then southern bluefin (deep, cool water). This loosely
+follows the historical shift from albacore to bigeye targeting in the Japanese longline fleet
+(Hoyle and Okamoto 2013) and the later interest in southern bluefin as it recovers. The first
+switch changes both where and how deep the fleet fishes; the second mainly where.</p>
 
 <h3>B.6 Data and truth</h3>
 <p>For each set and species, <code>Data</code> contains year, set and vessel identifiers, true
@@ -324,8 +324,9 @@ habitat-based standardisation). The true index is the total biomass at the start
 <h3>B.7 Default settings</h3>
 <div class="table-wrap"><table>
 <tr><th>Setting</th><th>Symbol</th><th>YFT</th><th>BET</th><th>BFT</th><th>ALB</th></tr>
-<tr><td>Price, years 1-15</td><td>\(\phi_p\)</td><td class="num">1.0</td><td class="num">0.75</td><td class="num">0.75</td><td class="num">1.5</td></tr>
-<tr><td>Price, years 16-30</td><td>\(\phi_p\)</td><td class="num">0.75</td><td class="num">1.0</td><td class="num">1.5</td><td class="num">0.75</td></tr>
+<tr><td>Price, years 1-10</td><td>\(\phi_p\)</td><td class="num">1.0</td><td class="num">0.75</td><td class="num">0.75</td><td class="num">1.5</td></tr>
+<tr><td>Price, years 11-20</td><td>\(\phi_p\)</td><td class="num">1.0</td><td class="num">1.5</td><td class="num">1.0</td><td class="num">0.75</td></tr>
+<tr><td>Price, years 21-30</td><td>\(\phi_p\)</td><td class="num">0.75</td><td class="num">1.0</td><td class="num">1.5</td><td class="num">0.75</td></tr>
 <tr><td>Preferred SST (&deg;C)</td><td>\(\mathrm{SST}_p^{opt}\)</td><td class="num">25</td><td class="num">24</td><td class="num">20</td><td class="num">21</td></tr>
 <tr><td>SST tolerance (&deg;C)</td><td>\(\tau_p\)</td><td class="num">3</td><td class="num">3.5</td><td class="num">3</td><td class="num">3.5</td></tr>
 <tr><td>Mean depth (m)</td><td>\(\mu_p\)</td><td class="num">90</td><td class="num">260</td><td class="num">240</td><td class="num">110</td></tr>
@@ -339,7 +340,7 @@ habitat-based standardisation). The true index is the total biomass at the start
 <tr><td>Space and time</td><td>50 x 50 cells, 30 years, reported positions on 5 x 5 blocks</td></tr>
 <tr><td>Environment</td><td>SST mean 23 &deg;C, gradient 10 &deg;C, noise SD 1 &deg;C (scale 6); thermocline fixed pattern SD 30 m (scale 8), annual shift and annual pattern 0 by default</td></tr>
 <tr><td>Gear</td><td>HBF 5, 10, 15, 20 with median hook depths 110, 160, 205, 250 m; set-level CV 0.2; within-set CV 0.35</td></tr>
-<tr><td>Fleet</td><td>30 vessels, 400 rising to 800 sets per year in year 15, then back to 400 (~18 000 in total), \(q\) = 3, vessel CV 0.2, Tweedie power 1.2 and dispersion 0.1, \(\kappa\) = 1.25, \(\tau\) = 0.2</td></tr>
+<tr><td>Fleet</td><td>30 vessels, logistic increase towards 800 sets per year, cut by 25% in years 21-30 (~16 000 in total), \(q\) = 3, vessel CV 0.2, Tweedie power 1.2 and dispersion 0.1, \(\kappa\) = 1.25, \(\tau\) = 0.2</td></tr>
 </table></div>
 
 <h3>B.8 What the extension adds, in short</h3>

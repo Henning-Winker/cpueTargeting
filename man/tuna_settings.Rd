@@ -33,12 +33,13 @@ years; \code{annual} is a new spatial field each year
 (\code{set_cv}; e.g. line angle, currents), so HBF is an imperfect proxy for
 depth. Hooks within a set are lognormally spread around the set's median
 (\code{hook_cv}).
-\item Targeting: species prices change in two 15-year blocks: ALB
-(shallow, cool water), then BFT (deep, cool water). Both live in the cool
-south, so the switch is mainly in depth (vertical targeting). Skippers
+\item Targeting: species prices change in three 10-year blocks: ALB
+(shallow, cool water), then BET (deep, warm water), then BFT (deep, cool
+water), loosely following the historical shift from albacore to bigeye
+targeting and the later interest in recovering southern bluefin. Skippers
 choose where to fish and which HBF to use from the expected catch value.
-\item Effort rises from 400 to 800 sets per year until year 15 and then
-declines back to 400, so pressure on some species is relieved.
+\item Effort increases towards 800 sets per year and is cut by 25\% in
+years 21-30, so pressure on some species is relieved.
 }
 All values are conceptual and meant to be tuned. With the same seed,
 scenarios that differ only in the thermocline settings share the same SST
@@ -48,14 +49,16 @@ and the same vessels; the fishery itself then evolves differently.}
 \itemize{
 \item \code{"default"}: moderate targeting (prices differ by a factor of 2
 between the target species and the others, \code{preference = 1.25},
-\code{HBF_choice_temp = 0.2}).
+\code{HBF_choice_temp = 0.2}); nominal CPUE is biased by roughly 10-20\% by
+decade.
 \item \code{"stress_test"}: extreme targeting (prices differ by a factor of 4,
 \code{preference = 1.5}, \code{HBF_choice_temp = 0.15}); abrupt, fleet-wide
-target switches.
+target switches with nominal CPUE biased by up to a factor of two. These are
+the settings of the first runs of the vignette.
 }
 }
 \examples{
 s <- tuna_settings()
 extreme <- tuna_settings("stress_test")
-extreme$price[c(1, 16), ]
+extreme$price[c(1, 11, 21), ]
 }

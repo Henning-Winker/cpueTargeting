@@ -24,14 +24,13 @@
 #'   (`set_cv`; e.g. line angle, currents), so HBF is an imperfect proxy for
 #'   depth. Hooks within a set are lognormally spread around the set's median
 #'   (`hook_cv`).
-#' * **Targeting**: species prices change in two 15-year blocks: ALB
-#'   (shallow, cool water), then BFT (deep, cool water), loosely following the
-#'   historical shift away from albacore and the later interest in southern
-#'   bluefin. Both live in the cool south, so the switch is mainly in depth
-#'   (vertical targeting). Skippers choose where to fish and which HBF to use
-#'   from the expected catch value.
-#' * **Effort** rises from 400 to 800 sets per year until year 15 and then
-#'   declines back to 400, so pressure on some species is relieved.
+#' * **Targeting**: species prices change in three 10-year blocks: ALB
+#'   (shallow, cool water), then BET (deep, warm water), then BFT (deep, cool
+#'   water), loosely following the historical shift from albacore to bigeye
+#'   targeting and the later interest in recovering southern bluefin. Skippers
+#'   choose where to fish and which HBF to use from the expected catch value.
+#' * **Effort** increases towards 800 sets per year and is cut by 25% in
+#'   years 21-30, so pressure on some species is relieved.
 #'
 #' All values are conceptual and meant to be tuned. With the same seed,
 #' scenarios that differ only in the thermocline settings share the same SST
@@ -41,10 +40,12 @@
 #' Two presets are available:
 #' * `"default"`: moderate targeting (prices differ by a factor of 2 between
 #'   the target species and the others, `preference = 1.25`,
-#'   `HBF_choice_temp = 0.2`).
+#'   `HBF_choice_temp = 0.2`); nominal CPUE is biased by roughly 10-20% by
+#'   decade.
 #' * `"stress_test"`: extreme targeting (prices differ by a factor of 4,
 #'   `preference = 1.5`, `HBF_choice_temp = 0.15`); abrupt, fleet-wide target
-#'   switches.
+#'   switches with nominal CPUE biased by up to a factor of two. These are the
+#'   settings of the first runs of the vignette.
 #'
 #' @param preset `"default"` or `"stress_test"`.
 #' @return A named list accepted by [simulate_tuna()].
@@ -52,13 +53,14 @@
 #' @examples
 #' s <- tuna_settings()
 #' extreme <- tuna_settings("stress_test")
-#' extreme$price[c(1, 16), ]
+#' extreme$price[c(1, 11, 21), ]
 tuna_settings <- function(preset = c("default", "stress_test")) {
   preset <- match.arg(preset)
   s <- tuna_settings_default()
   if (preset == "stress_test") {
-    s$price <- matrix(c(rep(c(1.0, 0.5, 0.5, 2.0), 15),   # years 1-15: ALB
-                        rep(c(0.5, 1.0, 2.0, 0.5), 15)),  # years 16-30: BFT
+    s$price <- matrix(c(rep(c(1.0, 0.5, 0.5, 2.0), 10),   # years 1-10: ALB
+                        rep(c(1.0, 2.0, 1.0, 0.5), 10),   # years 11-20: BET
+                        rep(c(0.5, 1.0, 2.0, 0.5), 10)),  # years 21-30: BFT
                       ncol = 4, byrow = TRUE)
     s$preference <- 1.5
     s$HBF_choice_temp <- 0.15
@@ -108,13 +110,15 @@ tuna_settings_default <- function() {
 
     # Fleet -------------------------------------------------------------------
     # columns: YFT, BET, BFT, ALB
-    price = matrix(c(rep(c(1.0, 0.75, 0.75, 1.5), 15),   # years 1-15: ALB
-                     rep(c(0.75, 1.0, 1.5, 0.75), 15)),  # years 16-30: BFT
+    price = matrix(c(rep(c(1.0, 0.75, 0.75, 1.5), 10),   # years 1-10: ALB
+                     rep(c(1.0, 1.5, 1.0, 0.75), 10),    # years 11-20: BET
+                     rep(c(0.75, 1.0, 1.5, 0.75), 10)),  # years 21-30: BFT
                    ncol = 4, byrow = TRUE),
     n_vessels = 30,
-    effort = round(c(seq(400, 800, length.out = 15),   # sets per year: one value per
-                     seq(800, 400, length.out = 15))), #   year, or a single value for a
-                                                       #   logistic increase to it
+    # sets per year: one value per year, or a single value for a logistic
+    # increase towards it. Default: logistic increase towards 800, cut by 25%
+    # in years 21-30 (~16,000 sets in total)
+    effort = round(800 / (1 + exp(-0.1 * 1:30)) * rep(c(1, 0.75), c(20, 10))),
     effort_cv = 0.2,
     q = 3,                    # mean catchability per set at full vertical overlap;
                               #   with effort, sets how strongly stocks are fished down

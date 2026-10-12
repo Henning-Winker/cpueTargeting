@@ -6,7 +6,7 @@ small_bathymetric <- function() {
 small_tuna <- function() {
   s <- tuna_settings()
   modifyList(s, list(n_years = 6, nx = 15, ny = 15, effort = 200,
-                     price = s$price[c(1, 1, 1, 16, 16, 16), ]))
+                     price = s$price[c(1, 1, 11, 11, 21, 21), ]))
 }
 
 test_that("bathymetric model returns consistent output", {
@@ -207,4 +207,5 @@ test_that("effort can be given per year", {
   expect_true(all(n[3:4] > 4 * n[c(1, 2, 5, 6)]))
   s$effort <- c(50, 50)
   expect_error(simulate_tuna(s, seed = 1, plots = FALSE), "effort")
+  expect_length(tuna_settings()$effort, 30)
 })

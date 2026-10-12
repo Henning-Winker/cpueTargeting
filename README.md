@@ -80,9 +80,11 @@ Default species:
 | ALB (albacore) | cool | shallow | 21 | 110 (60) |
 
 The pairs overlap in space and the species overlap in depth, so most sets catch
-all four. Prices favour ALB in years 1-15 (shallow, cool water) and BFT in
-years 16-30 (deep, cool water), so the switch is mainly in depth. Effort rises
-until year 15 and then declines, so some stocks recover in the second half.
+all four. Prices favour ALB in years 1-10 (shallow, cool water), BET in years
+11-20 (deep, warm water) and BFT in years 21-30 (deep, cool water), loosely
+following the historical shift from albacore to bigeye targeting. The first
+switch changes both location and depth; the second mainly location. Effort is cut
+by 25% in years 21-30, so some stocks recover slightly.
 
 `Data` also contains the latent truth that analysts would not see:
 `hook_depth` (median hook depth of the set), `vertical_avail` (realised vertical
