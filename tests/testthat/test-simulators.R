@@ -171,3 +171,8 @@ test_that("replicates run, resume from file and plot", {
   expect_equal(nrow(r2$diagnostics), 2 * 3 * 4)
   expect_s3_class(plot_replicates(r2), "ggplot")
 })
+
+test_that("vertical distribution plot works with and without overlay", {
+  expect_s3_class(plot_tuna_vertical_distributions(overlay = FALSE), "ggplot")
+  expect_s3_class(plot_tuna_vertical_distributions(overlay = TRUE), "ggplot")
+})

@@ -80,10 +80,15 @@ In brief:
   (vertical targeting) from the expected catch value.
 * About 800 sets per year at the end of the series (~19,000 sets in total).
 
-The species profiles (first panel) and the expected hook profiles for each
-HBF:
+Where the hooks fish and where the fish are. Each panel is one HBF level:
+the grey bars show the expected depth distribution of the hooks, the
+coloured areas the depth distribution of each species. Where a species'
+area overlaps the grey bars, a set with that HBF can catch it; the numbers
+give the resulting vertical availability, which multiplies catchability in
+the operating model. Shallow gear (HBF 5) catches mostly YFT and ALB; deep
+gear (HBF 20) catches relatively more BET and BFT.
 
-```{r profiles, fig.height = 4}
+```{r profiles, fig.height = 4.5}
 plot_tuna_vertical_distributions()
 ```
 

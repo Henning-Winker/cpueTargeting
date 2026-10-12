@@ -70,43 +70,84 @@ plot_om <- function(sim) {
 
 #' Plot species vertical profiles and hook-depth profiles by HBF
 #'
-#' The first panel shows the species depth profiles (for a thermocline
-#' anomaly of zero). The other panels show the expected hook-depth
-#' distribution of each HBF level, combining between-set error and within-set
-#' spread, drawn like Fig. 2 of Bigelow et al. (2002).
+#' One panel per HBF level. Grey bars show where the hooks of a set with that
+#' HBF fish (the expected hook-depth distribution, drawn like Fig. 2 of
+#' Bigelow et al. 2002); the coloured translucent areas show where each
+#' species lives (thermocline anomaly of zero). Where a species' area overlaps
+#' the grey bars, that set can catch it. The number next to each species is
+#' its vertical availability to that HBF, i.e. the overlap that multiplies
+#' catchability in the operating model (see [plot_availability()]).
 #'
 #' @param settings Settings list, usually from [tuna_settings()].
+#' @param overlay Logical; `TRUE` (default) overlays the species on each HBF
+#'   panel; `FALSE` shows the species in a separate first panel.
 #' @param file Optional file path; if supplied, a 300-dpi PNG is saved.
 #' @return A ggplot object.
 #' @export
 #' @examples
 #' plot_tuna_vertical_distributions()
-plot_tuna_vertical_distributions <- function(settings = tuna_settings(), file = NULL) {
+plot_tuna_vertical_distributions <- function(settings = tuna_settings(), overlay = TRUE,
+                                             file = NULL) {
   s <- utils::modifyList(tuna_settings(), settings)
   edges <- seq(0, s$max_depth, by = s$depth_bin)
   mids <- edges[-1] - s$depth_bin / 2
-  panels <- c("Species", paste("HBF", s$HBF_levels))
+  hbf_panels <- paste("HBF", s$HBF_levels)
+  panels <- if (overlay) hbf_panels else c("Species", hbf_panels)
   fish_prof <- fish_profiles(0, s, edges)
-  fish <- do.call(rbind, lapply(seq_along(s$species), function(i) {
-    data.frame(depth = mids, percent = 100 * fish_prof[[i]][1, ],
-               species = s$species[i], panel = "Species")
-  }))
-  fish$species <- factor(fish$species, levels = s$species)
   hooks <- nominal_hook_profiles(s, edges)
-  gear <- do.call(rbind, lapply(seq_along(s$HBF_levels), function(h) {
-    data.frame(depth = mids, percent = 100 * hooks[h, ], panel = panels[h + 1])
-  }))
+
+  fish_one <- function(panel) {
+    out <- do.call(rbind, lapply(seq_along(s$species), function(i) {
+      data.frame(depth = mids, percent = 100 * fish_prof[[i]][1, ],
+                 species = s$species[i], panel = panel)
+    }))
+    out
+  }
+  fish <- if (overlay) do.call(rbind, lapply(hbf_panels, fish_one)) else fish_one("Species")
+  fish$species <- factor(fish$species, levels = s$species)
   fish$panel <- factor(fish$panel, levels = panels)
+  gear <- do.call(rbind, lapply(seq_along(s$HBF_levels), function(h) {
+    data.frame(depth = mids, percent = 100 * hooks[h, ], panel = hbf_panels[h])
+  }))
   gear$panel <- factor(gear$panel, levels = panels)
+
+  # vertical availability of each species to each HBF (as in the OM)
+  avail <- do.call(rbind, lapply(seq_along(s$HBF_levels), function(h) {
+    a <- vapply(fish_prof, function(f) sum(hooks[h, ] * f[1, ]), numeric(1)) *
+      s$avail_ref / s$depth_bin
+    data.frame(panel = hbf_panels[h], species = s$species,
+               label = sprintf("%s %.2f", s$species, a))
+  }))
+  avail$panel <- factor(avail$panel, levels = panels)
+  avail$species <- factor(avail$species, levels = s$species)
+  x_max <- max(c(fish$percent, gear$percent))
+  avail$x <- x_max
+  avail$y <- s$max_depth * (0.62 + 0.08 * (as.integer(avail$species) - 1))
+
   p <- ggplot() +
     geom_col(data = gear, aes(x = .data$percent, y = .data$depth),
-             orientation = "y", width = s$depth_bin, fill = "grey30") +
-    geom_path(data = fish, aes(x = .data$percent, y = .data$depth,
-                               colour = .data$species), linewidth = 1) +
+             orientation = "y", width = s$depth_bin, fill = "grey55", colour = NA)
+  if (overlay) {
+    p <- p +
+      geom_ribbon(data = fish, aes(y = .data$depth, xmin = 0, xmax = .data$percent,
+                                   fill = .data$species),
+                  orientation = "y", alpha = 0.35) +
+      geom_path(data = fish, aes(x = .data$percent, y = .data$depth,
+                                 colour = .data$species), linewidth = 0.7) +
+      geom_text(data = avail, aes(x = .data$x, y = .data$y, label = .data$label,
+                                  colour = .data$species),
+                hjust = 1, size = 3, show.legend = FALSE) +
+      labs(title = "Where the hooks fish (grey) and where the fish are (colour)",
+           subtitle = "Numbers: vertical availability of each species to that HBF")
+  } else {
+    p <- p + geom_path(data = fish, aes(x = .data$percent, y = .data$depth,
+                                        colour = .data$species), linewidth = 1)
+  }
+  p <- p +
     facet_wrap(~panel, nrow = 1) +
     scale_y_reverse() +
     labs(x = paste0("Frequency (% per ", s$depth_bin, " m)"), y = "Depth (m)",
-         colour = NULL) +
+         colour = NULL, fill = NULL) +
     theme_bw() +
     theme(legend.position = "bottom")
   if (!is.null(file)) ggsave(file, p, width = 11, height = 5, dpi = 300)
