@@ -41,6 +41,9 @@
   td.num { text-align: right; white-space: nowrap; }
   .note { background: var(--note); border-left: 4px solid var(--note-rule); padding: 10px 14px;
           margin: 16px 0; font-size: 0.95rem; }
+  pre { background: var(--panel); padding: 10px 12px; border-radius: 6px; overflow-x: auto;
+        font-size: 0.85rem; line-height: 1.45; }
+  pre code { background: none; padding: 0; }
   .toc { background: var(--panel); padding: 12px 18px; border-radius: 6px;
          font-family: "Helvetica Neue", Arial, sans-serif; font-size: 0.92rem; }
   .toc ol { margin: 6px 0; padding-left: 20px; }
@@ -347,34 +350,184 @@ habitat-based standardisation). The true index is the total biomass at the start
 </table></div>
 
 <h2 id="C">4. Appendix C: standardisation models</h2>
-<p><code>standardize_tuna_indices()</code> fits Tweedie generalised additive models with
-<code>mgcv</code> to the catch of each species per set, following the workflow of the
-WKBMSYSPICT guidelines. Every model includes year as a factor; the annual index is the
-predicted year effect with all other terms at fixed reference values, scaled to a mean of
-one. The targeting terms are:</p>
-<ul>
-  <li><strong>Cluster</strong>: fishing tactics from k-means clustering of the catch composition
-  (proportions, fourth-root transformed), as a factor (He et al. 1997).</li>
-  <li><strong>DPC</strong>: smooth functions of the principal component scores of the same catch
-  composition (direct principal components; Winker et al. 2013, 2014), by default the first
-  three.</li>
-  <li><strong>HBF</strong>: hooks between floats as a factor, the most common targeting covariate in
-  pelagic longline CPUE (Hoyle et al. 2014).</li>
-  <li><strong>+S</strong>: a spatial smoother of the reported block centres can be added to any
-  model.</li>
-  <li><strong>HBS</strong> (optional): habitat-based standardisation (Bigelow et al. 2002), with the
-  predicted vertical availability as an offset.</li>
-</ul>
-<p>The accuracy of each index is measured as the root mean squared error of the log index
-relative to the true biomass index.</p>
+
+<p>The simulated data are standardised with Tweedie generalised additive (mixed) models,
+following the workflow of the WKBMSYSPICT CPUE guidelines (Winker and Cardinale 2022). This
+appendix describes the general model, the data processing behind each way of accounting for
+targeting, and how each model is specified in R. All models are fitted with
+<code>standardize_tuna_indices()</code>, which uses the <code>mgcv</code> package (Wood 2017).</p>
+
+<h3>C.1 General model</h3>
+<p>Let \(y_{i}\) be the catch of the species of interest in set \(i\), fished in year
+\(t(i)\) by vessel \(v(i)\) at reported position \(\big(\mathrm{lon}_i, \mathrm{lat}_i\big)\).
+Catches contain many zeros and are right-skewed, so they are modelled with a Tweedie
+distribution, \(y_i \sim \mathrm{Tweedie}(\mu_i, p, \phi)\) with
+\(\mathrm{Var}(y_i) = \phi\,\mu_i^{p}\) and \(1 &lt; p &lt; 2\) (a compound Poisson-gamma
+distribution with a point mass at zero; Candy 2004; Dunn and Smyth 2005). The mean is</p>
+\[
+\log \mu_i \;=\; \beta_0 + \beta_{t(i)} \;+\; \underbrace{S\big(\mathrm{lon}_i, \mathrm{lat}_i\big)}_{\text{space (optional)}}
+\;+\; \underbrace{T_i}_{\text{targeting term}} \;+\; \underbrace{\alpha_{v(i)}}_{\text{vessel (optional)}},
+\qquad \alpha_v \sim \mathrm{N}(0, \sigma_\alpha^2),
+\]
+<p>where \(\beta_t\) are the year effects (year as a factor), \(S(\cdot)\) is a smooth
+spatial surface, \(T_i\) is one of the targeting terms of C.3 and \(\alpha_v\) is an optional
+random vessel effect (Helser et al. 2004). The power \(p\) is estimated together with the
+other parameters (<code>family = tw()</code> in <code>mgcv</code>), rather than in a separate
+step as in the guidelines.</p>
+
+<h3>C.2 The spatial term \(S\)</h3>
+<p>\(S(\mathrm{lon}, \mathrm{lat})\) is a two-dimensional thin-plate regression spline of the
+reported positions. In the simulator, positions are reported as the centres of
+\(5 \times 5\) blocks of cells (\(X_s, Y_s\)), so the spatial term is
+<code>s(Xs, Ys, k = ...)</code>; with real data it would be, for example,
+<code>s(lon, lat, k = ...)</code> on the reported 1&deg; or 5&deg; squares. The basis dimension
+\(k\) controls the maximum flexibility; by default it grows with the number of reported
+positions (8 for 100 blocks, at most 60). In model names, the suffix <code>+S</code> adds
+this term (e.g. <code>DPC+S</code>). Settings: <code>spatial_res</code> (block size in
+cells; 1 = exact position) and <code>spatial_k</code>.</p>
+
+<h3>C.3 Targeting terms</h3>
+
+<p><strong>Catch composition (used by Cluster and DPC).</strong> For each set with a
+positive total catch, the catches of all \(P\) species are converted to proportions by weight,
+which removes the effect of catch size, and fourth-root transformed to down-weight dominant
+species:</p>
+\[
+w_{ip} = \left(\frac{y_{ip}}{\sum_{p'} y_{ip'}}\right)^{1/4}, \qquad p = 1, \dots, P.
+\]
+<p>Sets with zero catch of all species are excluded from the analysis.</p>
+
+<p><strong>Cluster (discrete fishing tactics).</strong> The composition matrix \(\mathbf{W}\)
+is grouped into \(G\) clusters with k-means (20 random starts), and the cluster of each set is
+used as a categorical "fishing tactic" (FT) (He et al. 1997):</p>
+\[
+T_i = \gamma_{\mathrm{FT}(i)}, \qquad \mathrm{FT}(i) \in \{1, \dots, G\}.
+\]
+<p>The guidelines used CLARA clustering with the number of clusters set to the number of
+non-trivial principal components plus one (Winker et al. 2014); here \(G\) is set directly
+(<code>n_clusters</code> = 3). Clustering assumes that discrete targeting strategies exist,
+as recommended by Hoyle et al. (2014).</p>
+
+<p><strong>DPC (continuous targeting, direct principal components).</strong> The composition
+matrix \(\mathbf{W}\) is centred, scaled and decomposed by principal component analysis.
+The scores of the first \(n\) components, \(\mathrm{PC}_{1i}, \dots, \mathrm{PC}_{ni}\), are
+used as continuous predictors with smooth effects (Winker et al. 2013, 2014):</p>
+\[
+T_i = \sum_{k=1}^{n} f_k\big(\mathrm{PC}_{ki}\big),
+\]
+<p>where \(f_k\) are thin-plate splines with low flexibility (<code>s(PCk, k = 3)</code>).
+Because the PCs are decorrelated linear combinations of the composition, DPC treats targeting as
+a continuum rather than as discrete groups. The number of components \(n\) is set with
+<code>n_pc</code> (default 3; the guidelines used 2). Winker et al. (2014) select the
+non-trivial components with the optimal coordinates test (a non-graphical solution to
+Cattell's scree test, <code>nFactors::nScree()</code>), because model selection criteria such
+as AIC tend to retain too many components. With \(P\) species there are at most \(P - 1\)
+informative components; using more components captures more of the targeting signal but also
+increases the risk of absorbing real changes in relative abundance (C.6).</p>
+
+<p><strong>HBF (recorded gear covariate).</strong> The number of hooks between floats is used
+as a factor, one catchability multiplier per HBF level (Hoyle et al. 2014):</p>
+\[
+T_i = \gamma_{\mathrm{HBF}(i)}.
+\]
+<p>It needs no catch-composition information, but assumes that each HBF level has the same
+effect on catchability in every year and area.</p>
+
+<p><strong>Combinations.</strong> <code>Cluster_HBF</code> and <code>DPC_HBF</code> add HBF to the
+cluster or DPC terms, \(T_i = \gamma_{\mathrm{FT}(i)} + \gamma_{\mathrm{HBF}(i)}\) or
+\(T_i = \sum_k f_k(\mathrm{PC}_{ki}) + \gamma_{\mathrm{HBF}(i)}\), combining the recorded gear
+with the realised catch mix.</p>
+
+<p><strong>HBS (optional, habitat-based).</strong> Habitat-based standardisation (Bigelow et al.
+2002) estimates no gear effect; instead the predicted vertical availability \(\hat A_{pi}\)
+(B.4) enters as an offset, i.e. effort is converted to effective effort:
+\(T_i = \log \hat A_{pi}\). It requires a habitat model and ocean data and is therefore not part
+of the routine comparison.</p>
+
+<h3>C.4 Random vessel effect</h3>
+<p>Differences in fishing power among vessels can be included as a random intercept,
+\(\alpha_v \sim \mathrm{N}(0, \sigma_\alpha^2)\). In <code>mgcv</code> this is a smooth with a
+random-effect basis, <code>s(vessel, bs = "re")</code>, estimated by REML together with the
+other smooths (option <code>vessel_re = TRUE</code>, which adds the term to every model).
+When predicting the index, the vessel term is excluded, i.e. the index refers to an average
+vessel. The guidelines fitted the same model with <code>mgcv::gamm()</code> and
+<code>random = list(vessel = ~1)</code>, which gives equivalent estimates but requires the
+Tweedie power to be fixed in advance.</p>
+
+<h3>C.5 Model formulae in R</h3>
+<p>All models share the structure <code>y ~ year + [S] + [targeting] + [vessel]</code>, with
+<code>year</code> and <code>vessel</code> as factors:</p>
+<div class="table-wrap"><table>
+<tr><th>Model</th><th>Right-hand side of the formula</th></tr>
+<tr><td>Base</td><td><code>year</code></td></tr>
+<tr><td>Base+S</td><td><code>year + s(lon, lat, k = 8)</code></td></tr>
+<tr><td>Cluster+S</td><td><code>year + s(lon, lat, k = 8) + FT</code></td></tr>
+<tr><td>DPC+S</td><td><code>year + s(lon, lat, k = 8) + s(PC1, k = 3) + s(PC2, k = 3) + s(PC3, k = 3)</code></td></tr>
+<tr><td>HBF+S</td><td><code>year + s(lon, lat, k = 8) + HBF</code></td></tr>
+<tr><td>DPC_HBF+S</td><td><code>year + s(lon, lat, k = 8) + s(PC1, k = 3) + s(PC2, k = 3) + s(PC3, k = 3) + HBF</code></td></tr>
+<tr><td>HBS+S</td><td><code>year + s(lon, lat, k = 8) + offset(log(hbs))</code></td></tr>
+<tr><td>+ vessel</td><td>any of the above <code>+ s(vessel, bs = "re")</code></td></tr>
+</table></div>
+<p>In the simulator <code>lon, lat</code> are the reported block centres <code>Xs, Ys</code>.
+A single model fitted directly with <code>mgcv</code>:</p>
+<pre><code>library(mgcv)
+fit &lt;- gam(y ~ year + s(lon, lat, k = 8) + s(PC1, k = 3) + s(PC2, k = 3) +
+             s(PC3, k = 3) + s(vessel, bs = "re"),
+           family = tw(), method = "REML", data = sets)
+# faster for large data sets:
+fit &lt;- bam(y ~ year + s(lon, lat, k = 8) + HBF + s(vessel, bs = "re"),
+           family = tw(), method = "fREML", discrete = TRUE, data = sets)</code></pre>
+<p>The same comparison with the package:</p>
+<pre><code>fits &lt;- standardize_tuna_indices(
+  sim,
+  models      = c("Base", "Base+S", "Cluster+S", "DPC+S", "HBF+S"),
+  spatial_res = 5,      # reported blocks of 5 x 5 cells
+  spatial_k   = NULL,   # basis size of S (NULL = automatic)
+  n_pc        = 3,      # principal components for DPC
+  n_clusters  = 3,      # fishing tactics for Cluster
+  vessel_re   = FALSE,  # TRUE adds s(vessel, bs = "re")
+  engine      = "bam")  # "gam" (REML) or "bam" (fREML, discrete)
+fits$formulas           # the formulae actually fitted
+# further models, e.g. an HBF x period interaction:
+standardize_tuna_indices(sim, models = "HBF+S",
+  add_models = c(HBF_period = "year + s(Xs, Ys, k = 8) + HBF_period"))</code></pre>
+
+<h3>C.6 From model to index, and how accuracy is measured</h3>
+<p>The annual index is the prediction for each year with all other terms held at fixed
+reference values: the median reported position, PC scores of zero, the most common fishing
+tactic and HBF level, an average vessel (random effect excluded) and no offset. Predictions are
+made on the log scale, back-transformed and scaled to a mean of one; approximate 95% confidence
+intervals are \(\exp(\hat\eta_t \pm 1.96\,\mathrm{SE}_t)\), scaled in the same way. The
+accuracy of an index is the root mean squared error of the log index relative to the true
+(simulated) biomass index \(B_t\), also scaled to a mean of one:</p>
+\[
+\mathrm{RMSE} = \sqrt{\frac{1}{T}\sum_{t=1}^{T}\big(\log \hat I_t - \log B_t\big)^2 }.
+\]
+
+<p><strong>A caveat for composition-based methods.</strong> Cluster and DPC use the same catches
+on both sides of the model: the catch of the species of interest is the response, and it is also
+part of the composition used to define tactics or PCs. Within a year, variation in composition
+among sets mainly reflects targeting, which the PC or cluster effects capture; a real change in
+the relative abundance of one species, however, also shifts the average composition of that year
+and can be partly absorbed by the targeting terms, removing part of the true trend. The risk is
+largest with few species (with two species the composition has a single dimension, so targeting
+and abundance cannot be separated) and when many components are used. Model selection criteria
+are therefore not reliable guides to the number of components or clusters (Winker et al. 2014).</p>
 
 <h2 id="refs">References</h2>
 <div class="refs">
 <p>Bigelow, K.A., Hampton, J. and Miyabe, N. 2002. Application of a habitat-based model to
 estimate effective longline fishing effort and relative abundance of Pacific bigeye tuna
 (<em>Thunnus obesus</em>). Fisheries Oceanography 11: 143-155.</p>
+<p>Candy, S.G. 2004. Modelling catch and effort data using generalised linear models, the
+Tweedie distribution, random vessel effects and random stratum-by-year effects. CCAMLR Science
+11: 59-80.</p>
+<p>Dunn, P.K. and Smyth, G.K. 2005. Series evaluation of Tweedie exponential dispersion model
+densities. Statistics and Computing 15: 267-280.</p>
 <p>He, X., Bigelow, K.A. and Boggs, C.H. 1997. Cluster analysis of longline sets and fishing
 strategies within the Hawaii-based fishery. Fisheries Research 31: 147-158.</p>
+<p>Helser, T.E., Punt, A.E. and Methot, R.D. 2004. A generalized linear mixed model analysis
+of a multi-vessel fishery resource survey. Fisheries Research 70: 251-264.</p>
 <p>Hoyle, S.D. and Okamoto, H. 2013. Target changes in the tropical WCPO Japanese longline
 fishery, and their effects on species composition. WCPFC-SC9-2013/SA-IP-04.</p>
 <p>Hoyle, S.D., Langley, A.D. and Campbell, R.A. 2014. Recommended approaches for standardizing
@@ -393,6 +546,8 @@ catch-per-unit-effort for targeting behaviour in a multispecies hand-line fisher
 Fisheries Research 139: 118-131.</p>
 <p>Winker, H., Kerwath, S.E. and Attwood, C.G. 2014. Proof of concept for a novel procedure to
 standardize multispecies catch and effort data. Fisheries Research 155: 149-159.</p>
+<p>Wood, S.N. 2017. Generalized Additive Models: An Introduction with R, 2nd edition. Chapman
+and Hall/CRC, Boca Raton.</p>
 </div>
 
 </main>
