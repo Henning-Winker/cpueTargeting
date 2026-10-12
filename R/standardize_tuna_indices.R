@@ -259,3 +259,33 @@ bind_comparisons <- function(...) {
   list(indices = stack("indices"), diagnostics = stack("diagnostics"),
        formulas = formulas, data = fits[[1]]$data)
 }
+
+#' Keep only some models of a standardisation result
+#'
+#' Useful to reuse an expensive fit (e.g. a 1 x 1 spatial control) and attach
+#' it to new fits with [bind_comparisons()] instead of refitting it.
+#'
+#' @param comparison Output of [standardize_tuna_indices()] or
+#'   [bind_comparisons()].
+#' @param models Model names to keep.
+#' @return The same structure, restricted to `models`.
+#' @export
+#' @examples
+#' \dontrun{
+#' control <- select_models(old_fit, "Base+S (1x1)")
+#' plot_indices(bind_comparisons(new_fit, control))
+#' }
+select_models <- function(comparison, models) {
+  missing <- setdiff(models, names(comparison$formulas))
+  if (length(missing)) stop("Models not found: ", paste(missing, collapse = ", "),
+                            call. = FALSE)
+  keep <- function(x) {
+    x <- x[x$model %in% models, , drop = FALSE]
+    x$model <- factor(as.character(x$model), levels = models)
+    x
+  }
+  comparison$indices <- keep(comparison$indices)
+  comparison$diagnostics <- keep(comparison$diagnostics)
+  comparison$formulas <- comparison$formulas[models]
+  comparison
+}

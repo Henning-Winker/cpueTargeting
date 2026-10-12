@@ -124,3 +124,17 @@ test_that("fits at different resolutions can be combined", {
   expect_error(standardize_tuna_indices(sim, models = "DPC", n_pc = 5), "n_pc")
   expect_s3_class(plot_diagnostics(ab), "ggplot")
 })
+
+test_that("select_models keeps a subset that can be re-attached", {
+  skip_if_not_installed("mgcv")
+  sim <- simulate_tuna(small_tuna(), seed = 8, plots = FALSE)
+  a <- standardize_tuna_indices(sim, models = c("Base", "Base+S"), engine = "bam")
+  b <- standardize_tuna_indices(sim, models = "Base+S", spatial_res = 1,
+                                engine = "bam", label = " (1x1)")
+  control <- select_models(bind_comparisons(a, b), "Base+S (1x1)")
+  expect_equal(levels(control$indices$model), "Base+S (1x1)")
+  expect_equal(nrow(control$diagnostics), 4)
+  expect_equal(levels(bind_comparisons(a, control)$indices$model),
+               c("Base", "Base+S", "Base+S (1x1)"))
+  expect_error(select_models(a, "HBF+S"), "not found")
+})
