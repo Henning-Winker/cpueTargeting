@@ -55,7 +55,7 @@ warm and south is cool.
 |---|---|---|
 | Horizontal distribution | SST field: north-south gradient + random field | `sst_opt`, `sst_tol`, `sst_gradient`, `sst_noise` |
 | Movement | Exponential distance kernel, weighted by habitat | `dispersal` |
-| Vertical distribution | Normal depth profile, shifted by a thermocline anomaly field | `depth_mu`, `depth_sd`, `thermocline_sd` |
+| Vertical distribution | Normal depth profile, shifted by a thermocline anomaly (fixed field + optional annual shift and annual field) | `depth_mu`, `depth_sd`, `thermocline_sd`, `thermocline_annual_sd`, `thermocline_annual_field_sd` |
 | Hook depth | Catenary by HBF; mainline angle varies between sets; hooks vary within sets; current shoaling (Bigelow et al. 2002, eq. 2-5) | `HBF_levels`, `phi_mean`, `phi_sd`, `current_speed` |
 | Catchability of a set | Vessel q x overlap between hook and fish depth distributions | `q`, `vessel_cv`, `tweedie_power`, `tweedie_phi` |
 | Spatial targeting | Effort goes to cells with high expected catch value | `price`, `preference` |
@@ -82,6 +82,24 @@ overlap) and `hbs_avail` (overlap predicted from HBF, as used in a
 habitat-based standardisation). Set `thermocline_sd = 0` to make vertical
 availability depend on HBF only, so that an HBF factor can fully correct for
 it.
+
+By default the thermocline pattern is fixed over time. Setting
+`thermocline_annual_sd` (a basin-wide AR(1) shift) and/or
+`thermocline_annual_field_sd` (a new spatial field each year) makes it move
+between years, so the catchability of a given HBF changes from year to year.
+The vignette *Vertical targeting and a moving thermocline* walks through
+constant, fixed and moving scenarios step by step.
+
+Plots that illustrate each effect:
+
+| Function | Shows |
+|---|---|
+| `plot_tuna_vertical_distributions()` | species depth profiles and hook profiles by HBF |
+| `plot_thermocline_effect()` | how a shallow or deep thermocline moves species relative to the hooks |
+| `plot_thermocline(sim)` | annual thermocline series and maps |
+| `plot_availability(sim)` | vertical availability by HBF over time |
+| `sim$Plots$HBF`, `sim$Plots$CPUE` | gear use over time; nominal CPUE versus truth |
+| `plot_indices()`, `plot_diagnostics()` | standardised indices and their accuracy, for one or several scenarios |
 
 To change a scenario, edit the settings list:
 

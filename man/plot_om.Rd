@@ -10,6 +10,7 @@ plot_om(sim)
 \value{A named list of ggplots: \code{Env} (bathymetry, or SST and
 thermocline anomaly for the tuna model), \code{SpDens} (initial densities),
 \code{Hist} (CPUE frequencies), \code{CPUE} (nominal versus true index) and,
-for the tuna model, \code{HBF} (annual use of each HBF level). \code{Depth} is
+for the tuna model, \code{HBF} (annual use of each HBF level) and
+\code{Avail} (see \code{\link{plot_availability}}). \code{Depth} is
 kept as an alias of \code{Env} for the bathymetric model.}
 \description{Diagnostic plots for an operating-model run.}

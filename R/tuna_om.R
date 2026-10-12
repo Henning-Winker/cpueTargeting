@@ -9,10 +9,15 @@
 #'   tolerances keep the species mixed rather than separated.
 #' * **Vertical habitat** is a normal depth profile (`depth_mu`, `depth_sd`, in
 #'   m). Within each pair one species is shallow (YFT, ALB) and one deep (BET,
-#'   BFT). A thermocline-depth anomaly field (`thermocline_sd`) shifts all
-#'   profiles up or down together in each cell, so the catch of a given gear
-#'   configuration varies in space. Set `thermocline_sd = 0` for the same
-#'   vertical profile everywhere.
+#'   BFT). A thermocline-depth anomaly shifts all profiles up or down
+#'   together in each cell, so the catch of a given gear configuration varies
+#'   in space and, optionally, between years. The anomaly in year t and cell i
+#'   is `fixed[i] + shift[t] + annual[i, t]`:
+#'   - `fixed`: a spatial field that stays the same every year
+#'     (`thermocline_sd`; 0 = same vertical profile everywhere);
+#'   - `shift`: a basin-wide AR(1) shift (`thermocline_annual_sd`,
+#'     `thermocline_annual_rho`), e.g. ENSO-like years;
+#'   - `annual`: a new spatial field each year (`thermocline_annual_field_sd`).
 #' * **Hook depth** follows the catenary model of Bigelow et al. (2002) for
 #'   each HBF (hooks between floats), with between-set variation in the
 #'   mainline angle `phi`, within-set hook-depth variation and shoaling by
@@ -21,7 +26,10 @@
 #'   BET, then BFT). Skippers choose where to fish and which HBF to use from
 #'   the expected catch value.
 #'
-#' All values are conceptual and meant to be tuned.
+#' All values are conceptual and meant to be tuned. With the same seed,
+#' scenarios that differ only in the thermocline settings share the same SST
+#' field, the same fixed thermocline pattern (scaled by `thermocline_sd`) and
+#' the same vessels; the fishery itself then evolves differently.
 #'
 #' @return A named list accepted by [simulate_tuna()].
 #' @export
@@ -46,8 +54,11 @@ tuna_settings <- function() {
     sst_gradient = 10,        # SST increase from south to north (deg C)
     sst_noise = 1,            # SD of the random SST field (deg C)
     sst_scale = 6,            # correlation scale of the SST field (cells)
-    thermocline_sd = 30,      # SD of the thermocline-depth anomaly field (m)
-    thermocline_scale = 8,    # correlation scale of the anomaly field (cells)
+    thermocline_sd = 30,      # SD of the fixed thermocline-depth anomaly field (m)
+    thermocline_scale = 8,    # correlation scale of the anomaly fields (cells)
+    thermocline_annual_sd = 0,       # SD of a basin-wide annual shift (m), AR(1)
+    thermocline_annual_rho = 0.5,    # autocorrelation of the annual shift
+    thermocline_annual_field_sd = 0, # SD of an extra year-specific anomaly field (m)
     current_speed = 0.2,      # mean surface current (m/s); 0 = no shoaling
     current_cv = 0.5,         # set-to-set CV of current speed
     max_depth = 500,          # depth range of vertical profiles (m)
@@ -95,14 +106,16 @@ tuna_settings <- function() {
 #'
 #' @return A list with
 #' * `Data`: one row per set and species with `year`, `SetID`, `X`, `Y`,
-#'   `Xobs`, `Yobs`, `vessel`, `HBF`, `sst`, `thermocline` (anomaly, m),
+#'   `Xobs`, `Yobs`, `vessel`, `HBF`, `sst`, `thermocline` (anomaly in that
+#'   year, m),
 #'   `Species`, `Sp`, `CPUE`, and the latent truth `hook_depth` (mean hook
 #'   depth of the set), `vertical_avail` (realised vertical overlap) and
 #'   `hbs_avail` (overlap predicted from HBF alone, as in a habitat-based
 #'   standardisation);
 #' * `Biomass`: annual nominal and true indices, scaled to mean 1;
 #' * `Biomass.XY`: initial density by cell and species;
-#' * `Env`: SST and thermocline anomaly by cell;
+#' * `Env`: SST and the fixed thermocline anomaly by cell;
+#' * `Thermocline`: thermocline anomaly by cell and year;
 #' * `Plots`: diagnostic ggplots (if `plots = TRUE`);
 #' * `settings`: the settings used.
 #'
@@ -142,19 +155,13 @@ simulate_tuna <- function(settings = tuna_settings(), seed = NULL, plots = TRUE)
   kernels <- dispersal_kernels(x, y, s$dispersal)
   movement <- lapply(seq_len(ns), function(i) movement_operator(kernels[[i]], habitat[, i]))
 
-  # Vertical distributions: cells x depth bins, one matrix per species ----------
+  # Vertical structure ------------------------------------------------------------
   edges <- seq(0, s$max_depth, by = s$depth_bin)
-  mids <- edges[-1] - s$depth_bin / 2
-  fish_profile <- lapply(seq_len(ns), function(i) {
-    p <- stats::dnorm(matrix(mids, n_cells, length(mids), byrow = TRUE),
-                      mean = s$depth_mu[i] + thermocline, sd = s$depth_sd[i])
-    p / rowSums(p)
-  })
   avail_scale <- s$avail_ref / s$depth_bin
-
-  # Expected availability for each HBF (nominal gear: mean angle, no currents)
-  hbf_profile <- nominal_hook_profiles(s, edges)
-  expected_avail <- lapply(fish_profile, function(p) p %*% t(hbf_profile) * avail_scale)
+  hbf_profile <- nominal_hook_profiles(s, edges)   # expected hook depths by HBF
+  annual_variation <- s$thermocline_annual_sd > 0 || s$thermocline_annual_field_sd > 0
+  shift <- 0
+  thermo_years <- matrix(0, n_cells, s$n_years)
 
   # Initial biomass = carrying capacity = B0 (with lognormal noise), spread
   # over the stable distribution of the movement process --------------------
@@ -174,6 +181,19 @@ simulate_tuna <- function(settings = tuna_settings(), seed = NULL, plots = TRUE)
 
   for (yr in seq_len(s$n_years)) {
     total_biomass[yr, ] <- colSums(biomass)
+
+    # Thermocline anomaly this year and the resulting vertical distributions
+    # (stationary AR(1): the first year is drawn from the marginal distribution)
+    rho <- if (yr == 1) 0 else s$thermocline_annual_rho
+    shift <- rho * shift + sqrt(1 - rho^2) * s$thermocline_annual_sd * stats::rnorm(1)
+    annual_field <- as.vector(simulate_grf(s$nx, s$ny, s$thermocline_annual_field_sd,
+                                           s$thermocline_scale))
+    thermo_years[, yr] <- thermocline + shift + annual_field
+    if (yr == 1 || annual_variation) {
+      fish_profile <- fish_profiles(thermo_years[, yr], s, edges)
+      # expected availability for each HBF (mean angle, no currents)
+      expected_avail <- lapply(fish_profile, function(p) p %*% t(hbf_profile) * avail_scale)
+    }
     n_sets <- annual_effort(yr, s$effort, s$effort_cv)
 
     # Expected value of each cell x HBF combination
@@ -213,7 +233,7 @@ simulate_tuna <- function(settings = tuna_settings(), seed = NULL, plots = TRUE)
     records[[yr]] <- list(
       sets = data.frame(year = yr, SetID = set_counter + seq_len(k),
                         X = x[cell], Y = y[cell], vessel = vessel, HBF = hbf,
-                        sst = sst[cell], thermocline = thermocline[cell],
+                        sst = sst[cell], thermocline = thermo_years[cell, yr],
                         hook_depth = hooks$mean_depth),
       catch = catch$set, avail = avail, hbs = hbs)
     set_counter <- set_counter + k
@@ -244,10 +264,28 @@ simulate_tuna <- function(settings = tuna_settings(), seed = NULL, plots = TRUE)
     Biomass = index_table(data, total_biomass, species),
     Biomass.XY = density_table(env, carrying, species),
     Env = env,
+    Thermocline = data.frame(x = rep(x, s$n_years), y = rep(y, s$n_years),
+                             year = rep(seq_len(s$n_years), each = n_cells),
+                             anomaly = as.vector(thermo_years)),
     settings = s
   )
   if (plots) out$Plots <- plot_om(out)
   out
+}
+
+#' Vertical distribution of each species in each cell
+#'
+#' Normal depth profile with mean `depth_mu + anomaly` and SD `depth_sd`,
+#' as proportions per depth bin.
+#' @return A list with one cells x depth-bins matrix per species.
+#' @noRd
+fish_profiles <- function(anomaly, s, edges) {
+  mids <- edges[-1] - diff(edges) / 2
+  lapply(seq_along(s$species), function(i) {
+    p <- stats::dnorm(matrix(mids, length(anomaly), length(mids), byrow = TRUE),
+                      mean = s$depth_mu[i] + anomaly, sd = s$depth_sd[i])
+    p / rowSums(p)
+  })
 }
 
 #' Draw one column index per row with probabilities proportional to `w`
@@ -288,10 +326,8 @@ catenary_depth <- function(j, hbf, phi, s) {
 set_hook_profiles <- function(hbf, s, edges) {
   k <- length(hbf)
   phi <- pmin(pmax(stats::rnorm(k, s$phi_mean, s$phi_sd), 30), 85)
-  speed <- if (s$current_speed > 0) {
-    sig <- sqrt(log(s$current_cv^2 + 1))
-    stats::rlnorm(k, log(s$current_speed) - sig^2 / 2, sig)
-  } else rep(0, k)
+  sig <- sqrt(log(s$current_cv^2 + 1))
+  speed <- s$current_speed * exp(sig * stats::rnorm(k) - sig^2 / 2)
   shoaling <- pmin(0.985 * speed, 0.9)     # proportion (eq. 4), capped
 
   set <- rep.int(seq_len(k), hbf)          # one row per hook
@@ -343,6 +379,13 @@ check_tuna_settings <- function(s) {
     stop("`sst_tol` and `depth_sd` must be positive.", call. = FALSE)
   }
   if (s$HBF_choice_temp <= 0) stop("`HBF_choice_temp` must be positive.", call. = FALSE)
+  if (abs(s$thermocline_annual_rho) >= 1) {
+    stop("`thermocline_annual_rho` must be between -1 and 1.", call. = FALSE)
+  }
+  if (any(c(s$thermocline_sd, s$thermocline_annual_sd,
+            s$thermocline_annual_field_sd, s$current_speed) < 0)) {
+    stop("Thermocline SDs and `current_speed` cannot be negative.", call. = FALSE)
+  }
   if (s$max_depth %% s$depth_bin != 0) {
     stop("`max_depth` must be a multiple of `depth_bin`.", call. = FALSE)
   }

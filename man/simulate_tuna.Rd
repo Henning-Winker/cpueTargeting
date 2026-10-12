@@ -13,14 +13,15 @@ simulate_tuna(settings = tuna_settings(), seed = NULL, plots = TRUE)
 \itemize{
 \item \code{Data}: one row per set and species with \code{year},
 \code{SetID}, \code{X}, \code{Y}, \code{Xobs}, \code{Yobs}, \code{vessel},
-\code{HBF}, \code{sst}, \code{thermocline} (anomaly, m), \code{Species},
+\code{HBF}, \code{sst}, \code{thermocline} (anomaly in that year, m), \code{Species},
 \code{Sp}, \code{CPUE}, and the latent truth \code{hook_depth} (mean hook depth
 of the set), \code{vertical_avail} (realised vertical overlap) and
 \code{hbs_avail} (overlap predicted from HBF alone, as in a habitat-based
 standardisation);
 \item \code{Biomass}: annual nominal and true indices, scaled to mean 1;
 \item \code{Biomass.XY}: initial density by cell and species;
-\item \code{Env}: SST and thermocline anomaly by cell;
+\item \code{Env}: SST and the fixed thermocline anomaly by cell;
+\item \code{Thermocline}: thermocline anomaly by cell and year;
 \item \code{Plots}: diagnostic ggplots (if \code{plots = TRUE});
 \item \code{settings}: the settings used.
 }}

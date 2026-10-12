@@ -10,12 +10,13 @@
 #' avoid wrap-around correlation; small negative eigenvalues are set to zero.
 #'
 #' @param nx,ny Number of cells in x and y.
-#' @param sd Marginal standard deviation.
+#' @param sd Marginal standard deviation (0 gives a field of zeros).
 #' @param scale Correlation scale in cells.
 #' @return An `nx` by `ny` matrix.
 #' @noRd
 simulate_grf <- function(nx, ny, sd = 1, scale = 4) {
-  if (sd == 0) return(matrix(0, nx, ny))
+  # Random numbers are drawn even when sd = 0, so that scenarios that differ
+  # only in field SDs share all other random draws for the same seed.
   mx <- 2 * nx
   my <- 2 * ny
   dx <- pmin(0:(mx - 1), mx - 0:(mx - 1))

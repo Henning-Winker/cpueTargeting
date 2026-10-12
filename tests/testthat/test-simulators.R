@@ -54,8 +54,47 @@ test_that("plots are built", {
 test_that("standardisation runs and returns indices for all models", {
   skip_if_not_installed("mgcv")
   sim <- simulate_tuna(small_tuna(), seed = 4, plots = FALSE)
-  res <- standardize_tuna_indices(sim, models = c("Base", "HBF", "HBS"))
-  expect_equal(nrow(res$indices), 4 * 3 * 6)
+  res <- standardize_tuna_indices(sim, models = c("Base", "HBF", "HBS"),
+    add_models = c(HBF_period = "year + s(Xobs, Yobs, k = 8) + HBF_period"))
+  expect_equal(nrow(res$indices), 4 * 4 * 6)
   expect_false(anyNA(res$indices$index))
   expect_s3_class(plot_indices(res), "ggplot")
+  expect_s3_class(plot_indices(list(A = res, B = res), ci = TRUE), "ggplot")
+  expect_s3_class(plot_diagnostics(list(A = res, B = res)), "ggplot")
+  fast <- standardize_tuna_indices(sim, models = c("HBF_thermo"), engine = "bam")
+  expect_false(anyNA(fast$indices$index))
+})
+
+test_that("thermocline is fixed by default and moves with annual settings", {
+  fixed <- simulate_tuna(small_tuna(), seed = 5, plots = FALSE)
+  by_year <- tapply(fixed$Thermocline$anomaly, fixed$Thermocline$year, mean)
+  expect_equal(as.vector(by_year), rep(by_year[1], 6), ignore_attr = TRUE)
+
+  moving_cfg <- modifyList(small_tuna(), list(thermocline_annual_sd = 30,
+                                              thermocline_annual_field_sd = 10))
+  moving <- simulate_tuna(moving_cfg, seed = 5, plots = FALSE)
+  expect_gt(sd(tapply(moving$Thermocline$anomaly, moving$Thermocline$year, mean)), 1)
+  # same seed: same SST field and same fixed thermocline pattern
+  expect_equal(moving$Env$SST, fixed$Env$SST)
+  expect_equal(moving$Env$thermocline, fixed$Env$thermocline)
+  # thermocline in Data is the anomaly of that year
+  d <- moving$Data[moving$Data$Species == 1, ]
+  th <- moving$Thermocline
+  key <- match(paste(d$year, d$X, d$Y), paste(th$year, th$x, th$y))
+  expect_equal(d$thermocline, th$anomaly[key])
+
+  constant <- simulate_tuna(modifyList(small_tuna(), list(thermocline_sd = 0)),
+                            seed = 5, plots = FALSE)
+  expect_true(all(constant$Thermocline$anomaly == 0))
+  expect_equal(constant$Env$SST, fixed$Env$SST)
+})
+
+test_that("effect plots are built", {
+  moving_cfg <- modifyList(small_tuna(), list(thermocline_annual_sd = 30))
+  sim <- simulate_tuna(moving_cfg, seed = 6, plots = FALSE)
+  th <- plot_thermocline(sim)
+  expect_s3_class(th$series, "ggplot")
+  expect_s3_class(th$maps, "ggplot")
+  expect_s3_class(plot_thermocline_effect(), "ggplot")
+  expect_s3_class(plot_availability(sim), "ggplot")
 })

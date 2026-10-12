@@ -7,7 +7,8 @@ jet_colors <- grDevices::colorRampPalette(c("#00007F", "blue", "#007FFF", "cyan"
 #' @return A named list of ggplots: `Env` (bathymetry, or SST and thermocline
 #'   anomaly for the tuna model), `SpDens` (initial densities), `Hist` (CPUE
 #'   frequencies), `CPUE` (nominal versus true index) and, for the tuna model,
-#'   `HBF` (annual use of each HBF level). `Depth` is kept as an alias of
+#'   `HBF` (annual use of each HBF level) and `Avail` (see
+#'   [plot_availability()]). `Depth` is kept as an alias of
 #'   `Env` for the bathymetric model.
 #' @export
 plot_om <- function(sim) {
@@ -60,6 +61,7 @@ plot_om <- function(sim) {
       geom_bar(position = "fill") +
       labs(x = "Year", y = "Proportion of sets", fill = "HBF") +
       theme_bw()
+    plots$Avail <- plot_availability(sim)
   }
   plots
 }
@@ -108,20 +110,177 @@ plot_tuna_vertical_distributions <- function(settings = tuna_settings(), file = 
 
 #' Plot standardised indices against the true biomass trend
 #'
-#' @param comparison Output of [standardize_tuna_indices()].
+#' @param comparison Output of [standardize_tuna_indices()], or a named list of
+#'   such outputs (one per scenario), which are shown as rows.
 #' @param models Optional subset of model names to show.
+#' @param ci Logical; show 95% confidence intervals.
 #' @return A ggplot object.
 #' @export
-plot_indices <- function(comparison, models = NULL) {
-  idx <- comparison$indices
+plot_indices <- function(comparison, models = NULL, ci = FALSE) {
+  idx <- bind_scenarios(comparison, "indices")
   if (!is.null(models)) idx <- idx[idx$model %in% models, ]
-  truth <- idx[!duplicated(idx[, c("species", "year")]), ]
-  ggplot(idx, aes(x = .data$year, y = .data$index, colour = .data$model)) +
-    geom_line() +
+  truth <- idx[!duplicated(idx[, c("scenario", "species", "year")]), ]
+  p <- ggplot(idx, aes(x = .data$year, y = .data$index, colour = .data$model))
+  if (ci) {
+    p <- p + geom_ribbon(aes(ymin = .data$lower, ymax = .data$upper, fill = .data$model),
+                         alpha = 0.15, colour = NA, show.legend = FALSE)
+  }
+  p <- p + geom_line() +
     geom_line(data = truth, mapping = aes(x = .data$year, y = .data$true),
               colour = "black", linewidth = 1.1, inherit.aes = FALSE) +
     geom_hline(yintercept = 1, linetype = 2) +
-    facet_wrap(~species, scales = "free_y") +
     labs(x = "Year", y = "Relative index (true: black)", colour = "Model") +
+    theme_bw()
+  if (length(unique(idx$scenario)) > 1) {
+    p + facet_grid(scenario ~ species, scales = "free_y")
+  } else {
+    p + facet_wrap(~species, scales = "free_y")
+  }
+}
+
+#' Compare the accuracy of standardised indices
+#'
+#' Bar chart of the root mean squared error of the log index (relative to the
+#' true biomass index) by model and species.
+#'
+#' @param comparison Output of [standardize_tuna_indices()], or a named list of
+#'   such outputs (one per scenario), shown as differently coloured bars.
+#' @param models Optional subset of model names to show.
+#' @return A ggplot object.
+#' @export
+plot_diagnostics <- function(comparison, models = NULL) {
+  diag <- bind_scenarios(comparison, "diagnostics")
+  if (!is.null(models)) diag <- diag[diag$model %in% models, ]
+  ggplot(diag, aes(x = .data$model, y = .data$rmse_log, fill = .data$scenario)) +
+    geom_col(position = position_dodge(preserve = "single"), width = 0.75) +
+    facet_wrap(~species) +
+    labs(x = NULL, y = "RMSE of log index", fill = "Scenario") +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+}
+
+#' Stack a component of one or several comparison results
+#' @noRd
+bind_scenarios <- function(comparison, what) {
+  if (!is.null(comparison[[what]])) comparison <- list(" " = comparison)
+  if (is.null(names(comparison))) names(comparison) <- paste("Scenario", seq_along(comparison))
+  out <- do.call(rbind, lapply(names(comparison), function(n) {
+    data.frame(scenario = n, comparison[[n]][[what]])
+  }))
+  out$scenario <- factor(out$scenario, levels = names(comparison))
+  out
+}
+
+#' Plot the thermocline anomaly
+#'
+#' @param sim Output of [simulate_tuna()].
+#' @param years Years to map (default: six years spread over the series).
+#' @return A list of two ggplots: `series` (mean anomaly by year with the
+#'   10-90% range across cells) and `maps` (anomaly fields in selected years).
+#' @export
+plot_thermocline <- function(sim, years = NULL) {
+  th <- sim$Thermocline
+  if (is.null(th)) stop("`sim` must be the output of simulate_tuna().", call. = FALSE)
+  stats_by_year <- function(f) tapply(th$anomaly, th$year, f)
+  series <- data.frame(year = sort(unique(th$year)),
+                       mean = stats_by_year(mean),
+                       lower = stats_by_year(function(a) stats::quantile(a, 0.1)),
+                       upper = stats_by_year(function(a) stats::quantile(a, 0.9)))
+  p_series <- ggplot(series, aes(x = .data$year)) +
+    geom_ribbon(aes(ymin = .data$lower, ymax = .data$upper), fill = "grey80") +
+    geom_line(aes(y = .data$mean), linewidth = 1) +
+    geom_hline(yintercept = 0, linetype = 2) +
+    scale_y_reverse() +
+    labs(x = "Year", y = "Thermocline anomaly (m, deeper = down)",
+         title = "Thermocline: basin mean and 10-90% range across cells") +
+    theme_bw()
+  if (is.null(years)) years <- unique(round(seq(1, max(th$year), length.out = 6)))
+  p_maps <- ggplot(th[th$year %in% years, ],
+                   aes(x = .data$x, y = .data$y, fill = .data$anomaly)) +
+    geom_raster() +
+    scale_fill_gradient2(low = "red", mid = "white", high = "blue",
+                         name = "Anomaly (m)\n+ = deeper") +
+    facet_wrap(~year, labeller = label_both) +
+    coord_quickmap(expand = FALSE) +
+    labs(title = "Thermocline anomaly by year") +
+    theme_bw()
+  list(series = p_series, maps = p_maps)
+}
+
+#' Show how a thermocline shift moves species relative to the hooks
+#'
+#' Species depth profiles for a shallow, average and deep thermocline, with
+#' the expected hook-depth profiles of each HBF level in grey. When the
+#' thermocline is shallow, deep-set hooks fish below the deep species; when
+#' it is deep, shallow sets miss them.
+#'
+#' @param settings Settings list, usually from [tuna_settings()].
+#' @param shifts Thermocline anomalies to show (m, positive = deeper).
+#' @return A ggplot object.
+#' @export
+#' @examples
+#' plot_thermocline_effect()
+plot_thermocline_effect <- function(settings = tuna_settings(), shifts = c(-40, 0, 40)) {
+  s <- utils::modifyList(tuna_settings(), settings)
+  edges <- seq(0, s$max_depth, by = s$depth_bin)
+  mids <- edges[-1] - s$depth_bin / 2
+  fish <- do.call(rbind, lapply(shifts, function(sh) {
+    prof <- fish_profiles(sh, s, edges)
+    do.call(rbind, lapply(seq_along(s$species), function(i) {
+      data.frame(depth = mids, proportion = prof[[i]][1, ], species = s$species[i],
+                 shift = sprintf("%+d m", as.integer(sh)))
+    }))
+  }))
+  fish$species <- factor(fish$species, levels = s$species)
+  fish$shift <- factor(fish$shift, levels = unique(fish$shift))
+  hooks <- nominal_hook_profiles(s, edges)
+  gear <- do.call(rbind, lapply(seq_along(s$HBF_levels), function(h) {
+    data.frame(depth = mids, proportion = hooks[h, ], HBF = paste("HBF", s$HBF_levels[h]))
+  }))
+  label_pos <- do.call(rbind, lapply(split(gear, gear$HBF), function(g) g[which.max(g$proportion), ]))
+  ggplot(fish, aes(x = .data$proportion, y = .data$depth)) +
+    geom_path(data = gear, aes(group = .data$HBF), colour = "grey60", linetype = 2) +
+    geom_text(data = label_pos, aes(label = .data$HBF), colour = "grey40", size = 3,
+              hjust = -0.1) +
+    geom_path(aes(colour = .data$shift), linewidth = 1) +
+    facet_wrap(~species, nrow = 1) +
+    scale_y_reverse() +
+    scale_colour_manual(values = shift_colours(length(shifts)),
+                        name = "Thermocline\nanomaly") +
+    labs(x = paste0("Proportion per ", s$depth_bin, "-m bin"), y = "Depth (m)") +
+    theme_bw() +
+    theme(legend.position = "bottom")
+}
+
+#' Colours from shallow (orange) through black to deep (blue)
+#' @noRd
+shift_colours <- function(n) {
+  if (n == 1) return("black")
+  grDevices::colorRampPalette(c("#D55E00", "black", "#0072B2"))(n)
+}
+
+#' Vertical availability by HBF over time
+#'
+#' Mean realised vertical availability (overlap between hooks and fish) of the
+#' sets fishing with each HBF level, by year and species. With a fixed
+#' thermocline the lines are flat apart from changes in where the fleet
+#' fishes; with a moving thermocline the catchability of a given HBF changes
+#' from year to year, which an HBF factor cannot absorb.
+#'
+#' @param sim Output of [simulate_tuna()].
+#' @return A ggplot object.
+#' @export
+plot_availability <- function(sim) {
+  d <- sim$Data
+  if (!"vertical_avail" %in% names(d)) stop("`sim` must be the output of simulate_tuna().",
+                                            call. = FALSE)
+  avail <- stats::aggregate(list(avail = d$vertical_avail),
+                            by = list(year = d$year, HBF = d$HBF, Sp = d$Sp), FUN = mean)
+  avail$Sp <- factor(avail$Sp, levels = unique(d$Sp))
+  avail$HBF <- factor(avail$HBF)
+  ggplot(avail, aes(x = .data$year, y = .data$avail, colour = .data$HBF)) +
+    geom_line(linewidth = 0.8) +
+    facet_wrap(~Sp, nrow = 1) +
+    labs(x = "Year", y = "Mean vertical availability", colour = "HBF") +
     theme_bw()
 }

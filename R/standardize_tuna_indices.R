@@ -12,6 +12,8 @@
 #'   catch composition.
 #' * `HBF`: Spatial + HBF as a factor (tuna model only).
 #' * `DPC_HBF`: DPC + HBF (tuna model only).
+#' * `HBF_thermo`: Spatial + HBF + `s(thermocline, by = HBF)`, i.e. the HBF
+#'   effect changes with the observed thermocline anomaly (tuna model only).
 #' * `HBS`: Spatial + `offset(log(hbs_avail))`, i.e. habitat-based
 #'   standardisation with the HBF-predicted vertical overlap as effective
 #'   effort (Bigelow et al. 2002; tuna model only, assumes the habitat model
@@ -22,6 +24,12 @@
 #'
 #' @param simulation Output of [simulate_tuna()] or [simulate_bathymetric()].
 #' @param models Names of the models to fit (default: all that apply).
+#' @param add_models Optional named character vector of extra right-hand
+#'   sides, e.g. `c(HBF_period = "year + s(Xobs, Yobs, k = 8) + HBF_period")`.
+#'   They can use any column of the returned `data`, including `period`
+#'   (10-year block as a factor) and `HBF_period` (HBF x period factor).
+#' @param engine `"gam"` (default) or `"bam"` with `discrete = TRUE`, which is
+#'   much faster for large data sets.
 #' @param vessel_re Logical; add a random vessel effect `s(vessel, bs = "re")`.
 #' @param n_clusters Number of fishing tactics for the `Cluster` model.
 #' @param seed Seed for the k-means clustering.
@@ -39,8 +47,10 @@
 #' comparison$diagnostics
 #' plot_indices(comparison)
 #' }
-standardize_tuna_indices <- function(simulation, models = NULL, vessel_re = FALSE,
-                                     n_clusters = 3, seed = 1) {
+standardize_tuna_indices <- function(simulation, models = NULL, add_models = NULL,
+                                     vessel_re = FALSE, n_clusters = 3, seed = 1,
+                                     engine = c("gam", "bam")) {
+  engine <- match.arg(engine)
   if (!requireNamespace("mgcv", quietly = TRUE)) {
     stop("Install the `mgcv` package to fit CPUE models.", call. = FALSE)
   }
@@ -67,9 +77,13 @@ standardize_tuna_indices <- function(simulation, models = NULL, vessel_re = FALS
   if (!is.null(seed)) set.seed(seed)
   d$FT <- factor(stats::kmeans(composition, centers = n_clusters, nstart = 20)$cluster)
   years <- sort(unique(d$year))
+  d$period <- factor((d$year - 1) %/% 10 + 1)
   d$year <- factor(d$year, levels = years)
   d$vessel <- factor(d$vessel)
-  if (has_hbf) d$HBF <- factor(d$HBF)
+  if (has_hbf) {
+    d$HBF <- factor(d$HBF)
+    d$HBF_period <- interaction(d$HBF, d$period, drop = TRUE)
+  }
 
   spatial <- "s(Xobs, Yobs, k = 8)"
   dpc <- "s(PC1, k = 3) + s(PC2, k = 3)"
@@ -80,6 +94,10 @@ standardize_tuna_indices <- function(simulation, models = NULL, vessel_re = FALS
   if (has_hbf) {
     terms$HBF <- c("year", spatial, "HBF")
     terms$DPC_HBF <- c("year", spatial, dpc, "HBF")
+    # only identifiable when the thermocline varies
+    if (stats::sd(d$thermocline) > 0) {
+      terms$HBF_thermo <- c("year", spatial, "HBF", "s(thermocline, by = HBF, k = 4)")
+    }
     terms$HBS <- c("year", spatial, "offset(log(hbs))")
   }
   if (vessel_re) terms <- lapply(terms, c, 's(vessel, bs = "re")')
@@ -89,16 +107,30 @@ standardize_tuna_indices <- function(simulation, models = NULL, vessel_re = FALS
                               paste(unknown, collapse = ", "), call. = FALSE)
     terms <- terms[models]
   }
+  if (!is.null(add_models)) {
+    if (is.null(names(add_models)) || any(names(add_models) == "")) {
+      stop("`add_models` must be a named character vector.", call. = FALSE)
+    }
+    extra <- lapply(add_models, function(rhs) {
+      if (vessel_re) c(rhs, 's(vessel, bs = "re")') else rhs
+    })
+    terms <- c(terms, extra)
+  }
 
   # Reference levels for prediction: only `year` changes
   mode_level <- function(f) names(which.max(table(f)))
   newdata <- data.frame(year = factor(years, levels = years),
                         Xobs = stats::median(d$Xobs), Yobs = stats::median(d$Yobs),
-                        PC1 = 0, PC2 = 0,
+                        PC1 = 0, PC2 = 0, period = factor(1, levels = levels(d$period)),
                         FT = factor(mode_level(d$FT), levels = levels(d$FT)),
                         vessel = factor(levels(d$vessel)[1], levels = levels(d$vessel)),
                         hbs = 1)
-  if (has_hbf) newdata$HBF <- factor(mode_level(d$HBF), levels = levels(d$HBF))
+  if (has_hbf) {
+    newdata$HBF <- factor(mode_level(d$HBF), levels = levels(d$HBF))
+    newdata$thermocline <- 0
+    newdata$HBF_period <- factor(mode_level(d$HBF_period[d$period == "1"]),
+                                 levels = levels(d$HBF_period))
+  }
 
   results <- list()
   for (sp in species) {
@@ -107,7 +139,11 @@ standardize_tuna_indices <- function(simulation, models = NULL, vessel_re = FALS
     truth <- simulation$Biomass$True[simulation$Biomass$Sp == sp]
     for (m in names(terms)) {
       form <- stats::as.formula(paste("y ~", paste(terms[[m]], collapse = " + ")))
-      fit <- mgcv::gam(form, data = d, family = mgcv::tw(), method = "REML")
+      fit <- if (engine == "gam") {
+        mgcv::gam(form, data = d, family = mgcv::tw(), method = "REML")
+      } else {
+        mgcv::bam(form, data = d, family = mgcv::tw(), method = "fREML", discrete = TRUE)
+      }
       pred <- stats::predict(fit, newdata = newdata, type = "link", se.fit = TRUE,
                              exclude = if (vessel_re) "s(vessel)" else NULL)
       fit_link <- as.numeric(pred$fit)

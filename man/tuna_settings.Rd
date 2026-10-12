@@ -15,10 +15,15 @@ water; southern bluefin (BFT) and albacore (ALB) prefer cooler water. Wide
 tolerances keep the species mixed rather than separated.
 \item Vertical habitat is a normal depth profile (\code{depth_mu},
 \code{depth_sd}, in m). Within each pair one species is shallow (YFT, ALB) and
-one deep (BET, BFT). A thermocline-depth anomaly field (\code{thermocline_sd})
-shifts all profiles up or down together in each cell, so the catch of a given
-gear configuration varies in space. Set \code{thermocline_sd = 0} for the same
-vertical profile everywhere.
+one deep (BET, BFT). A thermocline-depth anomaly shifts all profiles up or
+down together in each cell, so the catch of a given gear configuration varies
+in space and, optionally, between years. The anomaly in year t and cell i is
+\code{fixed[i] + shift[t] + annual[i, t]}: \code{fixed} is a spatial field that
+stays the same every year (\code{thermocline_sd}; 0 = same vertical profile
+everywhere); \code{shift} is a basin-wide AR(1) shift
+(\code{thermocline_annual_sd}, \code{thermocline_annual_rho}), e.g. ENSO-like
+years; \code{annual} is a new spatial field each year
+(\code{thermocline_annual_field_sd}).
 \item Hook depth follows the catenary model of Bigelow et al. (2002) for each
 HBF (hooks between floats), with between-set variation in the mainline angle
 \code{phi}, within-set hook-depth variation and shoaling by currents.
@@ -26,4 +31,7 @@ HBF (hooks between floats), with between-set variation in the mainline angle
 BET, then BFT). Skippers choose where to fish and which HBF to use from the
 expected catch value.
 }
-All values are conceptual and meant to be tuned.}
+All values are conceptual and meant to be tuned. With the same seed,
+scenarios that differ only in the thermocline settings share the same SST
+field, the same fixed thermocline pattern (scaled by \code{thermocline_sd})
+and the same vessels; the fishery itself then evolves differently.}

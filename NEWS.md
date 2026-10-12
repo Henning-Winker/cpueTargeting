@@ -45,6 +45,19 @@
 * Because random numbers are drawn in a different order, results do not match
   the original runs number by number.
 
+## Moving thermocline
+
+* New settings `thermocline_annual_sd`, `thermocline_annual_rho` and
+  `thermocline_annual_field_sd` let the thermocline move between years
+  (default 0: fixed). `Data$thermocline` is the anomaly of that year and the
+  full field is returned in `Thermocline`.
+* `standardize_tuna_indices()` gains an `HBF_thermo` model
+  (`s(thermocline, by = HBF)`), user-defined models via `add_models`, and
+  `engine = "bam"` for speed.
+* New vignette *Vertical targeting and a moving thermocline*: constant, fixed
+  and moving scenarios, standardisation, and year-interaction models.
+
 ## New functions
 
-* `plot_om()`, `plot_indices()` and `as_set_data()`.
+* `plot_om()`, `plot_indices()`, `plot_diagnostics()`, `plot_thermocline()`,
+  `plot_thermocline_effect()`, `plot_availability()` and `as_set_data()`.

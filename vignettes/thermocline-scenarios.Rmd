@@ -1,0 +1,284 @@
+---
+title: "Vertical targeting and a moving thermocline: a step-by-step guide"
+author: "Henning Winker"
+output:
+  rmarkdown::html_document:
+    toc: true
+    toc_float: true
+    number_sections: true
+    theme: readable
+vignette: >
+  %\VignetteIndexEntry{Vertical targeting and a moving thermocline}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
+                      fig.width = 9, fig.height = 5, dpi = 110)
+```
+
+This guide uses a single iteration of the tuna operating model to show how
+vertical targeting through gear depth (hooks between floats, HBF) biases
+nominal longline CPUE, and how well different standardisation models remove
+that bias when the depth of the fish changes
+
+1. not at all (**Constant**),
+2. in space only (**Fixed**), or
+3. in space and between years (**Moving**).
+
+Everything else, including the seed, is identical across the three scenarios.
+
+```{r packages}
+library(cpueTargeting)
+library(ggplot2)
+```
+
+# The operating model in brief
+
+* Four species in a conceptual Southern Hemisphere ocean (north = warm):
+  yellowfin (YFT) and bigeye (BET) prefer warm water, southern bluefin (BFT)
+  and albacore (ALB) cooler water.
+* Each species has a normal depth profile. Within each pair one species is
+  shallow (YFT, ALB) and one deep (BET, BFT). A thermocline anomaly moves all
+  profiles up (shallow thermocline) or down (deep thermocline).
+* Hook depth follows Bigelow et al. (2002): catenary depth by HBF, with
+  between-set and within-set variation and current shoaling.
+* The catchability of a set for a species is the vessel's catchability times
+  the overlap between hook and fish depth distributions.
+* Prices favour YFT in years 1-10, BET in years 11-20 and BFT in years 21-30.
+  Skippers choose where to fish and which HBF to use.
+
+The species profiles and the expected hook profiles for each HBF:
+
+```{r profiles, fig.height = 4.5}
+plot_tuna_vertical_distributions()
+```
+
+# Step 1: define the three scenarios
+
+The thermocline anomaly in cell *i* and year *t* is
+`fixed[i] + shift[t] + annual[i, t]`, controlled by three settings:
+
+| Setting | Meaning | Constant | Fixed | Moving |
+|---|---|---|---|---|
+| `thermocline_sd` | SD of the fixed spatial field (m) | 0 | 30 | 30 |
+| `thermocline_annual_sd` | SD of the basin-wide annual shift (m, AR(1)) | 0 | 0 | 30 |
+| `thermocline_annual_field_sd` | SD of a new spatial field each year (m) | 0 | 0 | 15 |
+
+```{r scenarios}
+base <- tuna_settings()
+
+scenarios <- list(
+  Constant = modifyList(base, list(thermocline_sd = 0)),
+  Fixed    = modifyList(base, list(thermocline_sd = 30)),
+  Moving   = modifyList(base, list(thermocline_sd = 30,
+                                   thermocline_annual_sd = 30,
+                                   thermocline_annual_field_sd = 15))
+)
+```
+
+# Step 2: simulate one iteration of each scenario
+
+With the same seed, the three runs share the SST field, the fixed thermocline
+pattern and the vessels.
+
+```{r simulate}
+seed <- 1
+sims <- lapply(scenarios, simulate_tuna, seed = seed)
+```
+
+# Step 3: look at the thermocline
+
+In the Moving scenario the basin-wide thermocline goes up and down between
+years, and the spatial pattern changes on top of it. In the Fixed scenario
+the same map applies to every year.
+
+```{r thermocline-series, fig.height = 4}
+plot_thermocline(sims$Moving)$series
+```
+
+```{r thermocline-maps, fig.height = 6}
+plot_thermocline(sims$Moving)$maps
+```
+
+For comparison, the Fixed scenario (all years identical):
+
+```{r thermocline-fixed, fig.height = 6}
+plot_thermocline(sims$Fixed)$maps
+```
+
+# Step 4: why the thermocline matters for HBF
+
+When the thermocline is shallow (orange), the deep species move up towards
+the hooks of shallow sets; when it is deep (blue), they move below the reach
+of all but the deepest sets. The same HBF therefore catches a different mix
+of species depending on the thermocline.
+
+```{r thermocline-effect, fig.height = 4.5}
+plot_thermocline_effect(shifts = c(-40, 0, 40))
+```
+
+# Step 5: how the fishery responds
+
+## Gear use
+
+The fleet sets deeper gear when BET is valuable (years 11-20).
+
+```{r hbf-use, fig.height = 3.5}
+sims$Fixed$Plots$HBF + ggtitle("Fixed: proportion of sets by HBF")
+```
+
+## Vertical availability by HBF
+
+This is the key plot. It shows the average overlap between hooks and fish for
+sets with each HBF. In the Constant and Fixed scenarios the lines are nearly
+flat, so an HBF factor is a good proxy for vertical availability. In the
+Moving scenario the catchability of a given HBF changes from year to year with
+the thermocline.
+
+```{r availability, fig.height = 3.5}
+for (sc in names(sims)) {
+  print(plot_availability(sims[[sc]]) + ggtitle(sc))
+}
+```
+
+## Nominal CPUE versus true biomass
+
+Targeting through prices, location and gear depth biases nominal CPUE in all
+three scenarios.
+
+```{r nominal, fig.height = 4.5}
+for (sc in names(sims)) {
+  print(sims[[sc]]$Plots$CPUE + ggtitle(paste(sc, "- nominal (points) vs true (blue)")))
+}
+```
+
+# Step 6: standardise each scenario
+
+We fit the same candidate models to each scenario. `engine = "bam"` uses
+`mgcv::bam(discrete = TRUE)` for speed; use `engine = "gam"` to reproduce the
+guideline approach exactly.
+
+| Model | Terms (all include `year`) |
+|---|---|
+| Base | year only |
+| Spatial | + `s(Xobs, Yobs)` |
+| DPC | Spatial + `s(PC1)` + `s(PC2)` from catch composition |
+| HBF | Spatial + HBF factor |
+| HBF_thermo | Spatial + HBF + `s(thermocline, by = HBF)` |
+| HBS | Spatial + `offset(log(hbs_avail))`, habitat-based effective effort |
+
+`HBF_thermo` uses the observed thermocline anomaly of the set, as an analyst
+would from an ocean model. `HBS` assumes the habitat model (species depth
+preferences and the HBF-to-hook-depth relationship) is known. `HBF_thermo`
+cannot be fitted in the Constant scenario because the thermocline does not
+vary.
+
+```{r standardise}
+models <- c("Base", "Spatial", "DPC", "HBF", "HBF_thermo", "HBS")
+fits <- lapply(sims, function(sim) {
+  m <- models
+  if (sd(sim$Data$thermocline) == 0) m <- setdiff(m, "HBF_thermo")
+  standardize_tuna_indices(sim, models = m, engine = "bam")
+})
+```
+
+# Step 7: compare the indices with the truth
+
+## Indices
+
+```{r indices, fig.height = 8}
+plot_indices(fits, models = c("Base", "HBF", "HBF_thermo", "HBS"))
+```
+
+## Accuracy
+
+Root mean squared error of the log index relative to the true biomass trend:
+
+```{r diagnostics, fig.height = 5}
+plot_diagnostics(fits)
+```
+
+```{r rmse-table}
+rmse <- do.call(rbind, lapply(names(fits), function(sc) {
+  data.frame(scenario = sc, fits[[sc]]$diagnostics)
+}))
+rmse_wide <- reshape(rmse, idvar = c("scenario", "species"), timevar = "model",
+                     direction = "wide")
+names(rmse_wide) <- sub("rmse_log.", "", names(rmse_wide), fixed = TRUE)
+knitr::kable(rmse_wide, digits = 3, row.names = FALSE)
+```
+
+## What to look for
+
+* **Constant and Fixed**: the HBF factor should remove most of the bias,
+  because the effect of HBF on catchability is the same in every year. The
+  fixed spatial pattern of the thermocline is largely absorbed by the spatial
+  smoother and HBF.
+* **Moving**: the HBF factor should no longer be enough, especially for the
+  deep species (BET, BFT). In years with a shallow thermocline, deep sets
+  catch fewer deep fish and more shallow fish than average, and this shows up
+  in the year effect. Models that know the thermocline (`HBF_thermo`) or the
+  habitat (`HBS`) should do much better.
+
+As a rough guide: in a prototype of this setup (seed 1, Tweedie GLMs with a
+5 x 5 block factor instead of the spatial smoother), the RMSE for BET was
+about 0.02-0.03 for the HBF model in the Constant and Fixed scenarios but
+about 0.2 in the Moving scenario, where HBF x thermocline and HBS stayed near
+0.03. Your numbers will differ. A single iteration is only an illustration;
+repeat over seeds before drawing conclusions.
+
+# Next step: interactions with year
+
+When the effect of gear changes over time, a natural idea is to let the HBF
+effect vary with time. Two versions can be added through `add_models`:
+
+* `HBF_period`: a separate HBF effect in each 10-year price block. This tests
+  whether a coarse time interaction can stand in for the thermocline. It
+  cannot follow year-to-year thermocline changes, so expect little
+  improvement in the Moving scenario.
+* `HBF_year_re`: a random HBF x year interaction, which lets each year have
+  its own (shrunk) HBF effects.
+
+```{r interactions}
+extra <- c(
+  HBF_period  = "year + s(Xobs, Yobs, k = 8) + HBF_period",
+  HBF_year_re = "year + s(Xobs, Yobs, k = 8) + HBF + s(year, HBF, bs = 're')"
+)
+fits_int <- lapply(sims[c("Fixed", "Moving")], standardize_tuna_indices,
+                   models = c("HBF", "HBF_thermo", "HBS"), add_models = extra,
+                   engine = "bam")
+plot_diagnostics(fits_int)
+```
+
+```{r interactions-indices, fig.height = 6}
+plot_indices(fits_int, models = c("HBF", "HBF_period", "HBF_year_re", "HBS"))
+```
+
+Points to keep in mind:
+
+* With a year x HBF interaction the "year effect" is no longer unique: the
+  index refers to the reference HBF (the most common level), and a different
+  reference gives a different trend. Here the indices are predicted for the
+  most common HBF, so if that gear is rarely used in some years the index is
+  poorly informed in those years.
+* A more defensible alternative is to average the predictions over the HBF
+  levels (or over the fished cells and gear configurations) in each year,
+  giving a marginal index, rather than conditioning on one level.
+* The interaction can absorb part of the abundance signal of species that
+  are caught mainly with one gear configuration. Compare the year effects with
+  the truth, not only the fit statistics.
+* The environmental interaction (`HBF_thermo`) explains *why* HBF
+  catchability changes, so it does not compete with the year effect in the
+  same way. It needs the thermocline to be observed, though.
+
+# References
+
+Bigelow, K.A., Hampton, J. and Miyabe, N. (2002) Application of a habitat-based
+model to estimate effective longline fishing effort and relative abundance of
+Pacific bigeye tuna (*Thunnus obesus*). Fisheries Oceanography 11, 143-155.
+
+Winker, H., Kerwath, S.E. and Attwood, C.G. (2014) Proof of concept for a novel
+procedure to standardize multispecies catch and effort data. Fisheries
+Research 155, 149-159.
