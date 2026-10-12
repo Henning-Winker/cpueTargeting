@@ -357,6 +357,15 @@ plot_indices(fits, models = c("Base", "Base+S (1x1)", "Cluster+S",
                               "DPC+S", "DPC+S (3 PCs)", "HBF+S"))
 ```
 
+Annual indices are noisy. To compare the trends, show only loess smoothers
+(`type = "smooth"`), or the annual values as points with the smoother
+(`type = "points+smooth"`); `span` sets the smoothness:
+
+```{r indices-smooth, fig.height = 6}
+plot_indices(fits, models = c("Base", "Cluster+S", "DPC+S", "HBF+S"),
+             type = "smooth", span = 0.5)
+```
+
 ## Accuracy
 
 Root mean squared error of the log index relative to the true biomass trend:

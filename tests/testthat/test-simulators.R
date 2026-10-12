@@ -61,6 +61,8 @@ test_that("standardisation runs and returns indices for all models", {
   expect_false(anyNA(res$indices$index))
   expect_s3_class(plot_indices(res), "ggplot")
   expect_s3_class(plot_indices(list(A = res, B = res), ci = TRUE), "ggplot")
+  expect_s3_class(plot_indices(res, type = "smooth"), "ggplot")
+  expect_s3_class(plot_indices(res, type = "points+smooth", span = 0.8), "ggplot")
   expect_s3_class(plot_diagnostics(list(A = res, B = res)), "ggplot")
   expect_true(all(c("Base+S", "HBF+S", "HBS+S", "HBF_period") %in% levels(res$indices$model)))
   fast <- standardize_tuna_indices(sim, models = c("Cluster", "DPC_HBF",

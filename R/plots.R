@@ -119,9 +119,16 @@ plot_tuna_vertical_distributions <- function(settings = tuna_settings(), file = 
 #'   such outputs (one per scenario), which are shown as rows.
 #' @param models Optional subset of model names to show.
 #' @param ci Logical; show 95% confidence intervals.
+#' @param type How to draw the indices: `"lines"` (default) joins the annual
+#'   values; `"smooth"` shows only a loess smoother of each index, which makes
+#'   trends easier to compare; `"points+smooth"` shows the annual values as
+#'   points with the smoother on top.
+#' @param span Smoothing span of the loess smoother (larger = smoother).
 #' @return A ggplot object.
 #' @export
-plot_indices <- function(comparison, models = NULL, ci = FALSE) {
+plot_indices <- function(comparison, models = NULL, ci = FALSE,
+                         type = c("lines", "smooth", "points+smooth"), span = 0.5) {
+  type <- match.arg(type)
   idx <- bind_scenarios(comparison, "indices")
   if (!is.null(models)) idx <- idx[idx$model %in% models, ]
   truth <- idx[!duplicated(idx[, c("scenario", "species", "year")]), ]
@@ -130,7 +137,13 @@ plot_indices <- function(comparison, models = NULL, ci = FALSE) {
     p <- p + geom_ribbon(aes(ymin = .data$lower, ymax = .data$upper, fill = .data$model),
                          alpha = 0.15, colour = NA, show.legend = FALSE)
   }
-  p <- p + geom_line() +
+  smoother <- geom_smooth(method = "loess", formula = y ~ x, span = span, se = FALSE,
+                          linewidth = 0.9)
+  p <- p + switch(type,
+    lines = list(geom_line()),
+    smooth = list(smoother),
+    `points+smooth` = list(geom_point(size = 1, alpha = 0.6), smoother))
+  p <- p +
     geom_line(data = truth, mapping = aes(x = .data$year, y = .data$true),
               colour = "black", linewidth = 1.1, inherit.aes = FALSE) +
     geom_hline(yintercept = 1, linetype = 2) +
