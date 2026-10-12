@@ -3,52 +3,64 @@
 #' Fits Tweedie GAMs (`mgcv::gam` with `tw()`, as in the CPUE guidelines) to
 #' each species and compares the annual indices with the true biomass trend.
 #'
-#' Candidate models (all include `year`):
-#' * `Base`: year only.
-#' * `Spatial`: + `s(Xobs, Yobs)` on the coarse reporting grid.
-#' * `DPC`: Spatial + `s(PC1)` + `s(PC2)` from the catch composition
-#'   (direct principal components, Winker et al. 2013, 2014).
-#' * `Cluster`: Spatial + fishing tactic from k-means clustering of the
-#'   catch composition.
-#' * `HBF`: Spatial + HBF as a factor (tuna model only).
+#' Each model is `year` plus a targeting term:
+#' * `Base`: no targeting term.
+#' * `DPC`: `s(PC1) + s(PC2)` from the catch composition (direct principal
+#'   components, Winker et al. 2013, 2014).
+#' * `Cluster`: fishing tactic from k-means clustering of the catch
+#'   composition (as a factor).
+#' * `HBF`: HBF as a factor (tuna model only).
 #' * `DPC_HBF`: DPC + HBF (tuna model only).
-#' * `HBF_thermo`: Spatial + HBF + `s(thermocline, by = HBF)`, i.e. the HBF
-#'   effect changes with the observed thermocline anomaly (tuna model only).
-#' * `HBS`: Spatial + `offset(log(hbs_avail))`, i.e. habitat-based
-#'   standardisation with the HBF-predicted vertical overlap as effective
-#'   effort (Bigelow et al. 2002; tuna model only, assumes the habitat model
-#'   is known).
+#' * `HBF_thermo`: HBF + `s(thermocline, by = HBF)`, i.e. the HBF effect
+#'   changes with the observed thermocline anomaly (tuna model only; only when
+#'   the thermocline varies).
+#' * `HBS`: `offset(log(hbs_avail))`, i.e. habitat-based standardisation with
+#'   the HBF-predicted vertical overlap as effective effort (Bigelow et al.
+#'   2002; tuna model only; assumes the habitat model is known).
+#'
+#' With `spatial = TRUE` a spatial smoother `s(Xs, Ys)` is added to every
+#' model and `+S` is appended to its name (so `Base+S` is the spatial-only
+#' model). `Xs`, `Ys` are the centres of `spatial_res` x `spatial_res` blocks
+#' of cells, i.e. the resolution at which positions are reported.
 #'
 #' The latent `hook_depth` and realised `vertical_avail` are never used as
 #' predictors.
 #'
 #' @param simulation Output of [simulate_tuna()] or [simulate_bathymetric()].
-#' @param models Names of the models to fit (default: all that apply).
+#' @param models Targeting models to fit (default: all that apply).
+#' @param spatial `TRUE`, `FALSE`, or `c(FALSE, TRUE)` to fit every model both
+#'   without and with the spatial smoother.
+#' @param spatial_res Size of the reporting blocks in cells (5 = 5 x 5 blocks
+#'   as in the CPUE guidelines; 1 = full resolution).
+#' @param spatial_k Basis dimension of the spatial smoother. By default it
+#'   grows with the number of blocks (8 for 100 blocks, at most 60).
 #' @param add_models Optional named character vector of extra right-hand
-#'   sides, e.g. `c(HBF_period = "year + s(Xobs, Yobs, k = 8) + HBF_period")`.
-#'   They can use any column of the returned `data`, including `period`
-#'   (10-year block as a factor) and `HBF_period` (HBF x period factor).
-#' @param engine `"gam"` (default) or `"bam"` with `discrete = TRUE`, which is
-#'   much faster for large data sets.
+#'   sides, e.g. `c(HBF_period = "year + s(Xs, Ys, k = 8) + HBF_period")`.
+#'   They can use any column of the returned `data`, including `Xs`, `Ys`,
+#'   `period` (10-year block as a factor) and `HBF_period` (HBF x period).
 #' @param vessel_re Logical; add a random vessel effect `s(vessel, bs = "re")`.
 #' @param n_clusters Number of fishing tactics for the `Cluster` model.
 #' @param seed Seed for the k-means clustering.
+#' @param engine `"gam"` (default) or `"bam"` with `discrete = TRUE`, which is
+#'   much faster for large data sets.
 #'
 #' @return A list with `indices` (species, year, model, index with 95% CI and
 #'   the true index), `diagnostics` (root mean squared error of the log index
-#'   by species and model), and `data` (the set-level data used, with PCs and
-#'   tactics).
+#'   by species and model), `formulas` (the right-hand side of each model) and
+#'   `data` (the set-level data used, with PCs, tactics and block centres).
 #' @export
 #'
 #' @examples
 #' \dontrun{
 #' om <- simulate_tuna(seed = 42)
-#' comparison <- standardize_tuna_indices(om)
+#' comparison <- standardize_tuna_indices(om, spatial = c(FALSE, TRUE))
 #' comparison$diagnostics
 #' plot_indices(comparison)
 #' }
-standardize_tuna_indices <- function(simulation, models = NULL, add_models = NULL,
-                                     vessel_re = FALSE, n_clusters = 3, seed = 1,
+standardize_tuna_indices <- function(simulation, models = NULL, spatial = TRUE,
+                                     spatial_res = 5, spatial_k = NULL,
+                                     add_models = NULL, vessel_re = FALSE,
+                                     n_clusters = 3, seed = 1,
                                      engine = c("gam", "bam")) {
   engine <- match.arg(engine)
   if (!requireNamespace("mgcv", quietly = TRUE)) {
@@ -57,6 +69,9 @@ standardize_tuna_indices <- function(simulation, models = NULL, add_models = NUL
   if (is.null(simulation$Data) || is.null(simulation$Biomass)) {
     stop("`simulation` must be the output of simulate_tuna() or simulate_bathymetric().",
          call. = FALSE)
+  }
+  if (!is.logical(spatial) || !length(spatial) || anyNA(spatial)) {
+    stop("`spatial` must be TRUE, FALSE or c(FALSE, TRUE).", call. = FALSE)
   }
   species <- levels(simulation$Biomass$Sp)
   d <- as_set_data(simulation$Data)
@@ -76,6 +91,15 @@ standardize_tuna_indices <- function(simulation, models = NULL, add_models = NUL
   d$PC2 <- pca$x[, 2]
   if (!is.null(seed)) set.seed(seed)
   d$FT <- factor(stats::kmeans(composition, centers = n_clusters, nstart = 20)$cluster)
+
+  # Reporting resolution of positions
+  d$Xs <- coarse_coord(d$X, spatial_res)
+  d$Ys <- coarse_coord(d$Y, spatial_res)
+  if (is.null(spatial_k)) {
+    n_blocks <- nrow(unique(d[, c("Xs", "Ys")]))
+    spatial_k <- min(60, max(8, round(n_blocks / 12)), n_blocks - 1)
+  }
+
   years <- sort(unique(d$year))
   d$period <- factor((d$year - 1) %/% 10 + 1)
   d$year <- factor(d$year, levels = years)
@@ -85,41 +109,47 @@ standardize_tuna_indices <- function(simulation, models = NULL, add_models = NUL
     d$HBF_period <- interaction(d$HBF, d$period, drop = TRUE)
   }
 
-  spatial <- "s(Xobs, Yobs, k = 8)"
-  dpc <- "s(PC1, k = 3) + s(PC2, k = 3)"
-  terms <- list(Base = "year",
-                Spatial = c("year", spatial),
-                DPC = c("year", spatial, dpc),
-                Cluster = c("year", spatial, "FT"))
+  # Targeting terms
+  dpc <- c("s(PC1, k = 3)", "s(PC2, k = 3)")
+  targeting <- list(Base = character(0), DPC = dpc, Cluster = "FT")
   if (has_hbf) {
-    terms$HBF <- c("year", spatial, "HBF")
-    terms$DPC_HBF <- c("year", spatial, dpc, "HBF")
+    targeting$HBF <- "HBF"
+    targeting$DPC_HBF <- c(dpc, "HBF")
     # only identifiable when the thermocline varies
     if (stats::sd(d$thermocline) > 0) {
-      terms$HBF_thermo <- c("year", spatial, "HBF", "s(thermocline, by = HBF, k = 4)")
+      targeting$HBF_thermo <- c("HBF", "s(thermocline, by = HBF, k = 4)")
     }
-    terms$HBS <- c("year", spatial, "offset(log(hbs))")
+    targeting$HBS <- "offset(log(hbs))"
   }
-  if (vessel_re) terms <- lapply(terms, c, 's(vessel, bs = "re")')
   if (!is.null(models)) {
-    unknown <- setdiff(models, names(terms))
+    unknown <- setdiff(models, names(targeting))
     if (length(unknown)) stop("Unknown or inapplicable models: ",
                               paste(unknown, collapse = ", "), call. = FALSE)
-    terms <- terms[models]
+    targeting <- targeting[models]
+  }
+
+  # Full model list: each targeting model with and/or without space
+  spatial_term <- sprintf("s(Xs, Ys, k = %d)", spatial_k)
+  terms <- list()
+  for (sp_on in unique(spatial)) {
+    for (m in names(targeting)) {
+      name <- if (sp_on) paste0(m, "+S") else m
+      terms[[name]] <- c("year", if (sp_on) spatial_term, targeting[[m]])
+    }
   }
   if (!is.null(add_models)) {
     if (is.null(names(add_models)) || any(names(add_models) == "")) {
       stop("`add_models` must be a named character vector.", call. = FALSE)
     }
-    extra <- lapply(add_models, function(rhs) {
-      if (vessel_re) c(rhs, 's(vessel, bs = "re")') else rhs
-    })
-    terms <- c(terms, extra)
+    terms <- c(terms, as.list(add_models))
   }
+  if (vessel_re) terms <- lapply(terms, c, 's(vessel, bs = "re")')
+  formulas <- vapply(terms, paste, character(1), collapse = " + ")
 
   # Reference levels for prediction: only `year` changes
   mode_level <- function(f) names(which.max(table(f)))
   newdata <- data.frame(year = factor(years, levels = years),
+                        Xs = stats::median(d$Xs), Ys = stats::median(d$Ys),
                         Xobs = stats::median(d$Xobs), Yobs = stats::median(d$Yobs),
                         PC1 = 0, PC2 = 0, period = factor(1, levels = levels(d$period)),
                         FT = factor(mode_level(d$FT), levels = levels(d$FT)),
@@ -137,8 +167,8 @@ standardize_tuna_indices <- function(simulation, models = NULL, add_models = NUL
     d$y <- d[[sp]]
     if (has_hbf) d$hbs <- pmax(d[[paste0("hbs_", sp)]], 1e-6)
     truth <- simulation$Biomass$True[simulation$Biomass$Sp == sp]
-    for (m in names(terms)) {
-      form <- stats::as.formula(paste("y ~", paste(terms[[m]], collapse = " + ")))
+    for (m in names(formulas)) {
+      form <- stats::as.formula(paste("y ~", formulas[[m]]))
       fit <- if (engine == "gam") {
         mgcv::gam(form, data = d, family = tweedie_family(), method = "REML")
       } else {
@@ -160,12 +190,12 @@ standardize_tuna_indices <- function(simulation, models = NULL, add_models = NUL
   }
   indices <- do.call(rbind, results)
   indices$species <- factor(indices$species, levels = species)
-  indices$model <- factor(indices$model, levels = names(terms))
+  indices$model <- factor(indices$model, levels = names(formulas))
   err <- (log(indices$index) - log(indices$true))^2
   diagnostics <- stats::aggregate(list(rmse_log = err),
                                   by = list(species = indices$species, model = indices$model),
                                   FUN = function(e) sqrt(mean(e)))
-  list(indices = indices, diagnostics = diagnostics, data = d)
+  list(indices = indices, diagnostics = diagnostics, formulas = formulas, data = d)
 }
 
 #' mgcv's tw() family that also works when mgcv is not attached

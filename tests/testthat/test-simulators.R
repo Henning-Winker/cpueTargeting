@@ -61,8 +61,15 @@ test_that("standardisation runs and returns indices for all models", {
   expect_s3_class(plot_indices(res), "ggplot")
   expect_s3_class(plot_indices(list(A = res, B = res), ci = TRUE), "ggplot")
   expect_s3_class(plot_diagnostics(list(A = res, B = res)), "ggplot")
-  fast <- standardize_tuna_indices(sim, models = c("HBF_thermo"), engine = "bam")
+  expect_true(all(c("Base+S", "HBF+S", "HBS+S", "HBF_period") %in% levels(res$indices$model)))
+  fast <- standardize_tuna_indices(sim, models = c("Cluster", "HBF_thermo"),
+                                   spatial = c(FALSE, TRUE), spatial_res = 1,
+                                   engine = "bam")
   expect_false(anyNA(fast$indices$index))
+  expect_setequal(levels(fast$indices$model),
+                  c("Cluster", "HBF_thermo", "Cluster+S", "HBF_thermo+S"))
+  expect_equal(length(unique(paste(fast$data$Xs, fast$data$Ys))),
+               length(unique(paste(fast$data$X, fast$data$Y))))
 })
 
 test_that("thermocline is fixed by default and moves with annual settings", {

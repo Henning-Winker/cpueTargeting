@@ -156,18 +156,18 @@ for (sc in names(sims)) {
 
 # Step 6: standardise each scenario
 
-We fit the same candidate models to each scenario. `engine = "bam"` uses
-`mgcv::bam(discrete = TRUE)` for speed; use `engine = "gam"` to reproduce the
-guideline approach exactly.
+Each model is `year` plus one targeting term. Space is a separate switch:
+`spatial = TRUE` adds a spatial smoother `s(Xs, Ys)` to every model and
+appends `+S` to its name, so `Base+S` is the spatial-only model.
 
-| Model | Terms (all include `year`) |
-|---|---|
-| Base | year only |
-| Spatial | + `s(Xobs, Yobs)` |
-| DPC | Spatial + `s(PC1)` + `s(PC2)` from catch composition |
-| HBF | Spatial + HBF factor |
-| HBF_thermo | Spatial + HBF + `s(thermocline, by = HBF)` |
-| HBS | Spatial + `offset(log(hbs_avail))`, habitat-based effective effort |
+| Model | Targeting term | Uses |
+|---|---|---|
+| Base | none | catch per set |
+| DPC | `s(PC1) + s(PC2)` from catch composition | all species' catches |
+| Cluster | fishing tactic (k-means clusters of catch composition) | all species' catches |
+| HBF | HBF factor | HBF from logbooks |
+| HBF_thermo | HBF + `s(thermocline, by = HBF)` | HBF + thermocline (ocean model) |
+| HBS | `offset(log(hbs_avail))`, habitat-based effective effort | HBF + habitat model |
 
 `HBF_thermo` uses the observed thermocline anomaly of the set, as an analyst
 would from an ocean model. `HBS` assumes the habitat model (species depth
@@ -175,13 +175,22 @@ preferences and the HBF-to-hook-depth relationship) is known. `HBF_thermo`
 cannot be fitted in the Constant scenario because the thermocline does not
 vary.
 
+Positions are reported at `spatial_res` x `spatial_res` blocks of cells (5 x
+5 as in the guidelines). We start with the spatial smoother on every model;
+Step 8 looks at the effect of dropping it and of changing the resolution.
+
+`engine = "bam"` uses `mgcv::bam(discrete = TRUE)` for speed; use
+`engine = "gam"` to reproduce the guideline approach exactly.
+
 ```{r standardise}
-models <- c("Base", "Spatial", "DPC", "HBF", "HBF_thermo", "HBS")
-fits <- lapply(sims, function(sim) {
+models <- c("Base", "DPC", "Cluster", "HBF", "HBF_thermo", "HBS")
+fit_scenario <- function(sim, ...) {
   m <- models
   if (sd(sim$Data$thermocline) == 0) m <- setdiff(m, "HBF_thermo")
-  standardize_tuna_indices(sim, models = m, engine = "bam")
-})
+  standardize_tuna_indices(sim, models = m, engine = "bam", ...)
+}
+fits <- lapply(sims, fit_scenario, spatial = TRUE, spatial_res = 5)
+fits$Moving$formulas
 ```
 
 # Step 7: compare the indices with the truth
@@ -189,7 +198,7 @@ fits <- lapply(sims, function(sim) {
 ## Indices
 
 ```{r indices, fig.height = 8}
-plot_indices(fits, models = c("Base", "HBF", "HBF_thermo", "HBS"))
+plot_indices(fits, models = c("Base+S", "DPC+S", "HBF+S", "HBF_thermo+S", "HBS+S"))
 ```
 
 ## Accuracy
@@ -212,6 +221,9 @@ knitr::kable(rmse_wide, digits = 3, row.names = FALSE)
 
 ## What to look for
 
+* **DPC and Cluster** correct for targeting through its fingerprint in the
+  catch composition, without knowing HBF. DPC treats targeting as continuous,
+  Cluster as discrete tactics, so DPC usually corrects more.
 * **Constant and Fixed**: the HBF factor should remove most of the bias,
   because the effect of HBF on catchability is the same in every year. The
   fixed spatial pattern of the thermocline is largely absorbed by the spatial
@@ -229,6 +241,43 @@ about 0.2 in the Moving scenario, where HBF x thermocline and HBS stayed near
 0.03. Your numbers will differ. A single iteration is only an illustration;
 repeat over seeds before drawing conclusions.
 
+# Step 8: with or without space, and at what resolution
+
+Does the spatial smoother matter once targeting is accounted for, and does it
+help to know positions more precisely? We use the Moving scenario and fit
+every model with and without the smoother (`spatial = c(FALSE, TRUE)`) at
+three reporting resolutions: 1 x 1 (exact cell), 5 x 5 and 10 x 10 cells.
+
+```{r spatial-resolution}
+resolutions <- c("1x1" = 1, "5x5" = 5, "10x10" = 10)
+fits_res <- lapply(resolutions, function(res) {
+  fit_scenario(sims$Moving, spatial = c(FALSE, TRUE), spatial_res = res)
+})
+```
+
+Without the smoother the models are identical at every resolution, so compare
+them once against the spatial versions:
+
+```{r spatial-onoff, fig.height = 5}
+plot_diagnostics(fits_res[["5x5"]])
+```
+
+Effect of resolution on the spatial models:
+
+```{r resolution-compare, fig.height = 5}
+plot_diagnostics(fits_res, models = paste0(models, "+S"))
+```
+
+What to look for:
+
+* Space matters most for species whose targeting is mainly spatial, i.e. the
+  warm versus cool pairs. It cannot replace the targeting term for gear depth
+  within a pair (YFT vs BET, ALB vs BFT).
+* Finer resolution lets the smoother follow the patchy distributions more
+  closely. At 1 x 1 it may also start to absorb part of the targeting signal,
+  and it needs a larger basis (`spatial_k`, chosen automatically from the
+  number of blocks unless you set it).
+
 # Next step: interactions with year
 
 When the effect of gear changes over time, a natural idea is to let the HBF
@@ -243,8 +292,8 @@ effect vary with time. Two versions can be added through `add_models`:
 
 ```{r interactions}
 extra <- c(
-  HBF_period  = "year + s(Xobs, Yobs, k = 8) + HBF_period",
-  HBF_year_re = "year + s(Xobs, Yobs, k = 8) + HBF + s(year, HBF, bs = 're')"
+  HBF_period  = "year + s(Xs, Ys, k = 8) + HBF_period",
+  HBF_year_re = "year + s(Xs, Ys, k = 8) + HBF + s(year, HBF, bs = 're')"
 )
 fits_int <- lapply(sims[c("Fixed", "Moving")], standardize_tuna_indices,
                    models = c("HBF", "HBF_thermo", "HBS"), add_models = extra,
@@ -253,7 +302,7 @@ plot_diagnostics(fits_int)
 ```
 
 ```{r interactions-indices, fig.height = 6}
-plot_indices(fits_int, models = c("HBF", "HBF_period", "HBF_year_re", "HBS"))
+plot_indices(fits_int, models = c("HBF+S", "HBF_period", "HBF_year_re", "HBS+S"))
 ```
 
 Points to keep in mind:
