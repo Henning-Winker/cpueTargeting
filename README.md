@@ -1,25 +1,26 @@
 # cpueTargeting
 
-`cpueTargeting` is a small R package for simulation experiments in multispecies CPUE
-standardization. It brings together two related operating models:
+`cpueTargeting` is an R package for simulation experiments on fishing effort,
+spatial targeting, and CPUE standardization. It keeps three related examples
+separate:
 
-1. a habitat-targeting trawl example based on the original 2014
-   `SimulationCPUE_3d.R` script; and
-2. a spatial longline tuna extension with separate horizontal habitat and
-   vertical fish–hook overlap, including HBF as an imperfect hook-depth proxy.
+1. `simulate_cluster()` is a callable version of the multi-habitat
+   cluster simulator from Winker et al. (2014), based on
+   `SimulationCPUE_3d.R`.
+2. `simulate_bathymetric()` is the four-species Run 22 spatial operating model.
+   Species distributions are associated with bathymetry; it does not include
+   vertical availability.
+3. `simulate_tuna()` extends the spatial operating model with vertical fish
+   availability and a noisy HBF-to-hook-depth relationship.
 
-The historical script is preserved unchanged in `inst/extdata`. The package
-function `simulate_trawl()` provides a reproducible, callable version of its
-data-generating scenario. `simulate_tuna()` runs the tuna operating model.
-Figures returned by the package functions use ggplot2. The archived original
-script is retained as-is and includes its original base-graphics code.
+The original Run 22 and 2014 scripts are preserved in `inst/extdata` for
+reference. All plots produced by the exported package functions are ggplot2
+objects, and the package code does not use or depend on `plyr`.
 
 ## Installation
 
-After creating a GitHub repository for this folder, install with:
-
 ```r
-remotes::install_github("YOUR-ACCOUNT/cpueTargeting")
+remotes::install_github("henning-winker/cpueTargeting")
 ```
 
 Required packages are declared in `DESCRIPTION` and installed with the
@@ -31,40 +32,39 @@ function documentation.
 ```r
 library(cpueTargeting)
 
-trawl <- simulate_trawl(seed = 1)
-head(trawl$data)
-trawl_plots <- plot_trawl_simulation(trawl)
-trawl_plots$effort
+# Winker et al. (2014) multi-habitat cluster example
+cluster <- simulate_cluster(seed = 1)
+cluster_plots <- plot_cluster_2014(cluster)
+cluster_plots$effort
 
-tuna <- simulate_tuna(seed = 2)
+# Four-species Run 22 model with bathymetric spatial distributions
+bathymetric <- simulate_bathymetric(seed = 2)
+head(bathymetric$Data)
+bathymetric$Plots$SpDens
+
+# Tuna extension with explicit vertical availability and HBF proxy
+tuna <- simulate_tuna(seed = 3)
 head(tuna$Data)
 comparison <- standardize_tuna_indices(tuna)
-
 plot_tuna_vertical_distributions()
 ```
 
-Use `tuna_settings()` to inspect or edit the illustrative tuna scenario.
-Vertical profiles, HBF-to-depth settings, prices, and the spatial settings are
-demonstration values that need fleet-specific calibration before scientific
-interpretation. The operating model keeps latent `hook_depth_m` and vertical
-overlap for validation; the analyst-facing gear predictor is HBF.
+Use `bathymetric_settings()` and `tuna_settings()` to inspect or edit the
+respective scenarios. Tuna vertical profiles and HBF-to-depth settings are
+illustrative placeholders that need fishery-specific calibration before
+scientific interpretation. The tuna operating model retains latent
+`hook_depth_m` and vertical overlap for validation; the analyst-facing gear
+predictor is HBF.
 
 ## Main functions
 
-- `simulate_trawl()`: returns trip-level catches, true biomass, and effort
-  allocation for the four-habitat, ten-species trawl scenario.
-- `plot_trawl_simulation()`: returns ggplot figures for trawl biomass, effort,
-  and catch distributions.
-- `tuna_settings()`: returns default settings for the tuna operating model.
-- `simulate_tuna()`: returns spatial and vertical tuna simulation output.
-- `standardize_tuna_indices()`: compares the base, spatial, DPC, cluster and
-  HBF-adjusted CPUE indices against simulated biomass.
-- `plot_tuna_vertical_distributions()`: plots species availability and HBF
+- `simulate_cluster()` and `plot_cluster_2014()`: simulate and plot the
+  Winker et al. (2014) multi-habitat cluster example.
+- `bathymetric_settings()` and `simulate_bathymetric()`: configure and run the
+  four-species bathymetric Run 22 model.
+- `tuna_settings()` and `simulate_tuna()`: configure and run the spatial and
+  vertical tuna extension.
+- `standardize_tuna_indices()`: compare base, spatial, DPC, cluster and
+  HBF-adjusted CPUE indices against simulated tuna biomass.
+- `plot_tuna_vertical_distributions()`: plot species availability and HBF
   hook-depth profiles on a common depth axis.
-
-## Development
-
-The package uses roxygen2 comments in `R/` to generate help pages and the
-namespace. The standalone workshop driver remains available in the parent
-`project_sources` directory as a reference for the CPUE index comparisons; the
-first package version focuses on clean, documented operating-model functions.

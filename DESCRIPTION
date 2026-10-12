@@ -4,9 +4,10 @@ Version: 0.1.0
 Authors@R: person("Henning", "Winker", role = c("aut", "cre"),
     email = "henning.winker@fao.org")
 Description: Reproducible multispecies operating models for exploring spatial
-    targeting and catch-per-unit-effort standardization. Includes a legacy
-    habitat-based trawl simulator and a spatial and vertical longline tuna
-    simulator with hook-depth proxy scenarios.
+    targeting and catch-per-unit-effort standardization. Includes the 2014
+    multi-habitat cluster example, the four-species bathymetric Run 22 model,
+    and a spatial and vertical longline tuna simulator with hook-depth proxy
+    scenarios.
 License: GPL-3 + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
