@@ -4,8 +4,9 @@ jet_colors <- grDevices::colorRampPalette(c("#00007F", "blue", "#007FFF", "cyan"
 #' Diagnostic plots for an operating-model run
 #'
 #' @param sim Output of [simulate_bathymetric()] or [simulate_tuna()].
-#' @return A named list of ggplots: `Env` (bathymetry, or SST and thermocline
-#'   anomaly for the tuna model), `SpDens` (initial densities), `Hist` (CPUE
+#' @return A named list of ggplots: `Env` (bathymetry, or SST for the tuna
+#'   model), `Thermocline` (fixed thermocline anomaly; tuna model only),
+#'   `SpDens` (initial densities), `Hist` (CPUE
 #'   frequencies), `CPUE` (nominal versus true index) and, for the tuna model,
 #'   `HBF` (annual use of each HBF level) and `Avail` (see
 #'   [plot_availability()]). `Depth` is kept as an alias of
@@ -26,15 +27,16 @@ plot_om <- function(sim) {
     plots$Env <- raster(env, "Depth", "Bathymetry")
     plots$Depth <- plots$Env
   } else {
-    long <- rbind(data.frame(x = env$x, y = env$y, value = env$SST, field = "SST (deg C)"),
-                  data.frame(x = env$x, y = env$y, value = env$thermocline,
-                             field = "Thermocline anomaly (m)"))
-    plots$Env <- ggplot(long, aes(x = .data$x, y = .data$y, fill = .data$value)) +
+    # separate maps so that each field has its own colour scale
+    plots$Env <- raster(env, "SST", "SST (north = top): horizontal habitat") +
+      labs(fill = "SST (deg C)")
+    plots$Thermocline <- ggplot(env, aes(x = .data$x, y = .data$y,
+                                         fill = .data$thermocline)) +
       geom_raster() +
-      scale_fill_gradientn(colours = jet_colors(10), name = NULL) +
-      facet_wrap(~field) +
+      scale_fill_gradient2(low = "red", mid = "white", high = "blue",
+                           name = "Anomaly (m)\n+ = deeper") +
       coord_quickmap(expand = FALSE) +
-      labs(title = "Environment (north = top)") +
+      labs(title = "Fixed thermocline anomaly: shifts species depth", x = "x", y = "y") +
       theme_bw()
   }
   dens <- sim$Biomass.XY

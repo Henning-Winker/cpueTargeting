@@ -46,7 +46,8 @@ test_that("tuna model returns HBF, latent overlap and sensible values", {
 
 test_that("plots are built", {
   sim <- simulate_tuna(small_tuna(), seed = 3)
-  expect_true(all(c("Env", "SpDens", "Hist", "CPUE", "HBF") %in% names(sim$Plots)))
+  expect_true(all(c("Env", "Thermocline", "SpDens", "Hist", "CPUE", "HBF")
+                  %in% names(sim$Plots)))
   expect_s3_class(sim$Plots$CPUE, "ggplot")
   expect_s3_class(plot_tuna_vertical_distributions(), "ggplot")
 })

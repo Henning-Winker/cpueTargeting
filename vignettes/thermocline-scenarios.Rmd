@@ -109,10 +109,18 @@ sims <- lapply(scenarios, simulate_tuna, seed = seed)
 
 # Step 3: the environment
 
-SST (warm north, cool south) and the fixed thermocline pattern:
+SST (warm north, cool south) drives the horizontal distribution; the fixed
+thermocline pattern shifts the species' depth:
 
 ```{r environment, fig.height = 4}
 sims$Fixed$Plots$Env
+sims$Fixed$Plots$Thermocline
+```
+
+The resulting species densities:
+
+```{r densities, fig.height = 6}
+sims$Fixed$Plots$SpDens
 ```
 
 In the Moving scenario the basin-wide thermocline goes up and down between
