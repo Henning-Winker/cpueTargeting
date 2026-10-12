@@ -140,9 +140,10 @@ standardize_tuna_indices <- function(simulation, models = NULL, add_models = NUL
     for (m in names(terms)) {
       form <- stats::as.formula(paste("y ~", paste(terms[[m]], collapse = " + ")))
       fit <- if (engine == "gam") {
-        mgcv::gam(form, data = d, family = mgcv::tw(), method = "REML")
+        mgcv::gam(form, data = d, family = tweedie_family(), method = "REML")
       } else {
-        mgcv::bam(form, data = d, family = mgcv::tw(), method = "fREML", discrete = TRUE)
+        mgcv::bam(form, data = d, family = tweedie_family(), method = "fREML",
+                  discrete = TRUE)
       }
       pred <- stats::predict(fit, newdata = newdata, type = "link", se.fit = TRUE,
                              exclude = if (vessel_re) "s(vessel)" else NULL)
@@ -165,4 +166,22 @@ standardize_tuna_indices <- function(simulation, models = NULL, add_models = NUL
                                   by = list(species = indices$species, model = indices$model),
                                   FUN = function(e) sqrt(mean(e)))
   list(indices = indices, diagnostics = diagnostics, data = d)
+}
+
+#' mgcv's tw() family that also works when mgcv is not attached
+#'
+#' The functions inside `mgcv::tw()` are defined in an environment whose
+#' parent is the global environment, so they cannot find mgcv's internal
+#' functions (e.g. `ldTweedie()`) unless mgcv is attached with `library()`.
+#' Re-parenting that environment to the mgcv namespace fixes this.
+#' @noRd
+tweedie_family <- function() {
+  fam <- mgcv::tw()
+  envs <- unique(lapply(Filter(is.function, fam), environment))
+  for (env in envs) {
+    if (is.environment(env) && identical(parent.env(env), globalenv())) {
+      parent.env(env) <- asNamespace("mgcv")
+    }
+  }
+  fam
 }
