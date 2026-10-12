@@ -257,7 +257,8 @@ generate_tuna_scenario_data <- function(Sim_Settings){
 			effective_q <- rand.vessel * overlap
 			catch_area_vessel <- matrix(vapply(seq_len(n_species), function(Y) {
 			  hum <- Biomass[[iyear]][xyz,Y]*(1-exp(-sum(effective_q[,Y])))
-			  ifelse(hum==0, rep(0,nsets), hum*effective_q[,Y]/sum(effective_q[,Y]))
+			  if (hum == 0) return(rep(0, nsets))
+			  hum*effective_q[,Y]/sum(effective_q[,Y])
 			}, numeric(nsets)), nrow=nsets, ncol=n_species)
 			catch_area_vessel <- data.frame(
 			  year=rep(iyear,nsets), SetID=set_ids,
