@@ -80,4 +80,5 @@
 
 * `plot_om()`, `plot_indices()`, `plot_diagnostics()`, `plot_thermocline()`,
   `plot_thermocline_effect()`, `plot_availability()`, `plot_pcs()`, `plot_sections()`,
-  `bind_comparisons()`, `select_models()` and `as_set_data()`.
+  `bind_comparisons()`, `select_models()`, `run_replicates()`,
+  `plot_replicates()` and `as_set_data()`.

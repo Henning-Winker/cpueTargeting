@@ -108,6 +108,9 @@ Plots that illustrate each effect:
 
 `bind_comparisons()` and `select_models()` combine and subset standardisation
 results, e.g. to attach a slow control fit without refitting it.
+`run_replicates()` repeats simulation and standardisation over many seeds,
+saving after every fit so that long runs can be resumed; `plot_replicates()`
+shows the accuracy across seeds.
 
 To change a scenario, edit the settings list:
 

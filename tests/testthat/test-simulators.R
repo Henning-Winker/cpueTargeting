@@ -152,3 +152,22 @@ test_that("3D distribution plots are built", {
   expect_s3_class(p$section, "ggplot")
   expect_s3_class(p$layers, "ggplot")
 })
+
+test_that("replicates run, resume from file and plot", {
+  skip_if_not_installed("mgcv")
+  f <- tempfile(fileext = ".rds")
+  sc <- list(A = small_tuna())
+  r1 <- run_replicates(sc, seeds = 1, models = c("Base", "DPC+S"), engine = "bam",
+                       file = f,
+                       extra = list(list(models = "Base+S", spatial_res = 1,
+                                         engine = "bam", label = " (1x1)")))
+  expect_equal(sort(unique(r1$diagnostics$seed)), 1)
+  expect_true("Base+S (1x1)" %in% levels(r1$diagnostics$model))
+  r2 <- run_replicates(sc, seeds = 1:2, models = c("Base", "DPC+S"), engine = "bam",
+                       file = f,
+                       extra = list(list(models = "Base+S", spatial_res = 1,
+                                         engine = "bam", label = " (1x1)")))
+  expect_equal(sort(unique(r2$diagnostics$seed)), 1:2)
+  expect_equal(nrow(r2$diagnostics), 2 * 3 * 4)
+  expect_s3_class(plot_replicates(r2), "ggplot")
+})

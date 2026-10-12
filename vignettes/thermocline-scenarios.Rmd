@@ -44,6 +44,8 @@ library(ggplot2)
 # Optional extra steps (spatial resolution, year interactions) take longer;
 # set to TRUE to run them.
 run_extras <- FALSE
+# Replicates over many seeds (e.g. overnight); set to TRUE to run them.
+run_sims <- FALSE
 ```
 
 # The operating model in brief
@@ -461,6 +463,35 @@ now also follow the thermocline:
 pcs_moving <- plot_pcs(fits$Moving, pcs = c("PC1", "PC2", "PC3"))
 pcs_moving$depth
 pcs_moving$time
+```
+
+# Replicates: is the ranking robust?
+
+One iteration is only an illustration. `run_replicates()` repeats the
+simulation and standardisation for many seeds. Results are saved after every
+fit and finished seeds are skipped, so the run can be interrupted and resumed
+(e.g. overnight). Set `run_sims <- TRUE` to run it.
+
+```{r replicates, eval = run_sims}
+reps <- run_replicates(
+  scenarios, seeds = 1:20,
+  models = c("Base", "Base+S", "Cluster+S", "DPC+S", "HBF+S"),
+  extra = list(list(models = "DPC+S", n_pc = 2, label = " (2 PCs)", engine = "bam"),
+               list(models = "Base+S", spatial_res = 1, spatial_k = 30,
+                    label = " (1x1)", engine = "bam")),
+  spatial_res = 5, n_pc = 3, engine = "bam",
+  file = "replicates_fixed_moving.rds")
+```
+
+```{r replicates-plot, eval = run_sims, fig.height = 6}
+plot_replicates(reps)
+```
+
+Afterwards, the results can be loaded and plotted without re-running:
+
+```{r replicates-load, eval = FALSE}
+reps <- readRDS("replicates_fixed_moving.rds")
+plot_replicates(reps)
 ```
 
 # Optional: with or without space, and at what resolution
