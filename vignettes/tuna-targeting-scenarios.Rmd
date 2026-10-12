@@ -55,13 +55,9 @@ et al. (2017, Appendix A), itself a generalisation of the simulator of Ono et
 al. (2015), which is implemented for the bathymetric Run 22 scenario in
 `simulate_bathymetric()`. The tuna extension adds a pelagic horizontal
 habitat, species vertical distributions, longline hook depth by HBF and
-vertical targeting. A full description of both models is in the background
-document:
+vertical targeting. A full description of both models is in the [background
+document](https://henning-winker.github.io/cpueTargeting/appendix.html).
 
-```{r appendix-path, eval = FALSE}
-browseURL(system.file("appendix", "cpueTargeting_simulator_appendix.html",
-                      package = "cpueTargeting"))
-```
 
 In brief:
 
