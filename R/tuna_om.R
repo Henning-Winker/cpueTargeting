@@ -117,7 +117,7 @@ tuna_settings_default <- function() {
     n_vessels = 30,
     # sets per year: one value per year, or a single value for a logistic
     # increase towards it. Default: logistic increase towards 800, cut by 25%
-    # in years 21-30 (~16,000 sets in total)
+    # in years 21-30 (~17,000 sets in total)
     effort = round(800 / (1 + exp(-0.1 * 1:30)) * rep(c(1, 0.75), c(20, 10))),
     effort_cv = 0.2,
     q = 3,                    # mean catchability per set at full vertical overlap;

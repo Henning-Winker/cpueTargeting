@@ -79,7 +79,7 @@ In brief:
   Skippers choose where to fish (spatial targeting) and which HBF to use
   (vertical targeting) from the expected catch value.
 * Effort increases towards 800 sets per year and is cut by 25% in years
-  21-30 (~16,000 sets in total).
+  21-30 (~17,000 sets in total).
 * True trends: stocks start partly fished (`B_start`: YFT 0.7, BET 0.6, BFT
   0.4, ALB 0.6 of carrying capacity) and `q` sets how hard they are fished.
   YFT, BET and ALB are fished down until year 20 and then recover slightly
