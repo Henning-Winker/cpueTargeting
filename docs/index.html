@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cpueTargeting</title>
+<style>
+  :root { --text: #1f2328; --muted: #57606a; --bg: #ffffff; --panel: #f6f8fa; --accent: #0b5d8a; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --text: #e6edf3; --muted: #9da7b3; --bg: #0d1117; --panel: #161b22; --accent: #58a6ff; }
+  }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 16px/1.6 "Helvetica Neue", Arial, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 40px 16px; }
+  h1 { margin-bottom: 4px; }
+  p.sub { color: var(--muted); margin-top: 0; }
+  a { color: var(--accent); }
+  .card { background: var(--panel); border-radius: 8px; padding: 14px 18px; margin: 14px 0; }
+  .card h2 { font-size: 1.1rem; margin: 0 0 4px; }
+  .card p { margin: 0; }
+</style>
+</head>
+<body>
+<main>
+<h1>cpueTargeting</h1>
+<p class="sub">Simulators for CPUE targeting and standardization</p>
+
+<div class="card">
+  <h2><a href="appendix.html">Description of the simulation models</a></h2>
+  <p>The spatial multispecies simulator (<code>simulate_bathymetric()</code>, after Thorson et al.
+  2017 and Ono et al. 2015), its extension to a longline tuna fishery with vertical targeting
+  (<code>simulate_tuna()</code>), and the standardisation models (Cluster, DPC, HBF).</p>
+</div>
+
+<div class="card">
+  <h2><a href="https://github.com/Henning-Winker/cpueTargeting">Package source on GitHub</a></h2>
+  <p>Code, README and the vignette <em>Targeting in a longline tuna fishery</em>.</p>
+</div>
+</main>
+</body>
+</html>

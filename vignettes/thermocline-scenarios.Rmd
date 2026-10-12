@@ -1,0 +1,608 @@
+---
+title: "Targeting in a longline tuna fishery: a step-by-step guide"
+author: "Henning Winker"
+output:
+  rmarkdown::html_document:
+    toc: true
+    toc_float: true
+    number_sections: true
+    theme: readable
+vignette: >
+  %\VignetteIndexEntry{Targeting in a longline tuna fishery}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
+                      fig.width = 9, fig.height = 5, dpi = 110)
+```
+
+This guide uses a single iteration of the tuna operating model to compare the
+three practical approaches to fisher targeting in CPUE standardisation
+(Hoyle et al. 2014):
+
+* **Cluster**: discrete fishing tactics from clustering the catch composition;
+* **DPC**: continuous targeting from the principal components of the catch
+  composition (Winker et al. 2013, 2014);
+* **HBF**: the number of hooks between floats as a recorded gear covariate.
+
+We use two scenarios:
+
+1. **Fixed**: species depth varies in space with the thermocline, but the
+   pattern is the same every year. This is the main case.
+2. **Moving**: the thermocline also moves between years (ENSO-like), so the
+   depth of the fish, and with it the catchability of a given HBF, changes
+   from year to year.
+
+Everything else, including the seed, is identical in the two scenarios.
+
+```{r packages}
+library(cpueTargeting)
+library(ggplot2)
+
+# Optional extra steps (spatial resolution, year interactions) take longer;
+# set to TRUE to run them.
+run_extras <- FALSE
+# Replicates over many seeds (e.g. overnight); set to TRUE to run them.
+run_sims <- FALSE
+```
+
+# The operating model in brief
+
+The operating model extends the spatial multispecies simulator of Thorson
+et al. (2017, Appendix A), itself a generalisation of the simulator of Ono et
+al. (2015), which is implemented for the bathymetric Run 22 scenario in
+`simulate_bathymetric()`. The tuna extension adds a pelagic horizontal
+habitat, species vertical distributions, longline hook depth by HBF and
+vertical targeting. A full description of both models is in the background
+document:
+
+```{r appendix-path, eval = FALSE}
+browseURL(system.file("appendix", "cpueTargeting_simulator_appendix.html",
+                      package = "cpueTargeting"))
+```
+
+In brief:
+
+* Four species in a conceptual Southern Hemisphere ocean (north = warm):
+  yellowfin (YFT) and bigeye (BET) prefer warm water, southern bluefin (BFT)
+  and albacore (ALB) cooler water.
+* Each species has a normal depth profile. Within each pair one species is
+  shallow (YFT, ALB) and one deep (BET, BFT). A thermocline anomaly moves all
+  profiles up (shallow thermocline) or down (deep thermocline).
+* Each HBF level has a typical hook depth (roughly as in Bigelow et al. 2002,
+  Fig. 2). Each set deviates from it by a lognormal error (line angle,
+  currents, ...), so HBF is an imperfect proxy for where the hooks are.
+* The catchability of a set for a species is the vessel's catchability times
+  the overlap between hook and fish depth distributions.
+* Prices favour ALB in years 1-10 (shallow, cool water), BET in years 11-20
+  (deep, warm water) and BFT in years 21-30 (deep, cool water), loosely
+  following the historical shift from albacore to bigeye targeting. The first
+  switch changes both location and depth, the second mainly location.
+  Skippers choose where to fish (spatial targeting) and which HBF to use
+  (vertical targeting) from the expected catch value.
+* About 800 sets per year at the end of the series (~19,000 sets in total).
+
+The species profiles (first panel) and the expected hook profiles for each
+HBF:
+
+```{r profiles, fig.height = 4}
+plot_tuna_vertical_distributions()
+```
+
+# How to control the scenario
+
+All settings live in one list, `tuna_settings()`. Print it to see the
+defaults, change elements with `modifyList()` (or `$`), and pass the list to
+`simulate_tuna()`. Settings you leave out keep their default values.
+
+```{r settings-overview, eval = FALSE}
+s <- tuna_settings()
+str(s)                                        # all settings and defaults
+s2 <- modifyList(s, list(effort = 500, set_cv = 0.4))
+sim <- simulate_tuna(s2, seed = 1)
+```
+
+The settings come in five groups. Species-specific settings are vectors in
+the order of `species`: YFT, BET, BFT, ALB.
+
+## Targeting through prices
+
+Targeting changes are driven by species prices: each year skippers send
+effort to the cells, and choose the HBF, with the highest expected catch
+value (price x expected catch). `price` is a matrix with one row per year
+and one column per species. The default has three 10-year blocks:
+
+| Years | Most valuable | Where it lives | Fleet goes to |
+|---|---|---|---|
+| 1-10 | ALB | shallow, cool south | shallow gear, south |
+| 11-20 | BET | deep, warm north | deep gear, north |
+| 21-30 | BFT | deep, cool south | deep gear, south |
+
+This loosely follows the historical shift from albacore (canning) to bigeye
+(sashimi) targeting in the Japanese longline fleet (Hoyle and Okamoto 2013),
+followed by increasing interest in southern bluefin as it recovers. The
+first switch changes both where and how deep the fleet fishes; the second
+mainly where, which helps to separate spatial from vertical targeting.
+
+```{r prices}
+tuna_settings()$price[c(1, 11, 21), ]   # one row from each block
+```
+
+To define your own sequence, build a new matrix, e.g. a single switch from
+ALB to BET:
+
+```{r prices-custom, eval = FALSE}
+s <- tuna_settings()
+s$price <- matrix(c(rep(c(1.0, 0.5, 0.5, 2.0), 15),   # years 1-15: ALB
+                    rep(c(1.0, 2.0, 1.0, 0.5), 15)),  # years 16-30: BET
+                  ncol = 4, byrow = TRUE)              # columns: YFT, BET, BFT, ALB
+```
+
+Constant prices (the same row every year) switch off targeting changes,
+which is a useful control scenario.
+
+How strongly skippers respond:
+
+| Setting | Effect | Default |
+|---|---|---|
+| `preference` | how strongly effort concentrates on high-value cells (spatial targeting); 0 = effort spread evenly | 1.5 |
+| `HBF_choice_temp` | how strictly skippers pick the best HBF (vertical targeting); small = strict, large = nearly random | 0.15 |
+
+## Species habitat
+
+| Setting | Meaning | Default (YFT, BET, BFT, ALB) |
+|---|---|---|
+| `sst_opt`, `sst_tol` | preferred SST and tolerance (deg C): horizontal distribution | 25, 24, 20, 21; 3, 3.5, 3, 3.5 |
+| `depth_mu`, `depth_sd` | mean and SD of the depth profile (m): vertical distribution | 90, 260, 240, 110; 60, 50, 55, 60 |
+| `B0`, `r` | carrying capacity (t) and intrinsic growth rate | 400, 300, 150, 350 thousand t; 0.30, 0.18, 0.12, 0.18 |
+| `dispersal` | mean movement distance per year (cells) | 1.5 |
+
+Closer `sst_opt` values or larger `sst_tol` mix the species more in space;
+closer `depth_mu` or larger `depth_sd` mix them more in depth, which weakens
+the contrast between shallow and deep gear. Check the result with
+`plot_tuna_vertical_distributions(s)` and, after simulating,
+`plot_availability(sim)`.
+
+## Longline gear
+
+| Setting | Meaning | Default |
+|---|---|---|
+| `HBF_levels` | HBF values the fleet can use | 5, 10, 15, 20 |
+| `HBF_depth` | median hook depth for each HBF level (m) | 110, 160, 205, 250 |
+| `set_cv` | set-level error in hook depth: how well HBF predicts where the hooks are (0 = perfectly) | 0.2 |
+| `hook_cv` | spread of hooks within a set | 0.35 |
+
+`set_cv` is the main "error in variable" knob for the HBF covariate.
+
+## Environment
+
+| Setting | Meaning | Default |
+|---|---|---|
+| `sst_mean`, `sst_gradient`, `sst_noise` | SST field: mean, south-north increase, random variation (deg C) | 23, 10, 1 |
+| `thermocline_sd` | fixed spatial pattern of the thermocline anomaly (m) | 30 |
+| `thermocline_annual_sd` | basin-wide annual shift (m); ~10-15 is realistic | 0 |
+| `thermocline_annual_field_sd` | new spatial pattern each year (m); ~5-10 | 0 |
+
+## Fleet and data
+
+| Setting | Meaning | Default |
+|---|---|---|
+| `n_years` | number of years (the `price` matrix needs at least as many rows) | 30 |
+| `effort` | sets per year at the end of the series (effort increases logistically) | 800 |
+| `n_vessels`, `q`, `vessel_cv` | number of vessels, mean catchability, between-vessel CV | 30, 0.2, 0.2 |
+| `tweedie_power`, `tweedie_phi` | set-level noise in catchability | 1.2, 0.1 |
+| `obs_res` | positions in `Data` are reported as centres of `obs_res` x `obs_res` blocks | 5 |
+
+# Step 1: define the scenarios
+
+The thermocline anomaly in cell *i* and year *t* is
+`fixed[i] + shift[t] + annual[i, t]`:
+
+| Setting | Meaning | Fixed | Moving |
+|---|---|---|---|
+| `thermocline_sd` | SD of the fixed spatial pattern (m) | 30 | 30 |
+| `thermocline_annual_sd` | SD of the basin-wide annual shift (m, AR(1)) | 0 | 15 |
+| `thermocline_annual_field_sd` | SD of a new spatial pattern each year (m) | 0 | 10 |
+
+The annual values give typical year-to-year anomalies of about 20-30 m and
+occasionally 50 m, a realistic range for interannual changes in thermocline
+depth over most of the tropical Pacific.
+
+```{r scenarios}
+base <- tuna_settings()      # effort = 800 sets per year by default
+
+scenarios <- list(
+  Fixed  = modifyList(base, list(thermocline_sd = 30)),
+  Moving = modifyList(base, list(thermocline_sd = 30,
+                                 thermocline_annual_sd = 15,
+                                 thermocline_annual_field_sd = 10))
+)
+```
+
+# Step 2: simulate
+
+With the same seed, both runs share the SST field, the fixed thermocline
+pattern and the vessels.
+
+```{r simulate}
+seed <- 1
+sims <- lapply(scenarios, simulate_tuna, seed = seed)
+```
+
+# Step 3: the environment
+
+SST (warm north, cool south) drives the horizontal distribution; the fixed
+thermocline pattern shifts the species' depth:
+
+```{r environment, fig.height = 4}
+sims$Fixed$Plots$Env
+sims$Fixed$Plots$Thermocline
+```
+
+The resulting species densities:
+
+```{r densities, fig.height = 6}
+sims$Fixed$Plots$SpDens
+```
+
+The same distributions in three dimensions. The latitude x depth section
+averages over x: YFT and BET sit in the warm north, BFT and ALB in the cool
+south, and within each pair one species is shallow and one deep. The layer
+maps show the density in each depth layer, i.e. what a set fishing at that
+depth would encounter.
+
+```{r sections, fig.height = 3.5}
+sec <- plot_sections(sims$Fixed)
+sec$section
+```
+
+```{r layers, fig.height = 7}
+sec$layers
+```
+
+In the Moving scenario the basin-wide thermocline goes up and down between
+years, and the spatial pattern changes on top of it:
+
+```{r thermocline-series, fig.height = 3.5}
+plot_thermocline(sims$Moving)$series
+```
+
+```{r thermocline-maps, fig.height = 5.5}
+plot_thermocline(sims$Moving)$maps
+```
+
+# Step 4: why the thermocline matters for HBF
+
+When the thermocline is shallow (orange), the deep species move up towards
+the hooks of shallow sets; when it is deep (blue), they move below the reach
+of all but the deepest sets. The same HBF therefore catches a different mix
+of species depending on the thermocline.
+
+```{r thermocline-effect, fig.height = 4}
+plot_thermocline_effect(shifts = c(-30, 0, 30))
+```
+
+# Step 5: how the fishery responds
+
+## Gear use
+
+The fleet sets deeper gear when BET is valuable (years 11-20):
+
+```{r hbf-use, fig.height = 3.5}
+sims$Fixed$Plots$HBF + ggtitle("Fixed: proportion of sets by HBF")
+```
+
+## Vertical availability by HBF
+
+The average overlap between hooks and fish for sets with each HBF. In the
+Fixed scenario the lines are fairly flat, so an HBF factor is a reasonable
+proxy for vertical availability. In the Moving scenario the catchability of a
+given HBF changes from year to year with the thermocline.
+
+```{r availability, fig.height = 3.2}
+for (sc in names(sims)) print(plot_availability(sims[[sc]]) + ggtitle(sc))
+```
+
+## Nominal CPUE versus true biomass
+
+```{r nominal, fig.height = 4.5}
+for (sc in names(sims)) {
+  print(sims[[sc]]$Plots$CPUE + ggtitle(paste(sc, "- nominal (points) vs true (blue)")))
+}
+```
+
+# Step 6: standardise
+
+Each model is `year` plus a targeting term; `+S` adds a spatial smoother
+`s(Xs, Ys)` on the reported 5 x 5 blocks.
+
+| Model | Targeting term | Treats targeting as | Uses |
+|---|---|---|---|
+| Base | none | ignored | catch per set |
+| Base+S | none, + space | ignored | catch per set + position |
+| Cluster+S | k-means clusters of catch composition (4 = PCs + 1) | discrete | all species' catches |
+| DPC+S | `s(PC1) + s(PC2) + s(PC3)` of catch composition | continuous | all species' catches |
+| HBF+S | HBF factor | gear covariate | HBF from logbooks |
+
+Two additions:
+
+* **DPC+S (2 PCs)** uses only the first two principal components, as in the
+  2023 CPUE guidelines. The default (`n_pc = 3`) uses three, which with four
+  species is all the information in the catch composition.
+* **Base+S (1x1)** is a control: the spatial model with exact positions.
+  How far does perfect spatial information get us without any information on
+  targeting? Because it is the slowest fit, it is fitted once and stored.
+  Delete the stored file after changing the scenarios or the seed.
+
+`engine = "bam"` uses `mgcv::bam(discrete = TRUE)` for speed; use
+`engine = "gam"` to reproduce the guideline approach exactly.
+
+```{r standardise}
+models <- c("Base", "Base+S", "Cluster+S", "DPC+S", "HBF+S")
+
+fits_main <- lapply(sims, standardize_tuna_indices, models = models,
+                    spatial_res = 5, n_pc = 3, engine = "bam")
+
+fits_dpc2 <- lapply(sims, standardize_tuna_indices, models = "DPC+S",
+                    spatial_res = 5, n_pc = 2, engine = "bam", label = " (2 PCs)")
+
+control_file <- sprintf("control_1x1_%s_seed%d_effort%d.rds",
+                        paste(names(scenarios), collapse = "_"), seed, base$effort)
+if (file.exists(control_file)) {
+  controls <- readRDS(control_file)
+} else {
+  controls <- lapply(sims, standardize_tuna_indices, models = "Base+S",
+                     spatial_res = 1, spatial_k = 30, engine = "bam",
+                     label = " (1x1)")
+  saveRDS(controls, control_file)
+}
+
+fits <- Map(bind_comparisons, fits_main, fits_dpc2, controls)
+fits$Fixed$formulas
+```
+
+The combinations `Cluster_HBF+S` and `DPC_HBF+S` can be added to `models` in
+the same way.
+
+# Step 7: compare the indices with the truth
+
+## Indices
+
+```{r indices, fig.height = 6}
+plot_indices(fits, models = c("Base", "Base+S (1x1)", "Cluster+S",
+                              "DPC+S (2 PCs)", "DPC+S", "HBF+S"))
+```
+
+Annual indices are noisy. To compare the trends, show only loess smoothers
+(`type = "smooth"`), or the annual values as points with the smoother
+(`type = "points+smooth"`); `span` sets the smoothness:
+
+```{r indices-smooth, fig.height = 6}
+plot_indices(fits, models = c("Base", "Cluster+S", "DPC+S", "HBF+S"),
+             type = "smooth", span = 0.5)
+```
+
+## Accuracy
+
+Root mean squared error of the log index relative to the true biomass trend:
+
+```{r diagnostics, fig.height = 5}
+plot_diagnostics(fits)
+```
+
+```{r rmse-table}
+rmse <- do.call(rbind, lapply(names(fits), function(sc) {
+  data.frame(scenario = sc, fits[[sc]]$diagnostics)
+}))
+rmse_wide <- reshape(rmse, idvar = c("scenario", "species"), timevar = "model",
+                     direction = "wide")
+names(rmse_wide) <- sub("rmse_log.", "", names(rmse_wide), fixed = TRUE)
+knitr::kable(rmse_wide, digits = 3, row.names = FALSE)
+```
+
+## What to look for
+
+* **Spatial targeting.** Base (no space) is biased for species whose
+  targeting is mainly spatial, e.g. BFT when the fleet moves into cool water.
+  Base+S removes most of that bias.
+* **Vertical targeting.** The shallow species (YFT, ALB) drop in nominal CPUE
+  at year 11, and BET rises, when the fleet switches to deeper gear. Space alone, even at
+  1 x 1, cannot remove this; DPC and HBF can.
+* **Cluster versus DPC.** Targeting in this simulator is continuous (a graded
+  choice among locations and HBF levels), so a few discrete clusters (by
+  default the number of PCs plus one, i.e. 4) capture only part of it. Clusters are recommended only when discrete strategies exist
+  (Hoyle et al. 2014).
+* **Moving thermocline.** An HBF factor assumes the same catchability for an
+  HBF level in every year, so it cannot follow the annual changes, and may do
+  worse than Base+S because skippers choose HBF partly in response to the
+  thermocline. DPC uses the realised catch mix of each set, which reflects
+  where the hooks actually fished relative to the fish that year, so it can
+  partly correct for it.
+* **Number of PCs.** With two PCs, DPC misses part of the targeting signal
+  for some species (e.g. BFT); the third PC adds it. With four species, three
+  PCs use all the information in the catch composition.
+* **Limits of DPC.** The catch composition only shows *relative*
+  catchability. If a shift changes the availability of several species in
+  the same proportion, the mix does not change and DPC cannot see it. And the
+  more PCs are used, the more risk that real changes in relative abundance
+  are absorbed by the "targeting" terms (Winker et al. 2014 select the number
+  of PCs with a scree test for this reason).
+
+A single iteration is only an illustration; repeat over seeds before drawing
+conclusions.
+
+# Step 8: what do the principal components capture?
+
+The DPC models use the PC scores of each set as predictors. To see what they
+represent, `plot_pcs()` shows the species loadings, the scores in space,
+against the realised hook depth of the set (latent truth from the simulator,
+not used in any model) and over time.
+
+```{r pcs-fixed}
+pcs_fixed <- plot_pcs(fits$Fixed, pcs = c("PC1", "PC2", "PC3"))
+```
+
+What the PCs mean in terms of species:
+
+```{r pcs-loadings, fig.height = 3.5}
+pcs_fixed$loadings
+```
+
+Where each tactic is used. Compare with the SST field: warm-water (YFT, BET)
+versus cool-water (BFT, ALB) catches show up as a north-south pattern.
+
+```{r pcs-space, fig.height = 4}
+pcs_fixed$space
+```
+
+How the scores change with the depth at which the hooks actually fished, for
+each HBF. A PC that changes with hook depth *within* an HBF level carries
+information about the realised fishing depth that the HBF factor does not.
+
+```{r pcs-depth, fig.height = 4.5}
+pcs_fixed$depth
+```
+
+How the average tactic changes over time, following the price blocks:
+
+```{r pcs-time, fig.height = 3.5}
+pcs_fixed$time
+```
+
+The same plots for the Moving scenario; in particular, the scores over time
+now also follow the thermocline:
+
+```{r pcs-moving, fig.height = 3.5}
+pcs_moving <- plot_pcs(fits$Moving, pcs = c("PC1", "PC2", "PC3"))
+pcs_moving$depth
+pcs_moving$time
+```
+
+# Replicates: is the ranking robust?
+
+One iteration is only an illustration. `run_replicates()` repeats the
+simulation and standardisation for many seeds. Results are saved after every
+fit and finished seeds are skipped, so the run can be interrupted and resumed
+(e.g. overnight). Set `run_sims <- TRUE` to run it.
+
+```{r replicates, eval = run_sims}
+reps <- run_replicates(
+  scenarios, seeds = 1:20,
+  models = c("Base", "Base+S", "Cluster+S", "DPC+S", "HBF+S"),
+  extra = list(list(models = "DPC+S", n_pc = 2, label = " (2 PCs)", engine = "bam"),
+               list(models = "Base+S", spatial_res = 1, spatial_k = 30,
+                    label = " (1x1)", engine = "bam")),
+  spatial_res = 5, n_pc = 3, engine = "bam",
+  file = "replicates_fixed_moving.rds")
+```
+
+```{r replicates-plot, eval = run_sims, fig.height = 6}
+plot_replicates(reps)
+```
+
+Afterwards, the results can be loaded and plotted without re-running:
+
+```{r replicates-load, eval = FALSE}
+reps <- readRDS("replicates_fixed_moving.rds")
+plot_replicates(reps)
+```
+
+# Optional: with or without space, and at what resolution
+
+Set `run_extras <- TRUE` to run this step. Every model is fitted with and
+without the smoother at three reporting resolutions: 1 x 1 (exact cell),
+5 x 5 and 10 x 10 cells.
+
+```{r spatial-resolution, eval = run_extras}
+targeting <- c("Base", "Cluster", "DPC", "HBF")
+resolutions <- c("1x1" = 1, "5x5" = 5, "10x10" = 10)
+fits_res <- lapply(resolutions, function(res) {
+  standardize_tuna_indices(sims$Fixed, models = c(targeting, paste0(targeting, "+S")),
+                           spatial_res = res, spatial_k = if (res == 1) 30 else NULL,
+                           engine = "bam")
+})
+plot_diagnostics(fits_res[["5x5"]])
+plot_diagnostics(fits_res, models = paste0(targeting, "+S"))
+```
+
+* Space matters most for species whose targeting is mainly spatial. It cannot
+  replace the targeting term for gear depth within a pair (YFT vs BET, ALB vs
+  BFT).
+* At 1 x 1 the smoother needs a larger basis (`spatial_k`) and may start to
+  absorb part of the targeting signal.
+
+# Optional: interactions with year
+
+When the effect of gear changes over time, one idea is to let the HBF effect
+vary with time. Two versions can be added through `add_models`:
+
+* `HBF_period`: a separate HBF effect in each 10-year price block. It cannot
+  follow year-to-year thermocline changes.
+* `HBF_year_re`: a random HBF x year interaction, which gives each year its
+  own (shrunk) HBF effects.
+
+```{r interactions, eval = run_extras}
+extra <- c(
+  HBF_period  = "year + s(Xs, Ys, k = 8) + HBF_period",
+  HBF_year_re = "year + s(Xs, Ys, k = 8) + HBF + s(year, HBF, bs = 're')"
+)
+fits_int <- lapply(sims, standardize_tuna_indices,
+                   models = c("HBF+S", "DPC+S"), add_models = extra, engine = "bam")
+plot_diagnostics(fits_int)
+plot_indices(fits_int, models = c("HBF+S", "DPC+S", "HBF_period", "HBF_year_re"))
+```
+
+Points to keep in mind:
+
+* With a year x HBF interaction the "year effect" is no longer unique: the
+  index refers to the reference HBF (the most common level), and a different
+  reference gives a different trend.
+* A more defensible alternative is to average the predictions over the HBF
+  levels (or over the fished cells and gear configurations) in each year,
+  giving a marginal index.
+* The interaction can absorb part of the abundance signal of species that are
+  caught mainly with one gear configuration. Compare the year effects with
+  the truth, not only the fit statistics.
+
+# A note on habitat-based standardisation
+
+Habitat-based standardisation (HBS; Bigelow et al. 2002) estimates nothing
+about the gear. It weights each set's effort by the predicted overlap between
+the hook depths of its HBF and the species' depth distribution from a habitat
+model. It needs a validated habitat model and ocean data, so it is a
+specialised approach and not part of the comparison here. It can be fitted
+with `models = "HBS+S"`; in this simulator its habitat model knows the
+species' depth preferences and the average thermocline, but not the annual
+anomalies.
+
+# References
+
+Bigelow, K.A., Hampton, J. and Miyabe, N. (2002) Application of a habitat-based
+model to estimate effective longline fishing effort and relative abundance of
+Pacific bigeye tuna (*Thunnus obesus*). Fisheries Oceanography 11, 143-155.
+
+Hoyle, S.D., Langley, A.D. and Campbell, R.A. (2014) Recommended approaches for
+standardizing CPUE data from pelagic fisheries. WCPFC-SC10-2014/SA-IP-10.
+
+Ono, K., Punt, A.E. and Hilborn, R. (2015) Think outside the grids: an
+objective approach to define spatial strata for catch and effort analysis.
+Fisheries Research 170, 89-101.
+
+Thorson, J.T., Fonner, R., Haltuch, M.A., Ono, K. and Winker, H. (2017)
+Accounting for spatiotemporal variation and fisher targeting when estimating
+abundance from multispecies fishery data. Canadian Journal of Fisheries and
+Aquatic Sciences 74, 1794-1807.
+
+Hoyle, S.D. and Okamoto, H. (2013) Target changes in the tropical WCPO Japanese
+longline fishery, and their effects on species composition.
+WCPFC-SC9-2013/SA-IP-04.
+
+Winker, H., Kerwath, S.E. and Attwood, C.G. (2013) Comparison of two approaches
+to standardize catch-per-unit-effort for targeting behaviour in a
+multispecies hand-line fishery. Fisheries Research 139, 118-131.
+
+Winker, H., Kerwath, S.E. and Attwood, C.G. (2014) Proof of concept for a novel
+procedure to standardize multispecies catch and effort data. Fisheries
+Research 155, 149-159.

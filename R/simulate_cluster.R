@@ -117,17 +117,11 @@ simulate_cluster <- function(years = 20, trips_per_year = 500,
     rows_b <- which(habitat_b == h)
     if (length(rows_a)) for (s in seq_len(n_species)) {
       mu <- q[h, s] * biomass[trip_year[rows_a], s]
-      catch_a[rows_a, s] <- tweedie::rtweedie(
-        length(rows_a), xi = tweedie_power, mu = mu,
-        phi = tweedie_dispersion
-      )
+      catch_a[rows_a, s] <- rtweedie_cp(mu, tweedie_power, tweedie_dispersion)
     }
     if (length(rows_b)) for (s in seq_len(n_species)) {
       mu <- q[h, s] * biomass[trip_year[rows_b], s]
-      catch_b[rows_b, s] <- tweedie::rtweedie(
-        length(rows_b), xi = tweedie_power, mu = mu,
-        phi = tweedie_dispersion
-      )
+      catch_b[rows_b, s] <- rtweedie_cp(mu, tweedie_power, tweedie_dispersion)
     }
   }
   shared <- stats::runif(n) >= habitat_switch

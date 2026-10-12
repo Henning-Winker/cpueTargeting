@@ -1,27 +1,32 @@
 Package: cpueTargeting
 Title: Simulators for CPUE Targeting and Standardization
-Version: 0.1.0
+Version: 0.2.0
 Authors@R: person("Henning", "Winker", role = c("aut", "cre"),
     email = "henning.winker@fao.org")
-Description: Reproducible multispecies operating models for exploring spatial
-    targeting and catch-per-unit-effort standardization. Includes the 2014
-    multi-habitat cluster example, the four-species bathymetric Run 22 model,
-    and a spatial and vertical longline tuna simulator with hook-depth proxy
-    scenarios.
+Description: Multispecies operating models for exploring spatial and
+    vertical targeting and catch-per-unit-effort standardization. Includes
+    the multi-habitat cluster example of Winker et al. (2014), the
+    four-species bathymetric Run 22 model based on the spatial simulator of
+    Thorson et al. (2017) <doi:10.1139/cjfas-2015-0598> and Ono et al. (2015)
+    <doi:10.1016/j.fishres.2015.05.021>, and its extension to a longline tuna
+    fishery with species vertical distributions and hook depth by
+    hooks-between-floats, following the habitat-based approach of Bigelow et
+    al. (2002).
 License: GPL-3 + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
+Depends:
+    R (>= 4.1.0)
 Imports:
-    fields,
+    ggplot2 (>= 3.4.0),
     grDevices,
-    ggplot2,
-    reshape2,
     stats,
-    tweedie
+    utils
 Suggests:
+    knitr,
     mgcv,
-    nFactors,
-    scatterplot3d,
+    rmarkdown,
     testthat (>= 3.0.0)
+VignetteBuilder: knitr
 Config/testthat/edition: 3

@@ -1,272 +1,225 @@
-	                                                     
-## Main function to generate data (the OM)
-generate_bathymetric_scenario_data <- function(Sim_Settings){
-		
-	# Required packages are declared in DESCRIPTION.
-	# fields supplies a circulant-embedding Gaussian-field simulator.
-	required <- c("fields", "ggplot2", "reshape2", "tweedie")
-	missing <- required[!vapply(required, requireNamespace, logical(1), quietly=TRUE)]
-	if(length(missing)) stop("Install these required packages first: ",
-	                         paste(missing, collapse=", "), call.=FALSE)
+#' Default settings for the four-species bathymetric scenario (Run 22)
+#'
+#' Settings of the original `OMcpueSIM22.R` example (scenario 2, targeting
+#' changes). Species distributions are driven by bathymetry and distance; the
+#' model has no vertical component.
+#'
+#' Prices change in three 10-year blocks: years 1-10 favour species 1, years
+#' 11-20 species 2, and years 21-30 species 4.
+#'
+#' @return A named list accepted by [simulate_bathymetric()].
+#' @export
+bathymetric_settings <- function() {
+  list(
+    n_years = 30,
+    # Species (petrale, dover, darkblotched, sablefish in the original)
+    n_species = 4,
+    species = paste0("Sp", 1:4),
+    price_fish = matrix(c(rep(c(1.5, 1, 1, 0.5), 10),
+                          rep(c(0.5, 1.5, 1, 1), 10),
+                          rep(c(0.5, 1, 0.5, 2), 10)), ncol = 4, byrow = TRUE),
+    # Habitat preference and movement
+    func_mvt_dist = rep("Exp", 4),        # distance kernel
+    func_mvt_depth = rep("Lognorm", 4),   # depth preference: Norm, Exp, Lognorm, Unif
+    func_mvt_lat = rep("Unif", 4),        # x-axis range preference
+    Fish_dist_par1 = c(0.4, 0.4, 0.4, 1), # mean movement distance (cells)
+    Fish_dist_par2 = rep(0, 4),           # unused (kept for compatibility)
+    Fish_depth_par1 = c(220, 550, 250, 1000), # preferred depth (m)
+    Fish_depth_par2 = c(0.5, 0.5, 0.3, 0.5),  # CV of depth preference
+    Fish_range_par1 = rep(0, 4),
+    Fish_range_par2 = rep(50, 4),
+    # Schaefer dynamics
+    B0 = c(320000, 420000, 56000, 540000),
+    r = c(0.3, 0.17, 0.12, 0.08),
+    no.mvt = FALSE,
+    # Fleet
+    Nvessels = 30,
+    Tot_effort = 500,         # asymptotic number of sets per year
+    CV_effort = 0.2,
+    qq_original = 0.1,        # mean catchability per set
+    CV_vessel = 0.2,          # between-vessel CV in catchability
+    do.tweedie = TRUE,        # set-level Tweedie noise in catchability
+    xi = 1.2,                 # Tweedie power
+    phi = 0.1,                # Tweedie dispersion
+    Preference = 1,           # effort concentration exponent
+    Changing_preference = FALSE,
+    # Space
+    Range_X = 1:50,
+    Range_Y = 1:50,
+    SD_O = 150,               # SD of the bathymetry field (m)
+    SpatialScale = 4,         # correlation scale of the bathymetry field (cells)
+    obs_res = 5,              # reported positions are centres of obs_res x obs_res blocks
+    year.depth.restriction = 1000, # first year of a closure (> n_years: none)
+    depth.restriction = c(0, 1)    # closed depth range (m), or "random"
+  )
+}
 
-  ## generate mvt matrix of an animal from a cell to the other 
-	Mvt_matrix <- function(Pop_param, Depth_eff, Dist_eff, Lat_eff, Depth_func, Dist_func="Exp", Lat_func, x,y,data.bathym){
-		Mvt_mat <- matrix(0,(length(x)*length(y)),(length(x)*length(y)))
-		for (loc in 1:(length(x)*length(y))){ 
-			Mvt_mat[loc,] <- Mvt_upd1(loc, Pop_param, Depth_eff=Depth_eff, Dist_eff=Dist_eff, Lat_eff=Lat_eff, Depth_func=Depth_func, Dist_func=Dist_func, Lat_func=Lat_func,x,y, data.bathym)
-		}	
-		return(Mvt_mat)
-	}
-		
-  ## for updating the population distribution according to different different covariates (depth and/or dist), using joint prob
-	Mvt_upd1 <- function(loc, Pop_param, Depth_eff, Dist_eff, Lat_eff, Depth_func, Dist_func="Exp", Lat_func, x,y, data.bathym){
-		Di1 <- Pop_param[1]  	# 1st value for dist function
-		Di2 <- Pop_param[2]  	# 2nd value for dist function
-		De1 <- Pop_param[3]  	# 1st value for depth function
-		De2 <- Pop_param[4]	 	# 2nd value for depth function
-		Lat1 <- Pop_param[5]  	# 1st value for lat/long function
-		Lat2 <- Pop_param[6]	# 2nd value for lat/long function
-		
-		a1 <- which(abs(data.bathym$x-data.bathym$x[loc])<=length(x)/2)
-		a2 <- which(abs(data.bathym$x-data.bathym$x[loc])>length(x)/2)
-		a3 <- which(abs(data.bathym$y-data.bathym$y[loc])<=length(y)/2)
-		a4 <- which(abs(data.bathym$y-data.bathym$y[loc])>length(y)/2)
-		Data.bathym <- list()
-		Data.bathym$x[a1] <- data.bathym$x[a1]
-		Data.bathym$x[a2] <- data.bathym$x[a2]#-length(x)
-		Data.bathym$y[a3] <- data.bathym$y[a3]
-		Data.bathym$y[a4] <- data.bathym$y[a4]#-length(y)
-		Dist <- sqrt((Data.bathym$x-Data.bathym$x[loc])^2+(Data.bathym$y-Data.bathym$y[loc])^2)
-		
-		Prob1 <- 1
-		if(Dist_eff=="T"){
-			Prob1 <- dexp(Dist, rate=1/Di1)
-		}
-		
-		Prob2 <- 1
-		if(Depth_eff=="T"){
-			if(Depth_func=="Norm") Prob2 <- dnorm(data.bathym$z, De1, De2*De1)
-			if(Depth_func=="Exp") Prob2 <- dexp(data.bathym$z, rate=1/De1)
-			if(Depth_func=="Lognorm") { SD <- sqrt(log(De2^2+1)); Prob2 <- dlnorm(data.bathym$z, (log(De1)-SD^2/2), SD) }
-			if(Depth_func=="Unif") Prob2 <- dunif(data.bathym$z, De1, De2)
-		}
-		
-		Prob3 <- 1
-		if(Lat_eff=="T"){
-			if(Lat_func=="Norm") Prob3 <- dnorm(data.bathym$x, Lat1, Lat2)
-			if(Lat_func=="Exp") Prob3 <- dexp(data.bathym$x, rate=1/Lat1)
-			if(Lat_func=="Lognorm") Prob3 <- dlnorm(data.bathym$x, (log(Lat1)-Lat2^2/2), Lat2)
-			if(Lat_func=="Unif") Prob3 <- dunif(data.bathym$x, Lat1, Lat2)
-		}
-		
-		Prob <- Prob1*Prob2*Prob3/sum(Prob1*Prob2*Prob3)
-		return(Prob)
-	}
+#' Simulate the four-species bathymetric Run 22 scenario
+#'
+#' Four species are distributed over a simulated bathymetry according to depth
+#' preferences and short-distance movement. Fishing effort is allocated in
+#' proportion to expected catch value, which changes with species prices, so
+#' targeting shifts over time.
+#'
+#' This is a re-implementation of the spatial multispecies simulator of
+#' Thorson et al. (2017, Appendix A; function `Generate_scenario_data` in the
+#' `spatial_DFA` package, <https://github.com/James-Thorson/spatial_DFA>),
+#' which generalises the simulator of Ono et al. (2015), with the "Run 22"
+#' settings used for the WKBMSYSPICT CPUE guidelines. A full description is
+#' in `system.file("appendix", "cpueTargeting_simulator_appendix.html",
+#' package = "cpueTargeting")`.
+#'
+#' Compared with the original script, the dynamics are identical except for
+#' three corrections: species-specific `r` is now applied by species (the
+#' original recycled `r` over cells), the initial distribution is the exact
+#' stable distribution of the movement process, and reported block centres are
+#' aligned with the grid.
+#'
+#' @param settings A named settings list, usually from [bathymetric_settings()].
+#' @param seed Optional integer seed for reproducibility.
+#' @param plots Logical; build the diagnostic ggplots in `Plots`.
+#'
+#' @return A list with
+#' * `Data`: one row per set and species (`year`, `SetID`, `X`, `Y`, `Xobs`,
+#'   `Yobs`, `Species`, `Sp`, `CPUE`, `depth`, `vessel`);
+#' * `Biomass`: annual nominal and true indices, scaled to mean 1;
+#' * `Biomass.XY`: initial density by cell and species;
+#' * `Env`: the bathymetry;
+#' * `Plots`: diagnostic ggplots (if `plots = TRUE`);
+#' * `settings`: the settings used.
+#' @references Thorson, J.T., Fonner, R., Haltuch, M.A., Ono, K. and Winker, H.
+#'   (2017) Accounting for spatiotemporal variation and fisher targeting when
+#'   estimating abundance from multispecies fishery data. Canadian Journal of
+#'   Fisheries and Aquatic Sciences 74, 1794-1807.
+#'
+#'   Ono, K., Punt, A.E. and Hilborn, R. (2015) Think outside the grids: an
+#'   objective approach to define spatial strata for catch and effort
+#'   analysis. Fisheries Research 170, 89-101.
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#' om <- simulate_bathymetric(seed = 42)
+#' head(om$Data)
+#' om$Plots$CPUE
+#' }
+simulate_bathymetric <- function(settings = bathymetric_settings(), seed = NULL,
+                                 plots = TRUE) {
+  if (!is.list(settings) || is.null(names(settings))) {
+    stop("`settings` must be a named list.", call. = FALSE)
+  }
+  if (!is.null(seed)) set.seed(seed)
+  s <- utils::modifyList(bathymetric_settings(), settings)
+  ns <- s$n_species
+  species <- if (length(s$species) == ns) s$species else paste0("Sp", seq_len(ns))
 
-  ## Calculate the initial population distribution
-	Stable_pop_dist <- function(Mvt_mat_adult, B0){
-		Pop1 <- rep(B0/(length(Range_X)*length(Range_Y)), (length(Range_X)*length(Range_Y)))
-		Mvt_mat_adult1 <- t(Mvt_mat_adult)
-		for (Time in seq_len(1000)){
-			Pop <- Mvt_mat_adult1%*%Pop1
-			change <- max(abs(Pop-Pop1))/max(1,max(abs(Pop1)))
-			Pop1 <- Pop
-			if(change < 1e-8) break
-		}
-		Initpop_adult_mat <- matrix(Pop1, nrow=length(Range_X), ncol=length(Range_Y))
-		return(Initpop_adult_mat)
-	}
+  # Grid and bathymetry (x varies fastest, as in the original)
+  nx <- length(s$Range_X)
+  ny <- length(s$Range_Y)
+  n_cells <- nx * ny
+  x <- rep(s$Range_X, ny) + 0.5
+  y <- rep(s$Range_Y, each = nx) + 0.5
+  z <- as.vector(simulate_grf(nx, ny, s$SD_O, s$SpatialScale))
+  z <- z - min(z)                       # depth in m, positive downwards
 
-	attach(Sim_Settings, name="sim_settings")
-	    on.exit(detach("sim_settings"), add=TRUE)
+  # Habitat suitability and movement
+  habitat <- vapply(seq_len(ns), function(i) {
+    habitat_density(z, s$func_mvt_depth[i], s$Fish_depth_par1[i],
+                    s$Fish_depth_par2[i]) *
+      habitat_density(x, s$func_mvt_lat[i], s$Fish_range_par1[i],
+                      s$Fish_range_par2[i])
+  }, numeric(n_cells))
+  kernels <- dispersal_kernels(x, y, s$Fish_dist_par1)
+  movement <- lapply(seq_len(ns), function(i) movement_operator(kernels[[i]], habitat[, i]))
 
-	#### Set the bathymetry field
-	# Same purpose as the former RandomFields::RMgauss/RFsimulate calls.
-	# `fields::circulantEmbedding` is maintained and avoids the archived
-	# RandomFields dependency.
-	grid <- list(x=Range_X, y=Range_Y)
-	cov_obj <- fields::circulantEmbeddingSetup(
-	  grid, cov.args=list(Covariance="Exponential", aRange=SpatialScale, p=2))
-	Bathym <- SD_O * fields::circulantEmbedding(cov_obj)
-	data.bathym <- data.frame(ID = length(Range_X)*length(Range_Y), x = rep(Range_X, length(Range_Y))+0.5, y = rep(Range_Y, each=length(Range_X))+0.5, z=as.vector(Bathym))
-	data.bathym$z = data.bathym$z+abs(min(data.bathym$z))	# to avoid getting negative depth here depth takes positive real number
-	#data.bathym$Depth = -data.bathym$z
-	jet.colors <- colorRampPalette(c("#00007F", "blue", "#007FFF", "cyan", "#7FFF7F", "yellow", "#FF7F00", "red", "#7F0000"))
-	
-	
-	df = data.bathym
-	df$Depth = -df$z
-	
-	pdepth = ggplot() +
-	  geom_raster(data = df, aes(x = x, y = y, fill = Depth)) + 
-	  scale_fill_gradientn(colors = (jet.colors(10))) + 
-	  coord_quickmap(xlim = c(1,NA), ylim=c(1,NA),expand = FALSE)+ggtitle("Bathymetry")
-	
-	#### Set the pop mvt param
-	Par_mvt_adult <- rbind(Fish_dist_par1, Fish_dist_par2, Fish_depth_par1, Fish_depth_par2, Fish_range_par1, Fish_range_par2);
-	Mvt_mat_adult <- lapply(1:n_species, function(xxx) Mvt_matrix(Par_mvt_adult[,xxx], Depth_eff="T", Dist_eff="T", Lat_eff="T", Dist_func=func_mvt_dist[xxx], Depth_func=func_mvt_depth[xxx], Lat_func=func_mvt_lat[xxx], Range_X, Range_Y, data.bathym))
+  # Initial biomass = carrying capacity in each cell. As in the original,
+  # stocks start at 0.5 * B0 (with lognormal noise) distributed at the stable
+  # distribution, and cell-level carrying capacity equals this initial state.
+  b_init <- s$B0 * 0.5 * stats::rlnorm(ns, 0, 0.2)
+  biomass <- vapply(seq_len(ns), function(i) movement[[i]]$stable * b_init[i],
+                    numeric(n_cells))
+  carrying <- biomass
 
-	#### Biomass dynamics: similarly to the work from Caruthers, we assume that there is a regional carrying capacity
-	# Initial population distribution 
-	B1 = B0*0.5*rlnorm(4,0,0.2)
-	Pop_adult <- sapply(1:n_species, function(x) Stable_pop_dist(Mvt_mat_adult[[x]], B1[x]))				
-	
+  # Fleet
+  sig_vessel <- sqrt(log(s$CV_vessel^2 + 1))
+  q_vessel <- stats::rlnorm(s$Nvessels, log(s$qq_original) - sig_vessel^2 / 2, sig_vessel)
+  preference <- s$Preference
 
-	
-	Bxy = data.frame(Pop_adult)
-	colnames(Bxy) = paste0("Species",1:n_species)
-	Bxy = cbind(df,Bxy)[,-c(1,4)]
-	names(Bxy)
-	
-	Bxy = reshape2::melt(Bxy, id.vars = c("x", "y","Depth"))
-	colnames(Bxy) = c(names(Bxy)[-5],"Density")
-	#reshape2::dcast(Bxy1, x+ y+Depth ~ variable)               
-	
-	pbxy =  ggplot() +
-	  geom_raster(data = Bxy, aes(x = x, y = y, fill = log(Density+1))) + facet_wrap(~variable)+
-	  scale_fill_gradientn(colors = (jet.colors(10))) + 
-	  coord_quickmap(xlim = c(0.5,NA), ylim=c(0.5,NA),expand = FALSE)+ggtitle("True spatial densisities")
-	
-	Biomass <- list()
-	Biomass[[1]] <- Pop_adult
-	Biomass[[1]] <- apply(Biomass[[1]], 2,function(x) replace(x, which(x<=0), 0))
-		
-	#### Vessel dynamics
+  records <- vector("list", s$n_years)
+  total_biomass <- matrix(0, s$n_years, ns)
+  set_counter <- 0L
 
-	# generate total effort by year (total effort is randomly sampled with log normal error around a logistic type function)
-	Sig_effort <- sqrt(log(CV_effort^2+1))
-	Effort <- c(); Mean_Effort <- c()		
-	Effort_area_year <- list()
-	Sig_vessel <- sqrt(log(CV_vessel^2+1))
-	qq_vessel <- rlnorm(Nvessels, log(qq_original)-Sig_vessel^2/2, Sig_vessel)		
-		
-	# use of tweedie distribution to generate catch data for individual boat
-	I <- list()	
-	xi <- xi	 # that controls for the value of power such that the variance is var[Y] = phi*mu^xi
-	phi <- phi	  	
-	Catch_area_year <- list(); Catch_area_year_ind <- c()
-	set_id_counter <- 0L
+  for (yr in seq_len(s$n_years)) {
+    total_biomass[yr, ] <- colSums(biomass)
+    if (isTRUE(s$Changing_preference)) preference <- 2 - exp(-0.1 * yr)
+    n_sets <- annual_effort(yr, s$Tot_effort, s$CV_effort)
 
-	#### Updating the population and generate catch data according to the above specifications
-	for (iyear in 1:n_years){
-		
-		### do vessel change their fishing preference over the year (this ONLY controls vessel concentration factor) 
-		if(Changing_preference==TRUE) Preference <- 2-exp(-0.1*iyear)
-		
-		### Assigning total effort in a year		
-		Mean_Effort[iyear] <- (Tot_effort/(1+exp(-0.1*iyear)))		# mean effort by year
-		Effort[iyear] <- trunc(rlnorm(1, log(Mean_Effort[iyear])-Sig_effort^2/2, Sig_effort))		# effort by year
-			
-		### Determining the predicted area specific CPUE
-		map.size <- length(Range_X)*length(Range_Y)
-			
-		### changing the catchability "qq" every year depending on whether a specific area is closed or not
-		if (iyear>=year.depth.restriction){
-			catchability <- rep(1,map.size)
-			if(length(depth.restriction)==2) catchability <- replace(catchability, which(data.bathym$z >= depth.restriction[1] & data.bathym$z <= depth.restriction[2]), 0)
-			if(is.character(depth.restriction) && length(depth.restriction)==1 && depth.restriction=="random") catchability <- replace(catchability, sample(1:map.size, size=min(20,map.size)), 0)
-			qq <- catchability
-		} else { qq <- qq_original }
-		
-		### Expected catch per cell uses biomass, catchability and species prices.
-		catchability_cell <- if(length(qq)==1) rep(qq,map.size) else qq
-		qmat <- matrix(1-exp(-catchability_cell),nrow=map.size,ncol=n_species)
-		pmat <- matrix(price_fish[iyear,],nrow=map.size,ncol=n_species,byrow=TRUE)
-		CPUE_tot <- rowSums(Biomass[[iyear]] * qmat * pmat)
-		CPUE_tot[!is.finite(CPUE_tot) | CPUE_tot<0] <- 0
-		if(sum(CPUE_tot^Preference)<=0) stop("No positive expected catch available for effort allocation.")
-		
-		### Distribute the total effort according to the above predicted CPUE
-		p <- CPUE_tot^Preference/sum(CPUE_tot^Preference);min(p);max(p)		
-		Effort_area_year[[iyear]] <- rmultinom(1, size=Effort[iyear], p=p)
-			
-		### Then calculate the total catch in each area  
-		aa <- c(); AA <- c()			
-		Catch_year_area_mat <- matrix(0, nrow=(length(Range_X)*length(Range_Y)), ncol=n_species)
-		
-		for (xyz in which(Effort_area_year[[iyear]]>0)){
-			which.vessel.fished <- sample(1:Nvessels, Effort_area_year[[iyear]][xyz], replace=TRUE)
-				
-			nsets <- Effort_area_year[[iyear]][xyz]
-			set_ids <- set_id_counter + seq_len(nsets)
-			set_id_counter <- set_id_counter + nsets
-			
-			# This is the code using the continuous function (as suggested by Andre: more realistic)
-			if(do.tweedie==TRUE) rand.vessel <- matrix(sapply(1:n_species, function(x) tweedie::rtweedie(nsets, xi=xi, mu=qq_vessel[which.vessel.fished], phi=phi)),ncol=n_species)
-			if(do.tweedie==FALSE) rand.vessel <- matrix(sapply(1:n_species, function(x) qq_vessel[which.vessel.fished]),ncol=n_species)
-			effective_q <- rand.vessel
-			catch_area_vessel <- matrix(vapply(seq_len(n_species), function(Y) {
-			  hum <- Biomass[[iyear]][xyz,Y]*(1-exp(-sum(effective_q[,Y])))
-			  if (hum == 0) return(rep(0, nsets))
-			  hum*effective_q[,Y]/sum(effective_q[,Y])
-			}, numeric(nsets)), nrow=nsets, ncol=n_species)
-			catch_area_vessel <- data.frame(
-			  year=rep(iyear,nsets), SetID=set_ids,
-			  X=rep(data.bathym$x[xyz],nsets), Y=rep(data.bathym$y[xyz],nsets),
-			  depth=rep(data.bathym$z[xyz],nsets), vessel=which.vessel.fished,
-			  as.data.frame(catch_area_vessel), check.names=FALSE)
-			colnames(catch_area_vessel) <- c("year", "SetID", "X", "Y", "depth",
-			  "vessel", paste0("Sp",1:n_species))
-			Catch_year_area_mat[xyz,] <- colSums(catch_area_vessel[,paste0("Sp",1:n_species),drop=FALSE])
-			
-			AA <- rbind(AA, catch_area_vessel)
-		}
-		
-		Catch_area_year_ind <- rbind(Catch_area_year_ind, AA)
-		Catch_area_year[[iyear]] <- Catch_year_area_mat
-		
-   	### Then update the population
-		Biomass[[iyear+1]] <- Biomass[[iyear]]+r*Biomass[[iyear]]*(1-Biomass[[iyear]]/Biomass[[1]])-Catch_area_year[[iyear]]
-		Biomass[[iyear+1]] <- apply(Biomass[[iyear+1]],2,function(x) replace(x, which(is.na(x)==TRUE | x<=0),0))
-		
-		### population mvt at the end of year			
-		if (no.mvt==FALSE)	Biomass[[iyear+1]] <- sapply(1:n_species, function(x) t(Mvt_mat_adult[[x]])%*%Biomass[[iyear+1]][,x])
-		if (no.mvt==TRUE)	Biomass[[iyear+1]] <- Biomass[[iyear+1]]
+    # Expected catch value by cell drives effort allocation
+    q_cell <- rep(s$qq_original, n_cells)
+    if (yr >= s$year.depth.restriction) {
+      if (is.numeric(s$depth.restriction) && length(s$depth.restriction) == 2) {
+        q_cell[z >= s$depth.restriction[1] & z <= s$depth.restriction[2]] <- 0
+      } else if (identical(s$depth.restriction, "random")) {
+        q_cell[sample.int(n_cells, min(20, n_cells))] <- 0
+      }
+    }
+    price <- matrix(s$price_fish[yr, ], n_cells, ns, byrow = TRUE)
+    value <- rowSums(biomass * (1 - exp(-q_cell)) * price)
+    if (sum(value^preference) <= 0) stop("No positive expected catch in year ", yr,
+                                         call. = FALSE)
+    effort <- stats::rmultinom(1, n_sets, value^preference / sum(value^preference))[, 1]
 
-		Biomass[[iyear+1]] <- apply(Biomass[[iyear+1]],2,function(x) replace(x, which(is.na(x)==TRUE | x<=0),0))
+    # Sets: cell, vessel and effective catchability
+    cell <- rep.int(seq_len(n_cells), effort)
+    k <- length(cell)
+    vessel <- sample.int(s$Nvessels, k, replace = TRUE)
+    q_mean <- rep(q_vessel[vessel], ns)
+    q_set <- matrix(if (isTRUE(s$do.tweedie)) rtweedie_cp(q_mean, s$xi, s$phi) else q_mean,
+                    k, ns)
+    catch <- allocate_catch(biomass, cell, q_set)
 
-	}
-		
-	    dhist = reshape2::melt(data.frame(Catch_area_year_ind[,paste0("Sp",1:n_species)]))
-    ph = ggplot(data=dhist)+geom_histogram(aes(x=value),bins=80,fill="grey",col=1)+facet_wrap(~variable, scales = "free")+theme_bw()+xlab("CPUE")+ylab("Frequency")
-    
-		
-	#### Return data                                                                # v.names="CPUE", 
-	#Raw_data <- reshape(Catch_area_year_ind, varying=paste0("Sp",1:n_species), timevar="Species", times=1:n_species, direction="long") 
-	Obs <- NULL
-	for(i in 1:n_species) Obs = rbind(Obs, cbind(Catch_area_year_ind[,c("year","SetID","X","Y","depth","vessel")], "Species"=i, "CPUE"=Catch_area_year_ind[,paste0("Sp",i)]))
-	Bio <- t(sapply(1:n_years, function(x) colSums(Biomass[[x]])))
-	
-	
-	Obs = data.frame(Obs)
-	Obs$Xobs = round(Obs$X/5)*5+5/2
-	Obs$Yobs = round(Obs$Y/5)*5+5/2
-	Obs$Sp = paste0("Sp",Obs$Species)	
-	Obs = Obs[,c("year","SetID","X","Y","Xobs","Yobs","Species","Sp","CPUE","depth","vessel")]
-	
-	bio = t(t(Bio)/(apply(Bio,2,mean)))
-	idx = reshape2::dcast(aggregate(CPUE~year+Sp,Obs,mean),year~Sp)
-	t(t(idx[-1])/(apply(idx[-1],2,mean)))
-	bio = data.frame(reshape2::melt(bio))
-	names(bio) = c("year","Sp","True")
-  
-	idx = reshape2::dcast(aggregate(CPUE~year+Sp,Obs,mean),year~Sp)
-  idx  = t(t(idx[-1])/(apply(idx[-1],2,mean)))
-  idx = data.frame(reshape2::melt(idx))
-  names(idx) = c("year","Sp","Nominal")
-  idx = data.frame(idx,True=bio$True)
-  
-  pidx = ggplot(idx)+
-    geom_line(aes(year,Nominal))+geom_point(aes(year,Nominal),pch=21,fill="grey")+
-    theme_bw()+facet_wrap(~Sp)+geom_line(aes(year,True),linewidth=1.,col="darkblue")+
-    geom_hline(yintercept = 1,linetype=2)
-  
-  plots = list()
-  plots$Depth = pdepth
-  plots$SpDens = pbxy
-  plots$Hist = ph
-  plots$CPUE = pidx+facet_wrap(~Sp,scale="free")  
-  
-  Return = list("Data"= Obs, "Biomass"=idx,"Biomass.XY"=Bxy,"Plots"=plots)
-	return(Return)
-}		
+    records[[yr]] <- data.frame(year = yr, SetID = set_counter + seq_len(k),
+      X = x[cell], Y = y[cell], depth = z[cell], vessel = vessel,
+      catch$set, check.names = FALSE)
+    names(records[[yr]])[-(1:6)] <- species
+    set_counter <- set_counter + k
+
+    # Population dynamics, then end-of-year movement
+    biomass <- schaefer_update(biomass, carrying, s$r, catch$cell)
+    if (!isTRUE(s$no.mvt)) {
+      biomass <- vapply(seq_len(ns), function(i) move_biomass(movement[[i]], biomass[, i]),
+                        numeric(n_cells))
+    }
+  }
+
+  sets <- do.call(rbind, records)
+  data <- do.call(rbind, lapply(seq_len(ns), function(i) {
+    data.frame(sets[, c("year", "SetID", "X", "Y")],
+               Xobs = coarse_coord(sets$X, s$obs_res),
+               Yobs = coarse_coord(sets$Y, s$obs_res),
+               Species = i, Sp = species[i], CPUE = sets[[species[i]]],
+               depth = sets$depth, vessel = sets$vessel)
+  }))
+  rownames(data) <- NULL
+
+  env <- data.frame(x = x, y = y, Depth = -z)
+  out <- list(
+    Data = data,
+    Biomass = index_table(data, total_biomass, species),
+    Biomass.XY = density_table(env, carrying, species),
+    Env = env,
+    settings = s
+  )
+  if (plots) out$Plots <- plot_om(out)
+  out
+}
+
+#' Long table of initial densities by cell and species
+#' @noRd
+density_table <- function(env, density, species) {
+  out <- do.call(rbind, lapply(seq_along(species), function(i) {
+    data.frame(env, variable = species[i], Density = density[, i])
+  }))
+  out$variable <- factor(out$variable, levels = species)
+  out
+}
