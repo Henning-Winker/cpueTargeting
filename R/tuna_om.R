@@ -78,6 +78,8 @@ tuna_settings_default <- function() {
     species  = c("YFT", "BET", "BFT", "ALB"),
     B0       = c(400000, 300000, 150000, 350000), # carrying capacity (t)
     r        = c(0.30, 0.18, 0.12, 0.18),         # intrinsic growth rate
+    B_start  = c(1, 1, 0.3, 1),       # initial biomass / carrying capacity:
+                                      #   1 = unfished; BFT starts depleted and recovers
     sst_opt  = c(25, 24, 20, 21),     # preferred SST (deg C)
     sst_tol  = c(3, 3.5, 3, 3.5),     # SD of SST preference (deg C)
     depth_mu = c(90, 260, 240, 110),  # mean depth (m): YFT, ALB shallow; BET, BFT deep
@@ -114,7 +116,8 @@ tuna_settings_default <- function() {
     n_vessels = 30,
     effort = 800,             # asymptotic number of sets per year (~19,000 in 30 years)
     effort_cv = 0.2,
-    q = 0.2,                  # mean catchability per set at full vertical overlap
+    q = 0.8,                  # mean catchability per set at full vertical overlap;
+                              #   with effort, sets how strongly stocks are fished down
     vessel_cv = 0.2,          # between-vessel CV in catchability
     tweedie_power = 1.2,      # set-level noise in catchability
     tweedie_phi = 0.1,
@@ -217,12 +220,12 @@ simulate_tuna <- function(settings = tuna_settings(), seed = NULL, plots = TRUE)
   shift <- 0
   thermo_years <- matrix(0, n_cells, s$n_years)
 
-  # Initial biomass = carrying capacity = B0 (with lognormal noise), spread
-  # over the stable distribution of the movement process --------------------
-  b_init <- s$B0 * stats::rlnorm(ns, 0, 0.2)
-  biomass <- vapply(seq_len(ns), function(i) movement[[i]]$stable * b_init[i],
-                    numeric(n_cells))
-  carrying <- biomass
+  # Carrying capacity = B0 (with lognormal noise), spread over the stable
+  # distribution of the movement process; stocks start at B_start x capacity --
+  k_total <- s$B0 * stats::rlnorm(ns, 0, 0.2)
+  carrying <- vapply(seq_len(ns), function(i) movement[[i]]$stable * k_total[i],
+                     numeric(n_cells))
+  biomass <- sweep(carrying, 2, s$B_start, "*")
 
   # Fleet ------------------------------------------------------------------------
   sig_vessel <- sqrt(log(s$vessel_cv^2 + 1))
@@ -399,7 +402,7 @@ lognormal_bin_mass <- function(median, sdlog, edges) {
 #' @noRd
 check_tuna_settings <- function(s) {
   ns <- length(s$species)
-  per_species <- c("B0", "r", "sst_opt", "sst_tol", "depth_mu", "depth_sd", "dispersal")
+  per_species <- c("B0", "r", "B_start", "sst_opt", "sst_tol", "depth_mu", "depth_sd", "dispersal")
   bad <- per_species[vapply(per_species, function(v) length(s[[v]]) != ns, logical(1))]
   if (length(bad)) stop("These settings need one value per species: ",
                         paste(bad, collapse = ", "), call. = FALSE)
@@ -410,6 +413,7 @@ check_tuna_settings <- function(s) {
   if (any(s$sst_tol <= 0) || any(s$depth_sd <= 0)) {
     stop("`sst_tol` and `depth_sd` must be positive.", call. = FALSE)
   }
+  if (any(s$B_start <= 0)) stop("`B_start` must be positive.", call. = FALSE)
   if (s$HBF_choice_temp <= 0) stop("`HBF_choice_temp` must be positive.", call. = FALSE)
   if (abs(s$thermocline_annual_rho) >= 1) {
     stop("`thermocline_annual_rho` must be between -1 and 1.", call. = FALSE)

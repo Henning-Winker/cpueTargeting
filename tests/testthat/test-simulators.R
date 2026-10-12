@@ -188,3 +188,12 @@ test_that("settings presets differ only in targeting strength", {
   expect_identical(d[same], x[same])
   expect_error(tuna_settings("foo"))
 })
+
+test_that("B_start sets initial depletion", {
+  s <- tuna_settings()
+  expect_length(s$B_start, length(s$species))
+  s$B_start <- c(1, 1, 0, 1)
+  expect_error(simulate_tuna(s, seed = 1, plots = FALSE), "B_start")
+  s$B_start <- c(1, 1)
+  expect_error(simulate_tuna(s, seed = 1, plots = FALSE), "B_start")
+})
