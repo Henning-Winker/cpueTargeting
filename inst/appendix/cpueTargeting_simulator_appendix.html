@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cpueTargeting: simulation models</title>
+<script>
+  window.MathJax = { tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] } };
+</script>
+<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+<style>
+  :root {
+    --text: #1f2328; --muted: #57606a; --bg: #ffffff; --panel: #f6f8fa;
+    --rule: #d0d7de; --accent: #0b5d8a; --note: #fff8e6; --note-rule: #e3b341;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --text: #e6edf3; --muted: #9da7b3; --bg: #0d1117; --panel: #161b22;
+      --rule: #30363d; --accent: #58a6ff; --note: #2a2310; --note-rule: #9e7a1f;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.6 Georgia, "Times New Roman", serif;
+  }
+  main { max-width: 860px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1, h2, h3 { font-family: "Helvetica Neue", Arial, sans-serif; line-height: 1.25; }
+  h1 { font-size: 1.9rem; margin: 0 0 4px; }
+  h2 { font-size: 1.35rem; margin-top: 2.4em; padding-bottom: 4px; border-bottom: 1px solid var(--rule); }
+  h3 { font-size: 1.08rem; margin-top: 1.8em; color: var(--accent); }
+  .subtitle { color: var(--muted); font-family: "Helvetica Neue", Arial, sans-serif; margin: 0 0 24px; }
+  p, li { hyphens: auto; }
+  code { font-family: Menlo, Consolas, monospace; font-size: 0.88em; background: var(--panel);
+         padding: 1px 4px; border-radius: 3px; }
+  .table-wrap { overflow-x: auto; margin: 12px 0 20px; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.9rem;
+          font-family: "Helvetica Neue", Arial, sans-serif; }
+  th, td { border-bottom: 1px solid var(--rule); padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: var(--panel); font-weight: 600; }
+  td.num { text-align: right; white-space: nowrap; }
+  .note { background: var(--note); border-left: 4px solid var(--note-rule); padding: 10px 14px;
+          margin: 16px 0; font-size: 0.95rem; }
+  .toc { background: var(--panel); padding: 12px 18px; border-radius: 6px;
+         font-family: "Helvetica Neue", Arial, sans-serif; font-size: 0.92rem; }
+  .toc ol { margin: 6px 0; padding-left: 20px; }
+  .refs p { padding-left: 2em; text-indent: -2em; margin: 6px 0; font-size: 0.93rem; }
+  .eq-label { color: var(--muted); font-size: 0.85rem; }
+  mjx-container[display="true"] { overflow-x: auto; overflow-y: hidden; }
+</style>
+</head>
+<body>
+<main>
+
+<h1>Description of the simulation models in <code>cpueTargeting</code></h1>
+<p class="subtitle">Background document: (A) the spatial multispecies simulator,
+<code>simulate_bathymetric()</code>, and (B) its extension to a longline tuna fishery with
+vertical targeting, <code>simulate_tuna()</code>. Henning Winker.</p>
+
+<div class="toc">
+<strong>Contents</strong>
+<ol>
+  <li><a href="#ack">Origin and acknowledgement</a></li>
+  <li><a href="#A">Appendix A: the spatial multispecies simulator (<code>simulate_bathymetric()</code>)</a></li>
+  <li><a href="#B">Appendix B: extension to a longline tuna fishery (<code>simulate_tuna()</code>)</a></li>
+  <li><a href="#C">Appendix C: standardisation models</a></li>
+  <li><a href="#refs">References</a></li>
+</ol>
+</div>
+
+<h2 id="ack">1. Origin and acknowledgement</h2>
+
+<p>The spatial operating model in <code>cpueTargeting</code> is based on the simulation
+model described in Appendix A of Thorson et al. (2017) and implemented as the function
+<code>Generate_scenario_data</code> in the <code>spatial_DFA</code> R package
+(<a href="https://github.com/James-Thorson/spatial_DFA">github.com/James-Thorson/spatial_DFA</a>).
+That simulator is itself a generalisation of the simulator developed by Ono et al. (2015)
+for defining spatial strata in catch and effort analyses. It tracks the biomass of several
+species in each cell of a spatial grid over time, with logistic population growth,
+habitat-driven movement and a fleet whose effort follows expected revenue, so that
+changes in species prices generate changes in fisher targeting.</p>
+
+<p>A modified version of that code ("Run 22") was used to generate the simulated CPUE data
+for the fisheries-dependent CPUE standardisation guidelines prepared for the ICES
+WKBMSYSPICT benchmarks (Winker and Cardinale 2022). <code>simulate_bathymetric()</code> is a
+re-implementation of Run 22 as a package function. <code>simulate_tuna()</code> extends the
+same population and fleet dynamics with a vertical dimension for a longline tuna fishery.
+The original Run 22 scripts are kept unchanged in the package folder
+<code>inst/extdata</code> for reference.</p>
+
+<div class="note">Please cite Thorson et al. (2017) and Ono et al. (2015) for the spatial
+simulator when using either function, in addition to the package.</div>
+
+<h2 id="A">2. Appendix A: the spatial multispecies simulator (<code>simulate_bathymetric()</code>)</h2>
+
+<p>The model tracks the biomass density \(d_p(s,t)\) of species \(p = 1,\dots,P\) in grid
+cell \(s = 1,\dots,S\) and year \(t = 1,\dots,T\). The default (Run 22) uses \(P = 4\)
+species on a \(50 \times 50\) grid (\(S = 2500\)) over \(T = 30\) years.</p>
+
+<h3>A.1 Habitat: bathymetry</h3>
+<p>Depth \(z(s)\) is simulated as a stationary Gaussian random field with standard
+deviation \(\sigma_z\) (<code>SD_O</code> = 150 m) and Gaussian covariance
+\(\exp\{-(\Delta s/\phi)^2\}\) with correlation scale \(\phi\) (<code>SpatialScale</code> =
+4 cells), as in the original code (<code>RandomFields::RMgauss</code>). A constant is added so
+that all depths are positive.</p>
+
+<h3>A.2 Movement and habitat preference</h3>
+<p>The probability that a fish of species \(p\) moves from cell \(s^*\) to cell \(s\) during
+a year is</p>
+\[
+m_p(s^*, s) \;=\; c_p(s^*)^{-1}\,\underbrace{\lambda_p^{-1} \exp(-\Delta_{s^* s}/\lambda_p)}_{\text{distance}}
+\;\underbrace{h^{(z)}_p\big(z(s)\big)}_{\text{depth preference}}
+\;\underbrace{h^{(x)}_p\big(x(s)\big)}_{\text{longitude range}},
+\]
+<p>where \(\Delta_{s^*s}\) is the distance between cell centres, \(\lambda_p\) the mean
+movement distance (<code>Fish_dist_par1</code>), and \(c_p(s^*)\) normalises each row of the
+movement matrix \(\mathbf{M}_p\) to sum to one. The depth preference
+\(h^{(z)}_p\) is a lognormal density with mean \(\mu_p(z)\) (<code>Fish_depth_par1</code>) and
+coefficient of variation \(\mathrm{CV}_p(z)\) (<code>Fish_depth_par2</code>); the range
+preference \(h^{(x)}_p\) is uniform between <code>Fish_range_par1</code> and
+<code>Fish_range_par2</code> (0 and 50 by default, which covers almost the whole grid).</p>
+
+<h3>A.3 Population dynamics</h3>
+<p>In each cell, biomass follows a Schaefer (logistic) model with catch removed, after which
+fish redistribute according to the movement matrix:</p>
+\[
+d^*_p(s,t) = d_p(s,t) + r_p\, d_p(s,t)\left(1 - \frac{d_p(s,t)}{k_p(s)}\right) - c_p(s,t),
+\qquad
+\mathbf{d}_p(t+1) = \mathbf{M}_p^{\top}\, \mathbf{d}^*_p(t).
+\]
+<p>Initial biomass is the stationary distribution of the movement process scaled to
+\(0.5\,B_{0,p}\,\varepsilon_p\) with \(\varepsilon_p \sim \mathrm{LN}(0, 0.2)\), and the
+carrying capacity of each cell, \(k_p(s)\), equals this initial biomass, so stocks start
+at equilibrium and trends are driven by fishing.</p>
+
+<h3>A.4 Fishing effort</h3>
+<p>The number of sets (trips) in year \(t\) follows a logistic increase with lognormal
+error (CV = 0.2):</p>
+\[
+U(t) = \left\lfloor \exp\{U^*(t)\} \right\rfloor,\qquad
+U^*(t) \sim \mathrm{N}\!\left(\log\frac{U_T}{1+e^{-0.1t}} - \frac{\sigma_U^2}{2},\; \sigma_U^2\right),
+\]
+<p>with \(U_T\) = <code>Tot_effort</code> (500 in Run 22) and \(\sigma_U^2 = \log(1 + 0.2^2)\).
+Sets are allocated to cells in proportion to expected revenue,</p>
+\[
+\pi(s,t) \;\propto\; \Big[\sum_{p} \phi_p(t)\, d_p(s,t)\,\big(1 - e^{-q}\big)\Big]^{\kappa},
+\]
+<p>where \(\phi_p(t)\) is the price of species \(p\) in year \(t\) (<code>price_fish</code>),
+\(q\) the mean catchability and \(\kappa\) (<code>Preference</code>, 1 by default) controls
+how strongly effort concentrates on high-value cells. Price changes therefore shift where
+the fleet fishes and hence which species it targets. Each set is assigned to a vessel drawn
+at random from \(V\) = 30 vessels.</p>
+
+<h3>A.5 Catch</h3>
+<p>Each vessel has a mean catchability \(q_v \sim \mathrm{LN}(\log q - \sigma_v^2/2,\, \sigma_v^2)\)
+with CV 0.2 (\(q\) = <code>qq_original</code> = 0.1). The catchability of set \(u\) for
+species \(p\) has Tweedie observation error,
+\(q_p(u) \sim \mathrm{Tweedie}(\text{mean } q_{v(u)},\ \text{power } 1.2,\ \text{dispersion } 0.1)\).
+All sets in a cell share the biomass of that cell: the total catch in cell \(s\) is</p>
+\[
+c_p(s,t) = d_p(s,t)\left(1 - \exp\Big\{-\sum_{u \in s} q_p(u)\Big\}\right),
+\]
+<p>and is split among the sets in proportion to their catchability,
+\(c_p(u) = c_p(s,t)\, q_p(u) / \sum_{u' \in s} q_p(u')\). The catch per set is the CPUE
+record.</p>
+
+<h3>A.6 Data and truth</h3>
+<p>For each set the output (<code>Data</code>) contains year, vessel, true cell position,
+reported position, bottom depth and the catch of each species. As in the guidelines,
+reported positions are the centres of \(5 \times 5\) blocks of cells (<code>obs_res</code>),
+i.e. coarser than the 1 x 1 cells on which the population is simulated. The true index of
+abundance is the total biomass of each species at the start of each year, scaled to a mean
+of one.</p>
+
+<h3>A.7 Run 22 settings</h3>
+<div class="table-wrap"><table>
+<tr><th>Setting</th><th>Symbol</th><th>Species 1</th><th>Species 2</th><th>Species 3</th><th>Species 4</th></tr>
+<tr><td>Price, years 1-10</td><td>\(\phi_p\)</td><td class="num">1.5</td><td class="num">1</td><td class="num">1</td><td class="num">0.5</td></tr>
+<tr><td>Price, years 11-20</td><td>\(\phi_p\)</td><td class="num">0.5</td><td class="num">1.5</td><td class="num">1</td><td class="num">1</td></tr>
+<tr><td>Price, years 21-30</td><td>\(\phi_p\)</td><td class="num">0.5</td><td class="num">1</td><td class="num">0.5</td><td class="num">2</td></tr>
+<tr><td>Mean movement distance (cells)</td><td>\(\lambda_p\)</td><td class="num">0.4</td><td class="num">0.4</td><td class="num">0.4</td><td class="num">1</td></tr>
+<tr><td>Preferred depth (m)</td><td>\(\mu_p(z)\)</td><td class="num">220</td><td class="num">550</td><td class="num">250</td><td class="num">1000</td></tr>
+<tr><td>CV of depth preference</td><td>\(\mathrm{CV}_p(z)\)</td><td class="num">0.5</td><td class="num">0.5</td><td class="num">0.3</td><td class="num">0.5</td></tr>
+<tr><td>Biomass scale (t)</td><td>\(B_{0,p}\)</td><td class="num">320 000</td><td class="num">420 000</td><td class="num">56 000</td><td class="num">540 000</td></tr>
+<tr><td>Intrinsic growth rate</td><td>\(r_p\)</td><td class="num">0.30</td><td class="num">0.17</td><td class="num">0.12</td><td class="num">0.08</td></tr>
+</table></div>
+<p>Fleet: 30 vessels, \(U_T\) = 500 sets per year, \(q\) = 0.1, vessel CV 0.2, Tweedie power 1.2
+and dispersion 0.1, \(\kappa\) = 1. Space: 50 x 50 cells, \(\sigma_z\) = 150 m, \(\phi\) = 4 cells.
+The species correspond loosely to petrale sole, Dover sole, darkblotched rockfish and
+sablefish. Thorson et al. (2017) used different parameter values (their Table B1).</p>
+
+<h3>A.8 Differences from the original code</h3>
+<p><code>simulate_bathymetric()</code> keeps the structure and settings of Run 22. The following
+changes were made when turning the scripts into a package function:</p>
+<ul>
+  <li><strong>Growth rate by species.</strong> The original code computed \(r \times d\) with
+  \(r\) a vector over species and \(d\) a cells x species matrix, so R recycled \(r\) over
+  cells rather than species. \(r_p\) is now applied by species.</li>
+  <li><strong>Stable initial distribution.</strong> The original iterated the movement process
+  1000 times from a uniform distribution, which may not converge for short movement
+  distances. Because the distance kernel is symmetric, the stationary distribution has the
+  closed form \(\pi_p(s) \propto h_p(s) \sum_{s'} K_p(s,s')\,h_p(s')\) (detailed balance),
+  which is now used. For the same reason the movement matrix is never formed explicitly,
+  which makes the model much faster.</li>
+  <li><strong>Reporting blocks.</strong> Reported positions are the centres of 5 x 5 blocks aligned
+  with the grid; the original rounding produced 11 uneven blocks per axis.</li>
+  <li><strong>Number of species.</strong> The initial biomass noise assumed exactly four species;
+  it now uses \(P\).</li>
+  <li><strong>Area closures.</strong> In closed cells catchability is zero, and open cells keep the
+  mean catchability (the original set it to one).</li>
+  <li><strong>Software.</strong> The archived <code>RandomFields</code> package is replaced by a
+  circulant-embedding simulator with the same Gaussian covariance, and the Tweedie generator
+  is implemented directly (compound Poisson-gamma). Results are therefore not identical
+  number by number to the original runs.</li>
+</ul>
+
+<h2 id="B">3. Appendix B: extension to a longline tuna fishery (<code>simulate_tuna()</code>)</h2>
+
+<p>The tuna model keeps the population, movement, effort and catch structure of
+Appendix A and adds what matters for longline targeting: a pelagic horizontal habitat, a
+vertical distribution of each species, the depth of the hooks set with a given number of
+hooks between floats (HBF), and a fleet that chooses both where to fish and how deep.
+The aim is a conceptual, easily tuned model; all values are illustrative.</p>
+
+<h3>B.1 Species and horizontal habitat</h3>
+<p>Four species live in a conceptual Southern Hemisphere ocean (north = towards the equator =
+warm): yellowfin (YFT) and bigeye (BET) prefer warm water; southern bluefin (BFT) and
+albacore (ALB) prefer cooler water. Bathymetry is replaced by sea surface temperature,</p>
+\[
+\mathrm{SST}(s) = \overline{\mathrm{SST}} + g\,\frac{y(s) - \bar y}{n_y} + \eta(s),
+\]
+<p>with mean \(\overline{\mathrm{SST}}\) = 23 &deg;C, a south-north gradient \(g\) = 10 &deg;C and a
+Gaussian random field \(\eta\) (SD 1 &deg;C, scale 6 cells). Habitat suitability is a normal
+preference, \(h_p(s) = \mathrm{N}\big(\mathrm{SST}(s);\, \mathrm{SST}_p^{opt},\, \tau_p\big)\),
+used in the movement model of A.2 in place of the depth and range terms, with mean movement
+distance \(\lambda_p\) = 1.5 cells. Wide tolerances \(\tau_p\) keep the species mixed in space.
+Initial biomass equals carrying capacity \(B_{0,p}\varepsilon_p\), distributed at the stable
+distribution.</p>
+
+<h3>B.2 Vertical distribution and the thermocline</h3>
+<p>The water column (0-500 m) is divided into 10-m bins \(j\) with mid-depths \(z_j\). In cell
+\(s\) and year \(t\), the vertical distribution of species \(p\) is a discretised normal
+profile,</p>
+\[
+f_p(z_j \mid s,t) \;\propto\; \exp\!\left\{-\frac{\big(z_j - \mu_p - a(s,t)\big)^2}{2\sigma_p^2}\right\},
+\qquad \sum_j f_p(z_j \mid s,t) = 1,
+\]
+<p>with mean depth \(\mu_p\) and SD \(\sigma_p\). Within each pair one species is shallow (YFT,
+ALB) and one deep (BET, BFT). The thermocline anomaly \(a(s,t)\) shifts all profiles up
+(shallow thermocline) or down (deep thermocline):</p>
+\[
+a(s,t) = \underbrace{a_0(s)}_{\text{fixed pattern}} + \underbrace{\delta(t)}_{\text{basin-wide shift}} + \underbrace{a_t(s)}_{\text{annual pattern}},
+\qquad \delta(t) = \rho\,\delta(t-1) + \sqrt{1-\rho^2}\,\epsilon_t,\ \ \epsilon_t \sim \mathrm{N}(0, \sigma_\delta^2),
+\]
+<p>where \(a_0\) and \(a_t\) are Gaussian random fields with SDs <code>thermocline_sd</code> and
+<code>thermocline_annual_field_sd</code>, and \(\delta(t)\) is a stationary AR(1) process with SD
+<code>thermocline_annual_sd</code> and autocorrelation \(\rho\) = 0.5. By default only the fixed
+pattern is used; values of about 15 m and 10 m for the annual terms give a realistic
+ENSO-like range of year-to-year variation.</p>
+
+<h3>B.3 Hook depth</h3>
+<p>Each HBF level \(h\) (5, 10, 15, 20) has a typical median hook depth \(D_h\) (110, 160,
+205 and 250 m), roughly following the aggregate hook-depth distributions of the Japanese
+longline fleet in Fig. 2 of Bigelow et al. (2002). Rather than modelling the mechanics of
+the line (catenary geometry, line angle, currents), hook depth is summarised by two
+lognormal errors. The median hook depth of set \(u\) is</p>
+\[
+D(u) = D_{h(u)}\, \exp\{\varepsilon_u\},\qquad \varepsilon_u \sim \mathrm{N}\big(0,\ \mathrm{sdlog}(\mathrm{CV}_{set})\big),
+\]
+<p>so that HBF is an imperfect proxy for fishing depth (<code>set_cv</code> = 0.2), and the hooks
+of a set are lognormally distributed around \(D(u)\) with
+\(\mathrm{sdlog}(\mathrm{CV}_{hook})\) (<code>hook_cv</code> = 0.35), where
+\(\mathrm{sdlog}(\mathrm{CV}) = \sqrt{\log(1 + \mathrm{CV}^2)}\). This gives the proportion of
+hooks in each depth bin, \(g_u(z_j)\). The expected profile for an HBF level, used by
+skippers and by the habitat-based standardisation, is lognormal with median \(D_h\) and the
+combined spread \(\sqrt{\mathrm{sdlog}(\mathrm{CV}_{set})^2 + \mathrm{sdlog}(\mathrm{CV}_{hook})^2}\).</p>
+
+<h3>B.4 Effective catchability</h3>
+<p>Following the habitat-based approach of Bigelow et al. (2002), the effective effort of a
+set depends on the overlap between where its hooks fish and where the fish are. The vertical
+availability of species \(p\) to set \(u\) in cell \(s\) is</p>
+\[
+A_p(u) = \frac{100\ \mathrm{m}}{\Delta z} \sum_j g_u(z_j)\, f_p(z_j \mid s,t),
+\]
+<p>scaled so that \(A_p = 1\) corresponds to fish spread evenly over a 100-m layer fished by all
+hooks (\(\Delta z\) = 10 m). The catchability of the set is
+\(q_p(u) = \tilde q_p(u)\, A_p(u)\), where \(\tilde q_p(u)\) is the vessel catchability with
+Tweedie error of A.5 (mean \(q\) = 0.2). Catch is then calculated as in A.5.</p>
+
+<h3>B.5 Targeting: where and how deep</h3>
+<p>Skippers evaluate the expected value of each cell \(s\) and HBF level \(h\) in year \(t\),</p>
+\[
+V(s,h,t) = \sum_p \phi_p(t)\, d_p(s,t) \left(1 - \exp\{-q\, \bar A_p(s,h,t)\}\right),
+\]
+<p>where \(\bar A_p(s,h,t)\) is the availability under the expected hook profile of HBF \(h\)
+and the current thermocline. Effort is allocated to cells in proportion to
+\(\big[\max_h V(s,h,t)\big]^{\kappa}\) with \(\kappa\) = 1.5 (spatial targeting). Each set then
+chooses its HBF with probability</p>
+\[
+P(h \mid s,t) \;\propto\; \left(\frac{V(s,h,t)}{\max_{h'} V(s,h',t)}\right)^{1/\tau},
+\]
+<p>where \(\tau\) (<code>HBF_choice_temp</code> = 0.15) controls how strictly the best gear is
+chosen (vertical targeting). Prices change in three 10-year blocks: albacore (shallow, cool
+water), then bigeye (deep, warm water), then southern bluefin (deep, cool water). This loosely
+follows the historical shift from albacore to bigeye targeting in the Japanese longline fleet
+(Hoyle and Okamoto 2013) and the later interest in southern bluefin as it recovers. The first
+switch changes both where and how deep the fleet fishes; the second mainly where.</p>
+
+<h3>B.6 Data and truth</h3>
+<p>For each set and species, <code>Data</code> contains year, set and vessel identifiers, true
+and reported positions, HBF, SST, the thermocline anomaly and the catch (CPUE). It also keeps
+latent truth that an analyst would not observe: the median hook depth of the set, the
+realised vertical availability \(A_p(u)\), and the availability a habitat model would predict
+from HBF, the expected hook profile and the average (fixed) thermocline (used only by the
+habitat-based standardisation). The true index is the total biomass at the start of each year.</p>
+
+<h3>B.7 Default settings</h3>
+<div class="table-wrap"><table>
+<tr><th>Setting</th><th>Symbol</th><th>YFT</th><th>BET</th><th>BFT</th><th>ALB</th></tr>
+<tr><td>Price, years 1-10</td><td>\(\phi_p\)</td><td class="num">1.0</td><td class="num">0.5</td><td class="num">0.5</td><td class="num">2.0</td></tr>
+<tr><td>Price, years 11-20</td><td>\(\phi_p\)</td><td class="num">1.0</td><td class="num">2.0</td><td class="num">1.0</td><td class="num">0.5</td></tr>
+<tr><td>Price, years 21-30</td><td>\(\phi_p\)</td><td class="num">0.5</td><td class="num">1.0</td><td class="num">2.0</td><td class="num">0.5</td></tr>
+<tr><td>Preferred SST (&deg;C)</td><td>\(\mathrm{SST}_p^{opt}\)</td><td class="num">25</td><td class="num">24</td><td class="num">20</td><td class="num">21</td></tr>
+<tr><td>SST tolerance (&deg;C)</td><td>\(\tau_p\)</td><td class="num">3</td><td class="num">3.5</td><td class="num">3</td><td class="num">3.5</td></tr>
+<tr><td>Mean depth (m)</td><td>\(\mu_p\)</td><td class="num">90</td><td class="num">260</td><td class="num">240</td><td class="num">110</td></tr>
+<tr><td>SD of depth (m)</td><td>\(\sigma_p\)</td><td class="num">60</td><td class="num">50</td><td class="num">55</td><td class="num">60</td></tr>
+<tr><td>Carrying capacity (t)</td><td>\(B_{0,p}\)</td><td class="num">400 000</td><td class="num">300 000</td><td class="num">150 000</td><td class="num">350 000</td></tr>
+<tr><td>Intrinsic growth rate</td><td>\(r_p\)</td><td class="num">0.30</td><td class="num">0.18</td><td class="num">0.12</td><td class="num">0.18</td></tr>
+</table></div>
+<div class="table-wrap"><table>
+<tr><th>Group</th><th>Settings</th></tr>
+<tr><td>Space and time</td><td>50 x 50 cells, 30 years, reported positions on 5 x 5 blocks</td></tr>
+<tr><td>Environment</td><td>SST mean 23 &deg;C, gradient 10 &deg;C, noise SD 1 &deg;C (scale 6); thermocline fixed pattern SD 30 m (scale 8), annual shift and annual pattern 0 by default</td></tr>
+<tr><td>Gear</td><td>HBF 5, 10, 15, 20 with median hook depths 110, 160, 205, 250 m; set-level CV 0.2; within-set CV 0.35</td></tr>
+<tr><td>Fleet</td><td>30 vessels, up to 800 sets per year (~19 000 in total), \(q\) = 0.2, vessel CV 0.2, Tweedie power 1.2 and dispersion 0.1, \(\kappa\) = 1.5, \(\tau\) = 0.15</td></tr>
+</table></div>
+
+<h3>B.8 What the extension adds, in short</h3>
+<div class="table-wrap"><table>
+<tr><th>Component</th><th>Spatial simulator (Appendix A)</th><th>Tuna extension (Appendix B)</th></tr>
+<tr><td>Horizontal habitat</td><td>Bathymetry (depth preference) and range</td><td>SST with a south-north gradient</td></tr>
+<tr><td>Vertical dimension</td><td>None</td><td>Species depth profiles shifted by a thermocline anomaly (fixed, optionally moving between years)</td></tr>
+<tr><td>Gear</td><td>None</td><td>HBF with typical hook depth and lognormal set-level and within-set error</td></tr>
+<tr><td>Catchability of a set</td><td>Vessel catchability with Tweedie error</td><td>Same, times the vertical overlap of hooks and fish</td></tr>
+<tr><td>Targeting</td><td>Where to fish (prices)</td><td>Where to fish and which HBF to use (prices)</td></tr>
+<tr><td>Latent truth in output</td><td>Biomass</td><td>Biomass, hook depth, vertical availability, habitat-model prediction</td></tr>
+</table></div>
+
+<h2 id="C">4. Appendix C: standardisation models</h2>
+<p><code>standardize_tuna_indices()</code> fits Tweedie generalised additive models with
+<code>mgcv</code> to the catch of each species per set, following the workflow of the
+WKBMSYSPICT guidelines. Every model includes year as a factor; the annual index is the
+predicted year effect with all other terms at fixed reference values, scaled to a mean of
+one. The targeting terms are:</p>
+<ul>
+  <li><strong>Cluster</strong>: fishing tactics from k-means clustering of the catch composition
+  (proportions, fourth-root transformed), as a factor (He et al. 1997).</li>
+  <li><strong>DPC</strong>: smooth functions of the principal component scores of the same catch
+  composition (direct principal components; Winker et al. 2013, 2014), by default the first
+  three.</li>
+  <li><strong>HBF</strong>: hooks between floats as a factor, the most common targeting covariate in
+  pelagic longline CPUE (Hoyle et al. 2014).</li>
+  <li><strong>+S</strong>: a spatial smoother of the reported block centres can be added to any
+  model.</li>
+  <li><strong>HBS</strong> (optional): habitat-based standardisation (Bigelow et al. 2002), with the
+  predicted vertical availability as an offset.</li>
+</ul>
+<p>The accuracy of each index is measured as the root mean squared error of the log index
+relative to the true biomass index.</p>
+
+<h2 id="refs">References</h2>
+<div class="refs">
+<p>Bigelow, K.A., Hampton, J. and Miyabe, N. 2002. Application of a habitat-based model to
+estimate effective longline fishing effort and relative abundance of Pacific bigeye tuna
+(<em>Thunnus obesus</em>). Fisheries Oceanography 11: 143-155.</p>
+<p>He, X., Bigelow, K.A. and Boggs, C.H. 1997. Cluster analysis of longline sets and fishing
+strategies within the Hawaii-based fishery. Fisheries Research 31: 147-158.</p>
+<p>Hoyle, S.D. and Okamoto, H. 2013. Target changes in the tropical WCPO Japanese longline
+fishery, and their effects on species composition. WCPFC-SC9-2013/SA-IP-04.</p>
+<p>Hoyle, S.D., Langley, A.D. and Campbell, R.A. 2014. Recommended approaches for standardizing
+CPUE data from pelagic fisheries. WCPFC-SC10-2014/SA-IP-10.</p>
+<p>Ono, K., Punt, A.E. and Hilborn, R. 2015. Think outside the grids: an objective approach to
+define spatial strata for catch and effort analysis. Fisheries Research 170: 89-101.
+doi:10.1016/j.fishres.2015.05.021.</p>
+<p>Thorson, J.T., Fonner, R., Haltuch, M.A., Ono, K. and Winker, H. 2017. Accounting for
+spatiotemporal variation and fisher targeting when estimating abundance from multispecies
+fishery data. Canadian Journal of Fisheries and Aquatic Sciences 74: 1794-1807.
+doi:10.1139/cjfas-2015-0598.</p>
+<p>Winker, H. and Cardinale, M. 2022. Data preparation guidelines for WKBMSYSPICT benchmarks
+2023. ICES WKBMSYSPICT working document.</p>
+<p>Winker, H., Kerwath, S.E. and Attwood, C.G. 2013. Comparison of two approaches to standardize
+catch-per-unit-effort for targeting behaviour in a multispecies hand-line fishery.
+Fisheries Research 139: 118-131.</p>
+<p>Winker, H., Kerwath, S.E. and Attwood, C.G. 2014. Proof of concept for a novel procedure to
+standardize multispecies catch and effort data. Fisheries Research 155: 149-159.</p>
+</div>
+
+</main>
+</body>
+</html>

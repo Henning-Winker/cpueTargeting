@@ -61,6 +61,14 @@ bathymetric_settings <- function() {
 #' proportion to expected catch value, which changes with species prices, so
 #' targeting shifts over time.
 #'
+#' This is a re-implementation of the spatial multispecies simulator of
+#' Thorson et al. (2017, Appendix A; function `Generate_scenario_data` in the
+#' `spatial_DFA` package, <https://github.com/James-Thorson/spatial_DFA>),
+#' which generalises the simulator of Ono et al. (2015), with the "Run 22"
+#' settings used for the WKBMSYSPICT CPUE guidelines. A full description is
+#' in `system.file("appendix", "cpueTargeting_simulator_appendix.html",
+#' package = "cpueTargeting")`.
+#'
 #' Compared with the original script, the dynamics are identical except for
 #' three corrections: species-specific `r` is now applied by species (the
 #' original recycled `r` over cells), the initial distribution is the exact
@@ -79,6 +87,14 @@ bathymetric_settings <- function() {
 #' * `Env`: the bathymetry;
 #' * `Plots`: diagnostic ggplots (if `plots = TRUE`);
 #' * `settings`: the settings used.
+#' @references Thorson, J.T., Fonner, R., Haltuch, M.A., Ono, K. and Winker, H.
+#'   (2017) Accounting for spatiotemporal variation and fisher targeting when
+#'   estimating abundance from multispecies fishery data. Canadian Journal of
+#'   Fisheries and Aquatic Sciences 74, 1794-1807.
+#'
+#'   Ono, K., Punt, A.E. and Hilborn, R. (2015) Think outside the grids: an
+#'   objective approach to define spatial strata for catch and effort
+#'   analysis. Fisheries Research 170, 89-101.
 #' @export
 #'
 #' @examples

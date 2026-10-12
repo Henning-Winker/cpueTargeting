@@ -96,8 +96,13 @@ tuna_settings <- function() {
 
 #' Simulate a longline fishery for four tuna species with vertical targeting
 #'
-#' Extends the bathymetric Run 22 operating model with a vertical dimension
-#' following the habitat-based approach of Bigelow et al. (2002). The
+#' Extends the spatial multispecies simulator of Thorson et al. (2017) and
+#' Ono et al. (2015), as implemented in [simulate_bathymetric()], with a
+#' pelagic horizontal habitat (SST), species vertical distributions, longline
+#' hook depth by HBF and vertical targeting, following the habitat-based
+#' approach of Bigelow et al. (2002). A full description of both models is in
+#' `system.file("appendix", "cpueTargeting_simulator_appendix.html",
+#' package = "cpueTargeting")`. The
 #' catchability of a set for a species is the vessel's catchability times the
 #' overlap between the set's hook-depth distribution and the species' vertical
 #' distribution in that cell (Bigelow's effective effort). See
@@ -127,6 +132,15 @@ tuna_settings <- function() {
 #'   a habitat-based model to estimate effective longline fishing effort and
 #'   relative abundance of Pacific bigeye tuna (*Thunnus obesus*). Fisheries
 #'   Oceanography 11, 143-155.
+#'
+#'   Thorson, J.T., Fonner, R., Haltuch, M.A., Ono, K. and Winker, H. (2017)
+#'   Accounting for spatiotemporal variation and fisher targeting when
+#'   estimating abundance from multispecies fishery data. Canadian Journal of
+#'   Fisheries and Aquatic Sciences 74, 1794-1807.
+#'
+#'   Ono, K., Punt, A.E. and Hilborn, R. (2015) Think outside the grids: an
+#'   objective approach to define spatial strata for catch and effort
+#'   analysis. Fisheries Research 170, 89-101.
 #' @export
 #'
 #' @examples

@@ -50,6 +50,21 @@ run_sims <- FALSE
 
 # The operating model in brief
 
+The operating model extends the spatial multispecies simulator of Thorson
+et al. (2017, Appendix A), itself a generalisation of the simulator of Ono et
+al. (2015), which is implemented for the bathymetric Run 22 scenario in
+`simulate_bathymetric()`. The tuna extension adds a pelagic horizontal
+habitat, species vertical distributions, longline hook depth by HBF and
+vertical targeting. A full description of both models is in the background
+document:
+
+```{r appendix-path, eval = FALSE}
+browseURL(system.file("appendix", "cpueTargeting_simulator_appendix.html",
+                      package = "cpueTargeting"))
+```
+
+In brief:
+
 * Four species in a conceptual Southern Hemisphere ocean (north = warm):
   yellowfin (YFT) and bigeye (BET) prefer warm water, southern bluefin (BFT)
   and albacore (ALB) cooler water.
@@ -570,6 +585,15 @@ Pacific bigeye tuna (*Thunnus obesus*). Fisheries Oceanography 11, 143-155.
 
 Hoyle, S.D., Langley, A.D. and Campbell, R.A. (2014) Recommended approaches for
 standardizing CPUE data from pelagic fisheries. WCPFC-SC10-2014/SA-IP-10.
+
+Ono, K., Punt, A.E. and Hilborn, R. (2015) Think outside the grids: an
+objective approach to define spatial strata for catch and effort analysis.
+Fisheries Research 170, 89-101.
+
+Thorson, J.T., Fonner, R., Haltuch, M.A., Ono, K. and Winker, H. (2017)
+Accounting for spatiotemporal variation and fisher targeting when estimating
+abundance from multispecies fishery data. Canadian Journal of Fisheries and
+Aquatic Sciences 74, 1794-1807.
 
 Hoyle, S.D. and Okamoto, H. (2013) Target changes in the tropical WCPO Japanese
 longline fishery, and their effects on species composition.

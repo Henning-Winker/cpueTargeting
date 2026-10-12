@@ -5,11 +5,20 @@ copes with changes in fishing targeting. It contains three operating models:
 
 1. `simulate_cluster()`: the multi-habitat cluster example of Winker et al. (2014).
 2. `simulate_bathymetric()`: the four-species Run 22 model used for the
-   WKBMSYSPICT CPUE guidelines. Species follow bathymetry; skippers target
-   species through *where* they fish.
+   WKBMSYSPICT CPUE guidelines. It re-implements the spatial multispecies
+   simulator of Thorson et al. (2017, Appendix A; `Generate_scenario_data` in
+   [spatial_DFA](https://github.com/James-Thorson/spatial_DFA)), which
+   generalises the simulator of Ono et al. (2015). Species follow bathymetry;
+   skippers target species through *where* they fish.
 3. `simulate_tuna()`: a longline tuna model that adds *how deep* they fish.
    Hook depth depends on hooks between floats (HBF), and habitat-based
    standardisation follows Bigelow et al. (2002).
+
+A full description of both simulators, how the tuna model extends the
+spatial simulator, and the standardisation models is in the background
+document `inst/appendix/cpueTargeting_simulator_appendix.html` (after
+installation: `system.file("appendix", "cpueTargeting_simulator_appendix.html",
+package = "cpueTargeting")`).
 
 ## Installation
 
@@ -137,6 +146,10 @@ The original Run 22 scripts (`OMcpueSIM22_original.R`,
 unchanged in `inst/extdata` for reference. See `NEWS.md` for differences.
 
 ## References
+
+Ono, K., Punt, A.E. and Hilborn, R. (2015) Think outside the grids: an
+objective approach to define spatial strata for catch and effort analysis.
+Fisheries Research 170, 89-101.
 
 Bigelow, K.A., Hampton, J. and Miyabe, N. (2002) Application of a habitat-based
 model to estimate effective longline fishing effort and relative abundance of
