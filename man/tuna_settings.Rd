@@ -30,9 +30,11 @@ years; \code{annual} is a new spatial field each year
 (\code{set_cv}; e.g. line angle, currents), so HBF is an imperfect proxy for
 depth. Hooks within a set are lognormally spread around the set's median
 (\code{hook_cv}).
-\item Targeting: species prices change in three 10-year blocks (YFT, then
-BET, then BFT). Skippers choose where to fish and which HBF to use from the
-expected catch value.
+\item Targeting: species prices change in three 10-year blocks: ALB
+(shallow, cool water), then BET (deep, warm water), then BFT (deep, cool
+water), loosely following the historical shift from albacore to bigeye
+targeting and the later interest in recovering southern bluefin. Skippers
+choose where to fish and which HBF to use from the expected catch value.
 }
 All values are conceptual and meant to be tuned. With the same seed,
 scenarios that differ only in the thermocline settings share the same SST

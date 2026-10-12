@@ -73,6 +73,7 @@
 * Deep species are deeper and narrower by default (BET 260 m, SD 50; BFT
   240 m, SD 55), so deep gear clearly targets them while most sets still
   catch all four species.
+* Default prices follow ALB (years 1-10), BET (11-20), BFT (21-30).
 
 ## New functions
 

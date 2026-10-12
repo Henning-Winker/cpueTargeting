@@ -59,7 +59,10 @@ run_extras <- FALSE
   currents, ...), so HBF is an imperfect proxy for where the hooks are.
 * The catchability of a set for a species is the vessel's catchability times
   the overlap between hook and fish depth distributions.
-* Prices favour YFT in years 1-10, BET in years 11-20 and BFT in years 21-30.
+* Prices favour ALB in years 1-10 (shallow, cool water), BET in years 11-20
+  (deep, warm water) and BFT in years 21-30 (deep, cool water), loosely
+  following the historical shift from albacore to bigeye targeting. The first
+  switch changes both location and depth, the second mainly location.
   Skippers choose where to fish (spatial targeting) and which HBF to use
   (vertical targeting) from the expected catch value.
 * About 800 sets per year at the end of the series (~19,000 sets in total).
@@ -259,7 +262,7 @@ knitr::kable(rmse_wide, digits = 3, row.names = FALSE)
   targeting is mainly spatial, e.g. BFT when the fleet moves into cool water.
   Base+S removes most of that bias.
 * **Vertical targeting.** The shallow species (YFT, ALB) drop in nominal CPUE
-  at year 11, when the fleet switches to deeper gear. Space alone, even at
+  at year 11, and BET rises, when the fleet switches to deeper gear. Space alone, even at
   1 x 1, cannot remove this; DPC and HBF can.
 * **Cluster versus DPC.** Targeting in this simulator is continuous (a graded
   choice among locations and HBF levels), so three discrete clusters capture

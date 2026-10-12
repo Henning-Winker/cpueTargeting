@@ -24,9 +24,11 @@
 #'   (`set_cv`; e.g. line angle, currents), so HBF is an imperfect proxy for
 #'   depth. Hooks within a set are lognormally spread around the set's median
 #'   (`hook_cv`).
-#' * **Targeting**: species prices change in three 10-year blocks (YFT, then
-#'   BET, then BFT). Skippers choose where to fish and which HBF to use from
-#'   the expected catch value.
+#' * **Targeting**: species prices change in three 10-year blocks: ALB
+#'   (shallow, cool water), then BET (deep, warm water), then BFT (deep, cool
+#'   water), loosely following the historical shift from albacore to bigeye
+#'   targeting and the later interest in recovering southern bluefin. Skippers
+#'   choose where to fish and which HBF to use from the expected catch value.
 #'
 #' All values are conceptual and meant to be tuned. With the same seed,
 #' scenarios that differ only in the thermocline settings share the same SST
@@ -73,8 +75,9 @@ tuna_settings <- function() {
     hook_cv = 0.35,           # within-set spread of hook depths
 
     # Fleet -------------------------------------------------------------------
-    price = matrix(c(rep(c(2.0, 0.5, 0.5, 1.0), 10),   # years 1-10: YFT
-                     rep(c(0.5, 2.0, 1.0, 0.5), 10),   # years 11-20: BET
+    # columns: YFT, BET, BFT, ALB
+    price = matrix(c(rep(c(1.0, 0.5, 0.5, 2.0), 10),   # years 1-10: ALB
+                     rep(c(1.0, 2.0, 1.0, 0.5), 10),   # years 11-20: BET
                      rep(c(0.5, 1.0, 2.0, 0.5), 10)),  # years 21-30: BFT
                    ncol = 4, byrow = TRUE),
     n_vessels = 30,
