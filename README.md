@@ -39,9 +39,9 @@ plot_tuna_vertical_distributions()
 
 # Standardise with and without HBF
 comparison <- standardize_tuna_indices(tuna, spatial_res = 5,
-  models = c("Base", "Base+S", "DPC+S", "Cluster+S", "HBF+S", "HBS+S"))
+  models = c("Base", "Base+S", "Cluster+S", "DPC+S", "HBF+S", "DPC_HBF+S"))
 comparison$diagnostics
-plot_indices(comparison, models = c("Base+S", "DPC+S", "Cluster+S", "HBF+S", "HBS+S"))
+plot_indices(comparison, models = c("Base+S", "Cluster+S", "DPC+S", "HBF+S", "DPC_HBF+S"))
 
 # One row per set (e.g. for your own GAMs)
 sets <- as_set_data(tuna$Data)

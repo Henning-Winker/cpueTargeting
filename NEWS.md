@@ -15,8 +15,10 @@
   overlap a habitat model would predict from HBF and the average thermocline
   (`hbs_avail`).
 * `standardize_tuna_indices()` follows the guideline workflow (Tweedie GAMs
-  with estimated power) and adds `HBF`, `DPC_HBF` and habitat-based (`HBS`)
-  models; optional random vessel effect. It also works for
+  with estimated power). The default comparison covers the three practical
+  approaches to targeting (Cluster, DPC, HBF) and their combinations
+  (`Cluster_HBF`, `DPC_HBF`); habitat-based standardisation (`HBS`) is
+  available on request. Optional random vessel effect. It also works for
   `simulate_bathymetric()` output.
 
 ## Faster and fewer dependencies

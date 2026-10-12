@@ -8,7 +8,9 @@ standardize_tuna_indices(simulation, models = NULL, spatial_res = 5, spatial_k =
 \arguments{
 \item{simulation}{Output of \code{\link{simulate_tuna}} or \code{\link{simulate_bathymetric}}.}
 \item{models}{Models to fit, e.g. \code{c("Base", "Base+S", "DPC+S", "HBF+S")}.
-Default: every model that applies, with and without \code{+S}.}
+Default: \code{Base}, plus \code{Base}, \code{Cluster}, \code{DPC}, \code{HBF},
+\code{Cluster_HBF} and \code{DPC_HBF} with \code{+S} (the HBF models only for
+the tuna model).}
 \item{spatial_res}{Size of the reporting blocks in cells (5 = 5 x 5 blocks as
 in the CPUE guidelines; 1 = full resolution).}
 \item{spatial_k}{Basis dimension of the spatial smoother. By default it grows
@@ -37,11 +39,12 @@ principal components).
 \item \code{Cluster}: fishing tactic from k-means clustering of the catch
 composition (as a factor).
 \item \code{HBF}: HBF as a factor (tuna model only).
+\item \code{Cluster_HBF}: Cluster + HBF (tuna model only).
 \item \code{DPC_HBF}: DPC + HBF (tuna model only).
-\item \code{HBS}: \code{offset(log(hbs_avail))}, i.e. habitat-based
+\item \code{HBS}: \code{offset(log(hbs_avail))}, a specialised habitat-based
 standardisation: effort is weighted by the overlap between the expected hook
 profile of the HBF and the species' depth profile under the average
-thermocline (tuna model only).
+thermocline (tuna model only; not fitted by default).
 }
 Append \code{+S} to any model name to add a spatial smoother
 \code{s(Xs, Ys)}, e.g. \code{"DPC+S"}; \code{"Base+S"} is the spatial-only

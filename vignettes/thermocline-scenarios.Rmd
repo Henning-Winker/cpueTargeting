@@ -161,20 +161,21 @@ Each model is `year` plus one targeting term. Appending `+S` to a model name
 adds a spatial smoother `s(Xs, Ys)`, e.g. `DPC` versus `DPC+S`; `Base+S` is
 the spatial-only model.
 
-| Model | Targeting term | Uses |
-|---|---|---|
-| Base | none | catch per set |
-| DPC | `s(PC1) + s(PC2)` from catch composition | all species' catches |
-| Cluster | fishing tactic (k-means clusters of catch composition) | all species' catches |
-| HBF | HBF factor | HBF from logbooks |
-| HBS | `offset(log(hbs_avail))`, habitat-based effective effort | HBF + habitat model |
+We compare the three practical approaches to targeting recommended for
+pelagic longline CPUE (Hoyle et al. 2014), and their combinations:
 
-`HBF` estimates one catchability multiplier per HBF level from the data.
-`HBS` estimates nothing about the gear: it weights each set's effort by the
-overlap between the expected hook profile of its HBF and the species' depth
-profile, as predicted by a habitat model. Here the habitat model knows the
-species' depth preferences and the *average* thermocline, but not the annual
-anomalies, which is roughly what an analyst would have.
+| Model | Targeting term | Treats targeting as | Uses |
+|---|---|---|---|
+| Base | none | ignored | catch per set |
+| Cluster | fishing tactic (k-means clusters of catch composition) | discrete | all species' catches |
+| DPC | `s(PC1) + s(PC2)` from catch composition | continuous | all species' catches |
+| HBF | HBF factor | gear covariate | HBF from logbooks |
+| Cluster_HBF | Cluster + HBF | both | catches + HBF |
+| DPC_HBF | DPC + HBF | both | catches + HBF |
+
+Cluster and DPC infer targeting from its fingerprint in the catch
+composition. HBF is a recorded gear covariate: one catchability multiplier
+per HBF level, estimated from the data.
 
 Positions are reported at `spatial_res` x `spatial_res` blocks of cells (5 x
 5 as in the guidelines). We start with the spatial smoother on every model
@@ -185,7 +186,7 @@ resolution.
 `engine = "gam"` to reproduce the guideline approach exactly.
 
 ```{r standardise}
-targeting <- c("Base", "DPC", "Cluster", "HBF", "HBS")
+targeting <- c("Base", "Cluster", "DPC", "HBF", "Cluster_HBF", "DPC_HBF")
 fit_scenario <- function(sim, models, ...) {
   standardize_tuna_indices(sim, models = models, engine = "bam", ...)
 }
@@ -198,7 +199,7 @@ fits$Moving$formulas
 ## Indices
 
 ```{r indices, fig.height = 8}
-plot_indices(fits, models = c("Base+S", "DPC+S", "Cluster+S", "HBF+S", "HBS+S"))
+plot_indices(fits, models = c("Base+S", "Cluster+S", "DPC+S", "HBF+S"))
 ```
 
 ## Accuracy
@@ -231,9 +232,19 @@ knitr::kable(rmse_wide, digits = 3, row.names = FALSE)
 * **Moving**: the HBF factor should no longer be enough, especially for the
   deep species (BET, BFT). In years with a shallow thermocline, deep sets
   catch fewer deep fish and more shallow fish than average, and this shows up
-  in the year effect. `HBS` uses a habitat model of the average conditions,
-  so it captures the spatial pattern but not the annual anomalies either;
-  how much it gains over `HBF` shows the value of habitat information.
+  in the year effect.
+* **Combinations**: HBF and the catch composition carry partly different
+  information (recorded gear versus realised catch mix), so `DPC_HBF` or
+  `Cluster_HBF` may do better than either alone.
+
+**A specialised alternative.** Habitat-based standardisation (HBS; Bigelow et
+al. 2002) estimates nothing about the gear. Instead it weights each set's
+effort by the predicted overlap between the hook depths of its HBF and the
+species' depth distribution from a habitat model. It needs a validated
+habitat model and ocean data, so it is not part of the routine comparison
+here, but it can be fitted with `models = "HBS+S"`. In this simulator its
+habitat model knows the species' depth preferences and the average
+thermocline, but not the annual anomalies.
 
 A single iteration is only an illustration; repeat over seeds before
 drawing conclusions.
@@ -294,13 +305,13 @@ extra <- c(
   HBF_year_re = "year + s(Xs, Ys, k = 8) + HBF + s(year, HBF, bs = 're')"
 )
 fits_int <- lapply(sims[c("Fixed", "Moving")], standardize_tuna_indices,
-                   models = c("HBF+S", "HBS+S"), add_models = extra,
+                   models = c("HBF+S", "DPC_HBF+S"), add_models = extra,
                    engine = "bam")
 plot_diagnostics(fits_int)
 ```
 
 ```{r interactions-indices, fig.height = 6}
-plot_indices(fits_int, models = c("HBF+S", "HBF_period", "HBF_year_re", "HBS+S"))
+plot_indices(fits_int, models = c("HBF+S", "DPC_HBF+S", "HBF_period", "HBF_year_re"))
 ```
 
 Points to keep in mind:
@@ -322,6 +333,9 @@ Points to keep in mind:
   be tried through `add_models`.
 
 # References
+
+Hoyle, S.D., Langley, A.D. and Campbell, R.A. (2014) Recommended approaches for
+standardizing CPUE data from pelagic fisheries. WCPFC-SC10-2014/SA-IP-10.
 
 Bigelow, K.A., Hampton, J. and Miyabe, N. (2002) Application of a habitat-based
 model to estimate effective longline fishing effort and relative abundance of

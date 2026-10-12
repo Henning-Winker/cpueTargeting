@@ -10,11 +10,13 @@
 #' * `Cluster`: fishing tactic from k-means clustering of the catch
 #'   composition (as a factor).
 #' * `HBF`: HBF as a factor (tuna model only).
+#' * `Cluster_HBF`: Cluster + HBF (tuna model only).
 #' * `DPC_HBF`: DPC + HBF (tuna model only).
-#' * `HBS`: `offset(log(hbs_avail))`, i.e. habitat-based standardisation
-#'   (Bigelow et al. 2002): effort is weighted by the overlap between the
-#'   expected hook profile of the HBF and the species' depth profile under the
-#'   average thermocline (tuna model only).
+#' * `HBS`: `offset(log(hbs_avail))`, a specialised habitat-based
+#'   standardisation (Bigelow et al. 2002): effort is weighted by the overlap
+#'   between the expected hook profile of the HBF and the species' depth
+#'   profile under the average thermocline (tuna model only; not fitted by
+#'   default).
 #'
 #' Append `+S` to any model name to add a spatial smoother `s(Xs, Ys)`, e.g.
 #' `"DPC+S"`; `"Base+S"` is the spatial-only model. `Xs`, `Ys` are the
@@ -26,7 +28,8 @@
 #'
 #' @param simulation Output of [simulate_tuna()] or [simulate_bathymetric()].
 #' @param models Models to fit, e.g. `c("Base", "Base+S", "DPC+S", "HBF+S")`.
-#'   Default: every model that applies, with and without `+S`.
+#'   Default: `Base`, plus `Base`, `Cluster`, `DPC`, `HBF`, `Cluster_HBF` and
+#'   `DPC_HBF` with `+S` (the HBF models only for the tuna model).
 #' @param spatial_res Size of the reporting blocks in cells (5 = 5 x 5 blocks
 #'   as in the CPUE guidelines; 1 = full resolution).
 #' @param spatial_k Basis dimension of the spatial smoother. By default it
@@ -109,10 +112,13 @@ standardize_tuna_indices <- function(simulation, models = NULL,
   targeting <- list(Base = character(0), DPC = dpc, Cluster = "FT")
   if (has_hbf) {
     targeting$HBF <- "HBF"
+    targeting$Cluster_HBF <- c("FT", "HBF")
     targeting$DPC_HBF <- c(dpc, "HBF")
     targeting$HBS <- "offset(log(hbs))"
   }
-  if (is.null(models)) models <- c(names(targeting), paste0(names(targeting), "+S"))
+  if (is.null(models)) {
+    models <- c("Base", paste0(setdiff(names(targeting), "HBS"), "+S"))
+  }
   models <- unique(models)
   with_space <- grepl("\\+S$", models)
   base_name <- sub("\\+S$", "", models)
