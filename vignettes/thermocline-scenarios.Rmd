@@ -74,6 +74,110 @@ HBF:
 plot_tuna_vertical_distributions()
 ```
 
+# How to control the scenario
+
+All settings live in one list, `tuna_settings()`. Print it to see the
+defaults, change elements with `modifyList()` (or `$`), and pass the list to
+`simulate_tuna()`. Settings you leave out keep their default values.
+
+```{r settings-overview, eval = FALSE}
+s <- tuna_settings()
+str(s)                                        # all settings and defaults
+s2 <- modifyList(s, list(effort = 500, set_cv = 0.4))
+sim <- simulate_tuna(s2, seed = 1)
+```
+
+The settings come in five groups. Species-specific settings are vectors in
+the order of `species`: YFT, BET, BFT, ALB.
+
+## Targeting through prices
+
+Targeting changes are driven by species prices: each year skippers send
+effort to the cells, and choose the HBF, with the highest expected catch
+value (price x expected catch). `price` is a matrix with one row per year
+and one column per species. The default has three 10-year blocks:
+
+| Years | Most valuable | Where it lives | Fleet goes to |
+|---|---|---|---|
+| 1-10 | ALB | shallow, cool south | shallow gear, south |
+| 11-20 | BET | deep, warm north | deep gear, north |
+| 21-30 | BFT | deep, cool south | deep gear, south |
+
+This loosely follows the historical shift from albacore (canning) to bigeye
+(sashimi) targeting in the Japanese longline fleet (Hoyle and Okamoto 2013),
+followed by increasing interest in southern bluefin as it recovers. The
+first switch changes both where and how deep the fleet fishes; the second
+mainly where, which helps to separate spatial from vertical targeting.
+
+```{r prices}
+tuna_settings()$price[c(1, 11, 21), ]   # one row from each block
+```
+
+To define your own sequence, build a new matrix, e.g. a single switch from
+ALB to BET:
+
+```{r prices-custom, eval = FALSE}
+s <- tuna_settings()
+s$price <- matrix(c(rep(c(1.0, 0.5, 0.5, 2.0), 15),   # years 1-15: ALB
+                    rep(c(1.0, 2.0, 1.0, 0.5), 15)),  # years 16-30: BET
+                  ncol = 4, byrow = TRUE)              # columns: YFT, BET, BFT, ALB
+```
+
+Constant prices (the same row every year) switch off targeting changes,
+which is a useful control scenario.
+
+How strongly skippers respond:
+
+| Setting | Effect | Default |
+|---|---|---|
+| `preference` | how strongly effort concentrates on high-value cells (spatial targeting); 0 = effort spread evenly | 1.5 |
+| `HBF_choice_temp` | how strictly skippers pick the best HBF (vertical targeting); small = strict, large = nearly random | 0.15 |
+
+## Species habitat
+
+| Setting | Meaning | Default (YFT, BET, BFT, ALB) |
+|---|---|---|
+| `sst_opt`, `sst_tol` | preferred SST and tolerance (deg C): horizontal distribution | 25, 24, 20, 21; 3, 3.5, 3, 3.5 |
+| `depth_mu`, `depth_sd` | mean and SD of the depth profile (m): vertical distribution | 90, 260, 240, 110; 60, 50, 55, 60 |
+| `B0`, `r` | carrying capacity (t) and intrinsic growth rate | 400, 300, 150, 350 thousand t; 0.30, 0.18, 0.12, 0.18 |
+| `dispersal` | mean movement distance per year (cells) | 1.5 |
+
+Closer `sst_opt` values or larger `sst_tol` mix the species more in space;
+closer `depth_mu` or larger `depth_sd` mix them more in depth, which weakens
+the contrast between shallow and deep gear. Check the result with
+`plot_tuna_vertical_distributions(s)` and, after simulating,
+`plot_availability(sim)`.
+
+## Longline gear
+
+| Setting | Meaning | Default |
+|---|---|---|
+| `HBF_levels` | HBF values the fleet can use | 5, 10, 15, 20 |
+| `HBF_depth` | median hook depth for each HBF level (m) | 110, 160, 205, 250 |
+| `set_cv` | set-level error in hook depth: how well HBF predicts where the hooks are (0 = perfectly) | 0.2 |
+| `hook_cv` | spread of hooks within a set | 0.35 |
+
+`set_cv` is the main "error in variable" knob for the HBF covariate.
+
+## Environment
+
+| Setting | Meaning | Default |
+|---|---|---|
+| `sst_mean`, `sst_gradient`, `sst_noise` | SST field: mean, south-north increase, random variation (deg C) | 23, 10, 1 |
+| `thermocline_sd` | fixed spatial pattern of the thermocline anomaly (m) | 30 |
+| `thermocline_annual_sd` | basin-wide annual shift (m); ~10-15 is realistic | 0 |
+| `thermocline_annual_field_sd` | new spatial pattern each year (m); ~5-10 | 0 |
+
+## Fleet and data
+
+| Setting | Meaning | Default |
+|---|---|---|
+| `n_years` | number of years (the `price` matrix needs at least as many rows) | 30 |
+| `effort` | sets per year at the end of the series (effort increases logistically) | 800 |
+| `n_vessels`, `q`, `vessel_cv` | number of vessels, mean catchability, between-vessel CV | 30, 0.2, 0.2 |
+| `tweedie_power`, `tweedie_phi` | set-level noise in catchability | 1.2, 0.1 |
+| `obs_res` | positions in `Data` are reported as centres of `obs_res` x `obs_res` blocks | 5 |
+
 # Step 1: define the scenarios
 
 The thermocline anomaly in cell *i* and year *t* is
