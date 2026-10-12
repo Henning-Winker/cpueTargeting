@@ -9,7 +9,7 @@ bind_comparisons(...)
 }
 \value{An object like the output of \code{\link{standardize_tuna_indices}}
 with the \code{indices}, \code{diagnostics} and \code{formulas} of all inputs
-(\code{data} is taken from the first).}
+(\code{data} and \code{pca} are taken from the first).}
 \description{Useful to compare fits made with different settings (e.g.
 spatial resolutions) in one plot. Give each call a different \code{label} so
 that the model names are unique.}

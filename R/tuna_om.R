@@ -58,9 +58,11 @@ tuna_settings <- function() {
     sst_scale = 6,            # correlation scale of the SST field (cells)
     thermocline_sd = 30,      # SD of the fixed thermocline-depth anomaly field (m)
     thermocline_scale = 8,    # correlation scale of the anomaly fields (cells)
-    thermocline_annual_sd = 0,       # SD of a basin-wide annual shift (m), AR(1)
+    thermocline_annual_sd = 0,       # SD of a basin-wide annual shift (m), AR(1);
+                                     #   ~10-15 m is a realistic ENSO-like range
     thermocline_annual_rho = 0.5,    # autocorrelation of the annual shift
-    thermocline_annual_field_sd = 0, # SD of an extra year-specific anomaly field (m)
+    thermocline_annual_field_sd = 0, # SD of an extra year-specific anomaly field (m);
+                                     #   e.g. 5-10 m
     max_depth = 500,          # depth range of vertical profiles (m)
     depth_bin = 10,           # vertical resolution (m)
 
@@ -76,7 +78,7 @@ tuna_settings <- function() {
                      rep(c(0.5, 1.0, 2.0, 0.5), 10)),  # years 21-30: BFT
                    ncol = 4, byrow = TRUE),
     n_vessels = 30,
-    effort = 1500,            # asymptotic number of sets per year
+    effort = 800,             # asymptotic number of sets per year (~19,000 in 30 years)
     effort_cv = 0.2,
     q = 0.2,                  # mean catchability per set at full vertical overlap
     vessel_cv = 0.2,          # between-vessel CV in catchability

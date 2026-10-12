@@ -87,9 +87,10 @@ it.
 By default the thermocline pattern is fixed over time. Setting
 `thermocline_annual_sd` (a basin-wide AR(1) shift) and/or
 `thermocline_annual_field_sd` (a new spatial field each year) makes it move
-between years, so the catchability of a given HBF changes from year to year.
-The vignette *Vertical targeting and a moving thermocline* walks through
-constant, fixed and moving scenarios step by step.
+between years, so the catchability of a given HBF changes from year to year;
+about 15 m and 10 m give a realistic ENSO-like range. The vignette *Targeting
+in a longline tuna fishery* walks through a fixed and a moving thermocline
+scenario step by step, comparing Cluster, DPC and HBF.
 
 Plots that illustrate each effect:
 
@@ -100,7 +101,11 @@ Plots that illustrate each effect:
 | `plot_thermocline(sim)` | annual thermocline series and maps |
 | `plot_availability(sim)` | vertical availability by HBF over time |
 | `sim$Plots$HBF`, `sim$Plots$CPUE` | gear use over time; nominal CPUE versus truth |
+| `plot_pcs(fit)` | what the catch-composition PCs capture: loadings, maps, scores against hook depth, scores over time |
 | `plot_indices()`, `plot_diagnostics()` | standardised indices and their accuracy, for one or several scenarios |
+
+`bind_comparisons()` and `select_models()` combine and subset standardisation
+results, e.g. to attach a slow control fit without refitting it.
 
 To change a scenario, edit the settings list:
 

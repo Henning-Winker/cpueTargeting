@@ -122,6 +122,10 @@ test_that("fits at different resolutions can be combined", {
   pc3 <- standardize_tuna_indices(sim, models = "DPC+S", n_pc = 3, engine = "bam")
   expect_true(grepl("s(PC3, k = 3)", pc3$formulas[["DPC+S"]], fixed = TRUE))
   expect_error(standardize_tuna_indices(sim, models = "DPC", n_pc = 5), "n_pc")
+  pcp <- plot_pcs(pc3, pcs = c("PC1", "PC2", "PC3"), min_sets = 1)
+  expect_named(pcp, c("loadings", "space", "depth", "time"))
+  for (p in pcp) expect_s3_class(p, "ggplot")
+  expect_equal(dim(pc3$pca$loadings), c(4, 4))
   expect_s3_class(plot_diagnostics(ab), "ggplot")
 })
 

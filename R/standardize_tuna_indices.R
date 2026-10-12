@@ -50,8 +50,10 @@
 #'
 #' @return A list with `indices` (species, year, model, index with 95% CI and
 #'   the true index), `diagnostics` (root mean squared error of the log index
-#'   by species and model), `formulas` (the right-hand side of each model) and
-#'   `data` (the set-level data used, with PCs, tactics and block centres).
+#'   by species and model), `formulas` (the right-hand side of each model),
+#'   `data` (the set-level data used, with PCs, tactics and block centres) and
+#'   `pca` (loadings and variances of the catch-composition PCA; see
+#'   [plot_pcs()]).
 #' @export
 #'
 #' @examples
@@ -201,7 +203,8 @@ standardize_tuna_indices <- function(simulation, models = NULL,
   diagnostics <- stats::aggregate(list(rmse_log = err),
                                   by = list(species = indices$species, model = indices$model),
                                   FUN = function(e) sqrt(mean(e)))
-  list(indices = indices, diagnostics = diagnostics, formulas = formulas, data = d)
+  list(indices = indices, diagnostics = diagnostics, formulas = formulas, data = d,
+       pca = list(loadings = pca$rotation, variance = pca$sdev^2))
 }
 
 #' mgcv's tw() family that also works when mgcv is not attached
@@ -230,8 +233,8 @@ tweedie_family <- function() {
 #'
 #' @param ... Outputs of [standardize_tuna_indices()].
 #' @return An object like the output of [standardize_tuna_indices()] with the
-#'   `indices`, `diagnostics` and `formulas` of all inputs (`data` is taken
-#'   from the first).
+#'   `indices`, `diagnostics` and `formulas` of all inputs (`data` and `pca`
+#'   are taken from the first).
 #' @export
 #' @examples
 #' \dontrun{
@@ -257,7 +260,7 @@ bind_comparisons <- function(...) {
     out
   }
   list(indices = stack("indices"), diagnostics = stack("diagnostics"),
-       formulas = formulas, data = fits[[1]]$data)
+       formulas = formulas, data = fits[[1]]$data, pca = fits[[1]]$pca)
 }
 
 #' Keep only some models of a standardisation result

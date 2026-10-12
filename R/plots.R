@@ -287,3 +287,104 @@ plot_availability <- function(sim) {
     labs(x = "Year", y = "Mean vertical availability", colour = "HBF") +
     theme_bw()
 }
+
+#' What do the principal components of the catch composition capture?
+#'
+#' Plots the PC scores used by the DPC models (Winker et al. 2013, 2014) in
+#' four ways: the species loadings (what each PC means), mean scores by cell
+#' (where each tactic is used), mean scores against the realised hook depth of
+#' the set for each HBF (how the PCs track vertical targeting; tuna model
+#' only), and mean scores by year (how targeting changes over time).
+#'
+#' `hook_depth` is latent truth from the operating model; it is used here only
+#' to show what the PCs pick up, not in any standardisation model.
+#'
+#' @param comparison Output of [standardize_tuna_indices()] (or of
+#'   [bind_comparisons()]).
+#' @param pcs Principal components to show.
+#' @param depth_bin Width of the hook-depth bins (m).
+#' @param min_sets Minimum number of sets for a depth bin to be shown.
+#' @return A list of ggplots: `loadings`, `space`, `depth` (tuna model only)
+#'   and `time`.
+#' @export
+plot_pcs <- function(comparison, pcs = c("PC1", "PC2"), depth_bin = 20, min_sets = 30) {
+  d <- comparison$data
+  missing <- setdiff(pcs, names(d))
+  if (length(missing)) stop("Not found in the data: ", paste(missing, collapse = ", "),
+                            call. = FALSE)
+  long <- do.call(rbind, lapply(pcs, function(pc) {
+    data.frame(d[, intersect(c("X", "Y", "year", "HBF", "hook_depth"), names(d))],
+               pc = pc, score = d[[pc]])
+  }))
+  long$pc <- factor(long$pc, levels = pcs)
+  plots <- list()
+
+  # Loadings: what each PC means in terms of species
+  if (!is.null(comparison$pca)) {
+    load <- comparison$pca$loadings[, pcs, drop = FALSE]
+    var_share <- comparison$pca$variance / sum(comparison$pca$variance)
+    names(var_share) <- colnames(comparison$pca$loadings)
+    labels <- sprintf("%s (%.0f%%)", pcs, 100 * var_share[pcs])
+    loadings <- data.frame(species = rep(rownames(load), length(pcs)),
+                           pc = factor(rep(labels, each = nrow(load)), levels = labels),
+                           loading = as.vector(load))
+    loadings$species <- factor(loadings$species, levels = rownames(load))
+    plots$loadings <- ggplot(loadings, aes(x = .data$species, y = .data$loading,
+                                           fill = .data$loading > 0)) +
+      geom_col(show.legend = FALSE) +
+      geom_hline(yintercept = 0) +
+      facet_wrap(~pc) +
+      scale_fill_manual(values = c(`TRUE` = "#0072B2", `FALSE` = "#D55E00")) +
+      labs(x = NULL, y = "Loading", title = "What the PCs mean") +
+      theme_bw()
+  }
+
+  # Space: mean score by cell
+  space <- stats::aggregate(list(score = long$score),
+                            by = list(x = long$X, y = long$Y, pc = long$pc), FUN = mean)
+  plots$space <- ggplot(space, aes(x = .data$x, y = .data$y, fill = .data$score)) +
+    geom_raster() +
+    scale_fill_gradient2(low = "#D55E00", mid = "white", high = "#0072B2",
+                         name = "Mean score") +
+    facet_wrap(~pc) +
+    coord_quickmap(expand = FALSE) +
+    labs(x = "x", y = "y (north = top)", title = "PC scores in space") +
+    theme_bw()
+
+  # Depth: mean score against realised hook depth, by HBF
+  if (all(c("hook_depth", "HBF") %in% names(long))) {
+    long$depth <- (floor(long$hook_depth / depth_bin) + 0.5) * depth_bin
+    by_depth <- stats::aggregate(list(score = long$score),
+                                 by = list(depth = long$depth, HBF = long$HBF, pc = long$pc),
+                                 FUN = mean)
+    n_sets <- stats::aggregate(list(n = long$score),
+                               by = list(depth = long$depth, HBF = long$HBF, pc = long$pc),
+                               FUN = length)
+    by_depth <- by_depth[n_sets$n >= min_sets, , drop = FALSE]
+    by_depth <- by_depth[order(by_depth$pc, by_depth$HBF, by_depth$depth), ]
+    plots$depth <- ggplot(by_depth, aes(x = .data$score, y = .data$depth,
+                                        colour = factor(.data$HBF))) +
+      geom_vline(xintercept = 0, linetype = 2) +
+      geom_path(linewidth = 0.8) +
+      geom_point(size = 1.2) +
+      facet_wrap(~pc) +
+      scale_y_reverse() +
+      labs(x = "Mean score", y = "Realised median hook depth of the set (m)",
+           colour = "HBF", title = "PC scores against hook depth") +
+      theme_bw()
+  }
+
+  # Time: mean score by year
+  by_year <- stats::aggregate(list(score = long$score),
+                              by = list(year = as.integer(as.character(long$year)),
+                                        pc = long$pc),
+                              FUN = mean)
+  plots$time <- ggplot(by_year, aes(x = .data$year, y = .data$score)) +
+    geom_hline(yintercept = 0, linetype = 2) +
+    geom_line(linewidth = 0.8) +
+    geom_point(size = 1.2) +
+    facet_wrap(~pc) +
+    labs(x = "Year", y = "Mean score", title = "PC scores over time") +
+    theme_bw()
+  plots
+}

@@ -32,8 +32,10 @@ to tell fits at different resolutions apart after \code{\link{bind_comparisons}}
 }
 \value{A list with \code{indices} (species, year, model, index with 95\% CI and
 the true index), \code{diagnostics} (root mean squared error of the log index
-by species and model), \code{formulas} (the right-hand side of each model) and
-\code{data} (the set-level data used, with PCs, tactics and block centres).}
+by species and model), \code{formulas} (the right-hand side of each model),
+\code{data} (the set-level data used, with PCs, tactics and block centres) and
+\code{pca} (loadings and variances of the catch-composition PCA; see
+\code{\link{plot_pcs}}).}
 \description{Fits Tweedie GAMs (\code{mgcv::gam} with \code{tw()}) to each
 species and compares the annual indices with the true biomass trend.}
 \details{Each model is \code{year} plus a targeting term:

@@ -59,10 +59,20 @@
   (e.g. `"DPC+S"`) adds the spatial smoother `s(Xs, Ys)`; `spatial_res` sets
   the reporting block size and `spatial_k` the basis size. The `Spatial`
   model is now `Base+S`.
-* New vignette *Vertical targeting and a moving thermocline*: constant, fixed
-  and moving scenarios, standardisation, and year-interaction models.
+* New vignette *Targeting in a longline tuna fishery*: fixed and moving
+  thermocline scenarios, Cluster vs DPC vs HBF, what the PCs capture, and
+  optional spatial-resolution and year-interaction steps.
+
+## Standardisation helpers
+
+* `n_pc` sets the number of principal components used by the DPC models
+  (default 2); all PCs and the PCA loadings are returned.
+* `label`, `bind_comparisons()` and `select_models()` to combine and reuse
+  fits (e.g. a 1 x 1 spatial control).
+* Default `effort` in `tuna_settings()` reduced to 800 sets per year.
 
 ## New functions
 
 * `plot_om()`, `plot_indices()`, `plot_diagnostics()`, `plot_thermocline()`,
-  `plot_thermocline_effect()`, `plot_availability()` and `as_set_data()`.
+  `plot_thermocline_effect()`, `plot_availability()`, `plot_pcs()`,
+  `bind_comparisons()`, `select_models()` and `as_set_data()`.
