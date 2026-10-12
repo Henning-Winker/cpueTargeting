@@ -316,7 +316,7 @@ generate_tuna_scenario_data <- function(Sim_Settings){
   
   pidx = ggplot(idx)+
     geom_line(aes(year,Nominal))+geom_point(aes(year,Nominal),pch=21,fill="grey")+
-    theme_bw()+facet_wrap(~Sp)+geom_line(aes(year,True),size=1.,col="darkblue")+
+    theme_bw()+facet_wrap(~Sp)+geom_line(aes(year,True),linewidth=1.,col="darkblue")+
     geom_hline(yintercept = 1,linetype=2)
   
   plots = list()

@@ -28,7 +28,7 @@ plot_cluster_2014 <- function(simulation) {
                             value.name = "biomass")
   p_biomass <- ggplot2::ggplot(biomass,
       ggplot2::aes(x = year, y = biomass, colour = species, group = species)) +
-    ggplot2::geom_line(size = 0.9) +
+    ggplot2::geom_line(linewidth = 0.9) +
     ggplot2::labs(title = "True biomass trajectories", x = "Year",
                   y = "Biomass", colour = "Species") +
     ggplot2::theme_bw()
@@ -37,7 +37,7 @@ plot_cluster_2014 <- function(simulation) {
                            variable.name = "habitat", value.name = "share")
   p_effort <- ggplot2::ggplot(effort,
       ggplot2::aes(x = year, y = share, colour = habitat, group = habitat)) +
-    ggplot2::geom_line(size = 0.9) +
+    ggplot2::geom_line(linewidth = 0.9) +
     ggplot2::geom_point(size = 1.5) +
     ggplot2::scale_y_continuous(limits = c(0, 1)) +
     ggplot2::labs(title = "Annual effort allocation", x = "Year",

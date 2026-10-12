@@ -29,7 +29,7 @@ function documentation.
 
 ## Quick start
 
-```r
+```{r}
 library(cpueTargeting)
 
 # Winker et al. (2014) multi-habitat cluster example
@@ -47,6 +47,7 @@ tuna <- simulate_tuna(seed = 3)
 head(tuna$Data)
 comparison <- standardize_tuna_indices(tuna)
 plot_tuna_vertical_distributions()
+
 ```
 
 Use `bathymetric_settings()` and `tuna_settings()` to inspect or edit the

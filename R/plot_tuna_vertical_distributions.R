@@ -44,7 +44,7 @@ plot_tuna_vertical_distributions <- function(settings = tuna_settings(),
     levels = c("Species vertical availability", "Marginal hook-depth distribution"))
   p <- ggplot2::ggplot(profiles,
       ggplot2::aes(x = density, y = depth_m, colour = profile)) +
-    ggplot2::geom_line(size = 1) +
+    ggplot2::geom_line(linewidth = 1) +
     ggplot2::facet_grid(panel ~ ., scales = "free_x") +
     ggplot2::scale_y_reverse(limits = c(max_depth, 0)) +
     ggplot2::labs(title = "Illustrative tuna and longline vertical distributions",
