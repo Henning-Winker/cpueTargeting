@@ -1,0 +1,7 @@
+# results saved by the vignette and scripts
+*.rds
+!inst/extdata/*.rds
+.Rhistory
+.RData
+.Rproj.user/
+vignettes/*.html
