@@ -2,7 +2,10 @@
 \alias{tuna_settings}
 \title{Default settings for the longline tuna scenario}
 \usage{
-tuna_settings()
+tuna_settings(preset = c("default", "stress_test"))
+}
+\arguments{
+\item{preset}{\code{"default"} or \code{"stress_test"}.}
 }
 \value{A named list accepted by \code{\link{simulate_tuna}}.}
 \description{Four tuna species in a conceptual Southern Hemisphere ocean
@@ -40,3 +43,20 @@ All values are conceptual and meant to be tuned. With the same seed,
 scenarios that differ only in the thermocline settings share the same SST
 field, the same fixed thermocline pattern (scaled by \code{thermocline_sd})
 and the same vessels; the fishery itself then evolves differently.}
+\section{Presets}{
+\itemize{
+\item \code{"default"}: moderate targeting (prices differ by a factor of 2
+between the target species and the others, \code{preference = 1.25},
+\code{HBF_choice_temp = 0.2}); nominal CPUE is biased by roughly 10-20\% by
+decade.
+\item \code{"stress_test"}: extreme targeting (prices differ by a factor of 4,
+\code{preference = 1.5}, \code{HBF_choice_temp = 0.15}); abrupt, fleet-wide
+target switches with nominal CPUE biased by up to a factor of two. These are
+the settings of the first runs of the vignette.
+}
+}
+\examples{
+s <- tuna_settings()
+extreme <- tuna_settings("stress_test")
+extreme$price[c(1, 11, 21), ]
+}

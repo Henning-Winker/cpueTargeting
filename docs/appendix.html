@@ -297,12 +297,12 @@ V(s,h,t) = \sum_p \phi_p(t)\, d_p(s,t) \left(1 - \exp\{-q\, \bar A_p(s,h,t)\}\ri
 \]
 <p>where \(\bar A_p(s,h,t)\) is the availability under the expected hook profile of HBF \(h\)
 and the current thermocline. Effort is allocated to cells in proportion to
-\(\big[\max_h V(s,h,t)\big]^{\kappa}\) with \(\kappa\) = 1.5 (spatial targeting). Each set then
+\(\big[\max_h V(s,h,t)\big]^{\kappa}\) with \(\kappa\) = 1.25 (spatial targeting). Each set then
 chooses its HBF with probability</p>
 \[
 P(h \mid s,t) \;\propto\; \left(\frac{V(s,h,t)}{\max_{h'} V(s,h',t)}\right)^{1/\tau},
 \]
-<p>where \(\tau\) (<code>HBF_choice_temp</code> = 0.15) controls how strictly the best gear is
+<p>where \(\tau\) (<code>HBF_choice_temp</code> = 0.2) controls how strictly the best gear is
 chosen (vertical targeting). Prices change in three 10-year blocks: albacore (shallow, cool
 water), then bigeye (deep, warm water), then southern bluefin (deep, cool water). This loosely
 follows the historical shift from albacore to bigeye targeting in the Japanese longline fleet
@@ -320,9 +320,9 @@ habitat-based standardisation). The true index is the total biomass at the start
 <h3>B.7 Default settings</h3>
 <div class="table-wrap"><table>
 <tr><th>Setting</th><th>Symbol</th><th>YFT</th><th>BET</th><th>BFT</th><th>ALB</th></tr>
-<tr><td>Price, years 1-10</td><td>\(\phi_p\)</td><td class="num">1.0</td><td class="num">0.5</td><td class="num">0.5</td><td class="num">2.0</td></tr>
-<tr><td>Price, years 11-20</td><td>\(\phi_p\)</td><td class="num">1.0</td><td class="num">2.0</td><td class="num">1.0</td><td class="num">0.5</td></tr>
-<tr><td>Price, years 21-30</td><td>\(\phi_p\)</td><td class="num">0.5</td><td class="num">1.0</td><td class="num">2.0</td><td class="num">0.5</td></tr>
+<tr><td>Price, years 1-10</td><td>\(\phi_p\)</td><td class="num">1.0</td><td class="num">0.75</td><td class="num">0.75</td><td class="num">1.5</td></tr>
+<tr><td>Price, years 11-20</td><td>\(\phi_p\)</td><td class="num">1.0</td><td class="num">1.5</td><td class="num">1.0</td><td class="num">0.75</td></tr>
+<tr><td>Price, years 21-30</td><td>\(\phi_p\)</td><td class="num">0.75</td><td class="num">1.0</td><td class="num">1.5</td><td class="num">0.75</td></tr>
 <tr><td>Preferred SST (&deg;C)</td><td>\(\mathrm{SST}_p^{opt}\)</td><td class="num">25</td><td class="num">24</td><td class="num">20</td><td class="num">21</td></tr>
 <tr><td>SST tolerance (&deg;C)</td><td>\(\tau_p\)</td><td class="num">3</td><td class="num">3.5</td><td class="num">3</td><td class="num">3.5</td></tr>
 <tr><td>Mean depth (m)</td><td>\(\mu_p\)</td><td class="num">90</td><td class="num">260</td><td class="num">240</td><td class="num">110</td></tr>
@@ -335,7 +335,7 @@ habitat-based standardisation). The true index is the total biomass at the start
 <tr><td>Space and time</td><td>50 x 50 cells, 30 years, reported positions on 5 x 5 blocks</td></tr>
 <tr><td>Environment</td><td>SST mean 23 &deg;C, gradient 10 &deg;C, noise SD 1 &deg;C (scale 6); thermocline fixed pattern SD 30 m (scale 8), annual shift and annual pattern 0 by default</td></tr>
 <tr><td>Gear</td><td>HBF 5, 10, 15, 20 with median hook depths 110, 160, 205, 250 m; set-level CV 0.2; within-set CV 0.35</td></tr>
-<tr><td>Fleet</td><td>30 vessels, up to 800 sets per year (~19 000 in total), \(q\) = 0.2, vessel CV 0.2, Tweedie power 1.2 and dispersion 0.1, \(\kappa\) = 1.5, \(\tau\) = 0.15</td></tr>
+<tr><td>Fleet</td><td>30 vessels, up to 800 sets per year (~19 000 in total), \(q\) = 0.2, vessel CV 0.2, Tweedie power 1.2 and dispersion 0.1, \(\kappa\) = 1.25, \(\tau\) = 0.2</td></tr>
 </table></div>
 
 <h3>B.8 What the extension adds, in short</h3>

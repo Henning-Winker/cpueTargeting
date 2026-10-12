@@ -126,6 +126,9 @@ s <- tuna_settings()
 s$depth_sd <- c(80, 80, 80, 80)      # more vertical mixing of species
 s$HBF_choice_temp <- 0.05            # skippers choose gear more strictly
 sim <- simulate_tuna(s, seed = 1)
+
+# Extreme targeting (price contrast 2.0 vs 0.5, strict skippers)
+stress <- simulate_tuna(tuna_settings("stress_test"), seed = 1)
 ```
 
 ## Speed

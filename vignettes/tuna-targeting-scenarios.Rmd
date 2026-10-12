@@ -136,20 +136,33 @@ ALB to BET:
 
 ```{r prices-custom, eval = FALSE}
 s <- tuna_settings()
-s$price <- matrix(c(rep(c(1.0, 0.5, 0.5, 2.0), 15),   # years 1-15: ALB
-                    rep(c(1.0, 2.0, 1.0, 0.5), 15)),  # years 16-30: BET
+s$price <- matrix(c(rep(c(1.0, 0.75, 0.75, 1.5), 15),   # years 1-15: ALB
+                    rep(c(1.0, 1.5, 1.0, 0.75), 15)),   # years 16-30: BET
                   ncol = 4, byrow = TRUE)              # columns: YFT, BET, BFT, ALB
 ```
 
 Constant prices (the same row every year) switch off targeting changes,
 which is a useful control scenario.
 
+**Two presets.** The default has moderate targeting: the target species is
+worth twice as much as the others, and skippers respond fairly, but not
+perfectly, to value; nominal CPUE is biased by roughly 10-20% by decade.
+`tuna_settings("stress_test")` gives an extreme case (prices differ by a
+factor of four, skippers respond almost deterministically), with abrupt,
+fleet-wide target switches and nominal CPUE biased by up to a factor of two.
+It is useful to see whether a method still works when targeting dominates
+the signal:
+
+```{r stress-test, eval = FALSE}
+base <- tuna_settings("stress_test")   # instead of tuna_settings() in Step 1
+```
+
 How strongly skippers respond:
 
 | Setting | Effect | Default |
 |---|---|---|
-| `preference` | how strongly effort concentrates on high-value cells (spatial targeting); 0 = effort spread evenly | 1.5 |
-| `HBF_choice_temp` | how strictly skippers pick the best HBF (vertical targeting); small = strict, large = nearly random | 0.15 |
+| `preference` | how strongly effort concentrates on high-value cells (spatial targeting); 0 = effort spread evenly | 1.25 (stress test: 1.5) |
+| `HBF_choice_temp` | how strictly skippers pick the best HBF (vertical targeting); small = strict, large = nearly random | 0.2 (stress test: 0.15) |
 
 ## Species habitat
 

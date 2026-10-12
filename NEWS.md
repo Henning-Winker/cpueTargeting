@@ -75,7 +75,11 @@
 * Deep species are deeper and narrower by default (BET 260 m, SD 50; BFT
   240 m, SD 55), so deep gear clearly targets them while most sets still
   catch all four species.
-* Default prices follow ALB (years 1-10), BET (11-20), BFT (21-30).
+* Default prices follow ALB (years 1-10), BET (11-20), BFT (21-30), with a
+  moderate contrast (target species worth 1.5, others 0.75-1.0) and moderate
+  skipper response (`preference = 1.25`, `HBF_choice_temp = 0.2`).
+* `tuna_settings("stress_test")` keeps the earlier extreme targeting (price
+  contrast 2.0 vs 0.5, `preference = 1.5`, `HBF_choice_temp = 0.15`).
 
 ## New functions
 

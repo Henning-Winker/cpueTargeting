@@ -35,9 +35,40 @@
 #' field, the same fixed thermocline pattern (scaled by `thermocline_sd`) and
 #' the same vessels; the fishery itself then evolves differently.
 #'
+#' Two presets are available:
+#' * `"default"`: moderate targeting (prices differ by a factor of 2 between
+#'   the target species and the others, `preference = 1.25`,
+#'   `HBF_choice_temp = 0.2`); nominal CPUE is biased by roughly 10-20% by
+#'   decade.
+#' * `"stress_test"`: extreme targeting (prices differ by a factor of 4,
+#'   `preference = 1.5`, `HBF_choice_temp = 0.15`); abrupt, fleet-wide target
+#'   switches with nominal CPUE biased by up to a factor of two. These are the
+#'   settings of the first runs of the vignette.
+#'
+#' @param preset `"default"` or `"stress_test"`.
 #' @return A named list accepted by [simulate_tuna()].
 #' @export
-tuna_settings <- function() {
+#' @examples
+#' s <- tuna_settings()
+#' extreme <- tuna_settings("stress_test")
+#' extreme$price[c(1, 11, 21), ]
+tuna_settings <- function(preset = c("default", "stress_test")) {
+  preset <- match.arg(preset)
+  s <- tuna_settings_default()
+  if (preset == "stress_test") {
+    s$price <- matrix(c(rep(c(1.0, 0.5, 0.5, 2.0), 10),   # years 1-10: ALB
+                        rep(c(1.0, 2.0, 1.0, 0.5), 10),   # years 11-20: BET
+                        rep(c(0.5, 1.0, 2.0, 0.5), 10)),  # years 21-30: BFT
+                      ncol = 4, byrow = TRUE)
+    s$preference <- 1.5
+    s$HBF_choice_temp <- 0.15
+  }
+  s
+}
+
+#' Default tuna settings (see tuna_settings())
+#' @noRd
+tuna_settings_default <- function() {
   list(
     n_years = 30,
     nx = 50, ny = 50,          # grid size (cells)
@@ -76,9 +107,9 @@ tuna_settings <- function() {
 
     # Fleet -------------------------------------------------------------------
     # columns: YFT, BET, BFT, ALB
-    price = matrix(c(rep(c(1.0, 0.5, 0.5, 2.0), 10),   # years 1-10: ALB
-                     rep(c(1.0, 2.0, 1.0, 0.5), 10),   # years 11-20: BET
-                     rep(c(0.5, 1.0, 2.0, 0.5), 10)),  # years 21-30: BFT
+    price = matrix(c(rep(c(1.0, 0.75, 0.75, 1.5), 10),   # years 1-10: ALB
+                     rep(c(1.0, 1.5, 1.0, 0.75), 10),    # years 11-20: BET
+                     rep(c(0.75, 1.0, 1.5, 0.75), 10)),  # years 21-30: BFT
                    ncol = 4, byrow = TRUE),
     n_vessels = 30,
     effort = 800,             # asymptotic number of sets per year (~19,000 in 30 years)
@@ -87,8 +118,8 @@ tuna_settings <- function() {
     vessel_cv = 0.2,          # between-vessel CV in catchability
     tweedie_power = 1.2,      # set-level noise in catchability
     tweedie_phi = 0.1,
-    preference = 1.5,         # concentration of effort on high-value cells
-    HBF_choice_temp = 0.15,   # lower = skippers pick the best HBF more strictly
+    preference = 1.25,        # concentration of effort on high-value cells
+    HBF_choice_temp = 0.2,    # lower = skippers pick the best HBF more strictly
     avail_ref = 100           # vertical availability of 1 = fish spread evenly
                               # over a 100-m layer fished by all hooks
   )

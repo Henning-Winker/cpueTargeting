@@ -176,3 +176,15 @@ test_that("vertical distribution plot works with and without overlay", {
   expect_s3_class(plot_tuna_vertical_distributions(overlay = FALSE), "ggplot")
   expect_s3_class(plot_tuna_vertical_distributions(overlay = TRUE), "ggplot")
 })
+
+test_that("settings presets differ only in targeting strength", {
+  d <- tuna_settings()
+  x <- tuna_settings("stress_test")
+  expect_equal(max(d$price) / min(d$price), 2)
+  expect_equal(max(x$price) / min(x$price), 4)
+  expect_equal(x$preference, 1.5)
+  expect_equal(x$HBF_choice_temp, 0.15)
+  same <- setdiff(names(d), c("price", "preference", "HBF_choice_temp"))
+  expect_identical(d[same], x[same])
+  expect_error(tuna_settings("foo"))
+})
