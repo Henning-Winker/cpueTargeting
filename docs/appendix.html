@@ -239,8 +239,9 @@ used in the movement model of A.2 in place of the depth and range terms, with me
 distance \(\lambda_p\) = 1.5 cells. Wide tolerances \(\tau_p\) keep the species mixed in space.
 Carrying capacity \(B_{0,p}\varepsilon_p\) is distributed at the stable distribution, and
 stocks start at a fraction \(\delta_p\) of it (<code>B_start</code>; 1 = unfished). By default
-\(\delta\) = 0.7, 0.6, 0.5 and 0.7 (YFT, BET, BFT, ALB), and with \(q\) = 2 the stocks are
-fished down further, fastest while they are targeted.</p>
+\(\delta\) = 0.7, 0.6, 0.5 and 0.2 (YFT, BET, BFT, ALB), so that with \(q\) = 1.5 the trends
+go in different directions: ALB recovers, YFT is nearly stable, and BET and BFT decline
+once they are targeted.</p>
 
 <h3>B.2 Vertical distribution and the thermocline</h3>
 <p>The water column (0-500 m) is divided into 10-m bins \(j\) with mid-depths \(z_j\). In cell
@@ -290,7 +291,7 @@ A_p(u) = \frac{100\ \mathrm{m}}{\Delta z} \sum_j g_u(z_j)\, f_p(z_j \mid s,t),
 <p>scaled so that \(A_p = 1\) corresponds to fish spread evenly over a 100-m layer fished by all
 hooks (\(\Delta z\) = 10 m). The catchability of the set is
 \(q_p(u) = \tilde q_p(u)\, A_p(u)\), where \(\tilde q_p(u)\) is the vessel catchability with
-Tweedie error of A.5 (mean \(q\) = 2). Catch is then calculated as in A.5.</p>
+Tweedie error of A.5 (mean \(q\) = 1.5). Catch is then calculated as in A.5.</p>
 
 <h3>B.5 Targeting: where and how deep</h3>
 <p>Skippers evaluate the expected value of each cell \(s\) and HBF level \(h\) in year \(t\),</p>
@@ -331,14 +332,14 @@ habitat-based standardisation). The true index is the total biomass at the start
 <tr><td>SD of depth (m)</td><td>\(\sigma_p\)</td><td class="num">60</td><td class="num">50</td><td class="num">55</td><td class="num">60</td></tr>
 <tr><td>Carrying capacity (t)</td><td>\(B_{0,p}\)</td><td class="num">400 000</td><td class="num">300 000</td><td class="num">150 000</td><td class="num">350 000</td></tr>
 <tr><td>Intrinsic growth rate</td><td>\(r_p\)</td><td class="num">0.30</td><td class="num">0.18</td><td class="num">0.12</td><td class="num">0.18</td></tr>
-<tr><td>Initial biomass / capacity</td><td>\(\delta_p\)</td><td class="num">0.7</td><td class="num">0.6</td><td class="num">0.5</td><td class="num">0.7</td></tr>
+<tr><td>Initial biomass / capacity</td><td>\(\delta_p\)</td><td class="num">0.7</td><td class="num">0.6</td><td class="num">0.5</td><td class="num">0.2</td></tr>
 </table></div>
 <div class="table-wrap"><table>
 <tr><th>Group</th><th>Settings</th></tr>
 <tr><td>Space and time</td><td>50 x 50 cells, 30 years, reported positions on 5 x 5 blocks</td></tr>
 <tr><td>Environment</td><td>SST mean 23 &deg;C, gradient 10 &deg;C, noise SD 1 &deg;C (scale 6); thermocline fixed pattern SD 30 m (scale 8), annual shift and annual pattern 0 by default</td></tr>
 <tr><td>Gear</td><td>HBF 5, 10, 15, 20 with median hook depths 110, 160, 205, 250 m; set-level CV 0.2; within-set CV 0.35</td></tr>
-<tr><td>Fleet</td><td>30 vessels, up to 800 sets per year (~19 000 in total), \(q\) = 2, vessel CV 0.2, Tweedie power 1.2 and dispersion 0.1, \(\kappa\) = 1.25, \(\tau\) = 0.2</td></tr>
+<tr><td>Fleet</td><td>30 vessels, up to 800 sets per year (~19 000 in total), \(q\) = 1.5, vessel CV 0.2, Tweedie power 1.2 and dispersion 0.1, \(\kappa\) = 1.25, \(\tau\) = 0.2</td></tr>
 </table></div>
 
 <h3>B.8 What the extension adds, in short</h3>

@@ -78,7 +78,8 @@ tuna_settings_default <- function() {
     species  = c("YFT", "BET", "BFT", "ALB"),
     B0       = c(400000, 300000, 150000, 350000), # carrying capacity (t)
     r        = c(0.30, 0.18, 0.12, 0.18),         # intrinsic growth rate
-    B_start  = c(0.7, 0.6, 0.5, 0.7), # initial biomass / carrying capacity (1 = unfished)
+    B_start  = c(0.7, 0.6, 0.5, 0.2), # initial biomass / carrying capacity (1 = unfished);
+                                      #   ALB starts depleted and recovers
     sst_opt  = c(25, 24, 20, 21),     # preferred SST (deg C)
     sst_tol  = c(3, 3.5, 3, 3.5),     # SD of SST preference (deg C)
     depth_mu = c(90, 260, 240, 110),  # mean depth (m): YFT, ALB shallow; BET, BFT deep
@@ -115,7 +116,7 @@ tuna_settings_default <- function() {
     n_vessels = 30,
     effort = 800,             # asymptotic number of sets per year (~19,000 in 30 years)
     effort_cv = 0.2,
-    q = 2,                    # mean catchability per set at full vertical overlap;
+    q = 1.5,                  # mean catchability per set at full vertical overlap;
                               #   with effort, sets how strongly stocks are fished down
     vessel_cv = 0.2,          # between-vessel CV in catchability
     tweedie_power = 1.2,      # set-level noise in catchability

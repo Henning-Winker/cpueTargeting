@@ -79,13 +79,13 @@ In brief:
   Skippers choose where to fish (spatial targeting) and which HBF to use
   (vertical targeting) from the expected catch value.
 * About 800 sets per year at the end of the series (~19,000 sets in total).
-* True trends: stocks start partly fished (`B_start`, 50-70% of carrying
-  capacity) and are fished down further, fastest while they are targeted:
-  ALB mainly in years 1-10, BET in years 11-20 and BFT in years 21-30. By
-  year 30 they are at roughly 20-50% of carrying capacity. Use `q` (fishing
-  pressure) and `B_start` (initial depletion) for more or less contrast; for
-  example `B_start = c(0.7, 0.6, 0.3, 0.7)` with a lower `q` lets BFT
-  recover.
+* True trends go in different directions. `B_start` sets where each stock
+  starts relative to carrying capacity (YFT 0.7, BET 0.6, BFT 0.5, ALB 0.2)
+  and `q` how hard it is fished. ALB starts depleted and roughly doubles; YFT
+  stays nearly flat; BET rises slightly, then declines once it is targeted
+  (years 11-20); BFT declines, mostly once it is targeted (years 21-30).
+  Lower `B_start` for a species to let it recover, raise `q` for steeper
+  declines.
 
 Where the hooks fish and where the fish are. Each panel is one HBF level:
 the grey bars show the expected depth distribution of the hooks, the
@@ -178,7 +178,7 @@ How strongly skippers respond:
 | `sst_opt`, `sst_tol` | preferred SST and tolerance (deg C): horizontal distribution | 25, 24, 20, 21; 3, 3.5, 3, 3.5 |
 | `depth_mu`, `depth_sd` | mean and SD of the depth profile (m): vertical distribution | 90, 260, 240, 110; 60, 50, 55, 60 |
 | `B0`, `r` | carrying capacity (t) and intrinsic growth rate | 400, 300, 150, 350 thousand t; 0.30, 0.18, 0.12, 0.18 |
-| `B_start` | initial biomass as a fraction of carrying capacity | 0.7, 0.6, 0.5, 0.7 |
+| `B_start` | initial biomass as a fraction of carrying capacity | 0.7, 0.6, 0.5, 0.2 |
 | `dispersal` | mean movement distance per year (cells) | 1.5 |
 
 Closer `sst_opt` values or larger `sst_tol` mix the species more in space;
@@ -213,7 +213,7 @@ the contrast between shallow and deep gear. Check the result with
 |---|---|---|
 | `n_years` | number of years (the `price` matrix needs at least as many rows) | 30 |
 | `effort` | sets per year at the end of the series (effort increases logistically) | 800 |
-| `n_vessels`, `q`, `vessel_cv` | number of vessels, mean catchability, between-vessel CV | 30, 2, 0.2 |
+| `n_vessels`, `q`, `vessel_cv` | number of vessels, mean catchability, between-vessel CV | 30, 1.5, 0.2 |
 | `tweedie_power`, `tweedie_phi` | set-level noise in catchability | 1.2, 0.1 |
 | `obs_res` | positions in `Data` are reported as centres of `obs_res` x `obs_res` blocks | 5 |
 
