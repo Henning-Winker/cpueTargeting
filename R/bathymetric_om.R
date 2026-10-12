@@ -195,7 +195,10 @@ generate_bathymetric_scenario_data <- function(Sim_Settings){
 			if(do.tweedie==TRUE) rand.vessel <- matrix(sapply(1:n_species, function(x) tweedie::rtweedie(nsets, xi=xi, mu=qq_vessel[which.vessel.fished], phi=phi)),ncol=n_species)
 			if(do.tweedie==FALSE) rand.vessel <- matrix(sapply(1:n_species, function(x) qq_vessel[which.vessel.fished]),ncol=n_species)
 			effective_q <- rand.vessel
-			catch_area_vessel <- sapply(1:n_species, function(Y) { hum <- Biomass[[iyear]][xyz,Y]*(1-exp(-sum(effective_q[,Y]))); ifelse(hum==0, rep(0,nsets), hum*effective_q[,Y]/sum(effective_q[,Y]))})
+			catch_area_vessel <- matrix(vapply(seq_len(n_species), function(Y) {
+			  hum <- Biomass[[iyear]][xyz,Y]*(1-exp(-sum(effective_q[,Y])))
+			  ifelse(hum==0, rep(0,nsets), hum*effective_q[,Y]/sum(effective_q[,Y]))
+			}, numeric(nsets)), nrow=nsets, ncol=n_species)
 			catch_area_vessel <- data.frame(
 			  year=rep(iyear,nsets), SetID=set_ids,
 			  X=rep(data.bathym$x[xyz],nsets), Y=rep(data.bathym$y[xyz],nsets),
