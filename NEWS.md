@@ -53,10 +53,10 @@
   full field is returned in `Thermocline`.
 * `standardize_tuna_indices()` gains an `HBF_thermo` model
   (`s(thermocline, by = HBF)`), user-defined models via `add_models`, and
-  `engine = "bam"` for speed. Space is now a switch rather than a model:
-  `spatial = TRUE/FALSE/c(FALSE, TRUE)` adds `s(Xs, Ys)` to every targeting
-  model (names get `+S`), `spatial_res` sets the reporting block size and
-  `spatial_k` the basis size. The `Spatial` model is now `Base+S`.
+  `engine = "bam"` for speed. Appending `+S` to any model name
+  (e.g. `"DPC+S"`) adds the spatial smoother `s(Xs, Ys)`; `spatial_res` sets
+  the reporting block size and `spatial_k` the basis size. The `Spatial`
+  model is now `Base+S`.
 * New vignette *Vertical targeting and a moving thermocline*: constant, fixed
   and moving scenarios, standardisation, and year-interaction models.
 

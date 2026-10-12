@@ -156,9 +156,9 @@ for (sc in names(sims)) {
 
 # Step 6: standardise each scenario
 
-Each model is `year` plus one targeting term. Space is a separate switch:
-`spatial = TRUE` adds a spatial smoother `s(Xs, Ys)` to every model and
-appends `+S` to its name, so `Base+S` is the spatial-only model.
+Each model is `year` plus one targeting term. Appending `+S` to a model name
+adds a spatial smoother `s(Xs, Ys)`, e.g. `DPC` versus `DPC+S`; `Base+S` is
+the spatial-only model.
 
 | Model | Targeting term | Uses |
 |---|---|---|
@@ -176,20 +176,21 @@ cannot be fitted in the Constant scenario because the thermocline does not
 vary.
 
 Positions are reported at `spatial_res` x `spatial_res` blocks of cells (5 x
-5 as in the guidelines). We start with the spatial smoother on every model;
-Step 8 looks at the effect of dropping it and of changing the resolution.
+5 as in the guidelines). We start with the spatial smoother on every model
+(`+S`); Step 8 looks at the effect of dropping it and of changing the
+resolution.
 
 `engine = "bam"` uses `mgcv::bam(discrete = TRUE)` for speed; use
 `engine = "gam"` to reproduce the guideline approach exactly.
 
 ```{r standardise}
-models <- c("Base", "DPC", "Cluster", "HBF", "HBF_thermo", "HBS")
-fit_scenario <- function(sim, ...) {
-  m <- models
-  if (sd(sim$Data$thermocline) == 0) m <- setdiff(m, "HBF_thermo")
-  standardize_tuna_indices(sim, models = m, engine = "bam", ...)
+targeting <- c("Base", "DPC", "Cluster", "HBF", "HBF_thermo", "HBS")
+fit_scenario <- function(sim, models, ...) {
+  # HBF_thermo cannot be fitted when the thermocline does not vary
+  if (sd(sim$Data$thermocline) == 0) models <- models[!grepl("HBF_thermo", models)]
+  standardize_tuna_indices(sim, models = models, engine = "bam", ...)
 }
-fits <- lapply(sims, fit_scenario, spatial = TRUE, spatial_res = 5)
+fits <- lapply(sims, fit_scenario, models = paste0(targeting, "+S"), spatial_res = 5)
 fits$Moving$formulas
 ```
 
@@ -245,13 +246,14 @@ repeat over seeds before drawing conclusions.
 
 Does the spatial smoother matter once targeting is accounted for, and does it
 help to know positions more precisely? We use the Moving scenario and fit
-every model with and without the smoother (`spatial = c(FALSE, TRUE)`) at
-three reporting resolutions: 1 x 1 (exact cell), 5 x 5 and 10 x 10 cells.
+every model with and without the smoother (e.g. `DPC` and `DPC+S`) at three
+reporting resolutions: 1 x 1 (exact cell), 5 x 5 and 10 x 10 cells.
 
 ```{r spatial-resolution}
 resolutions <- c("1x1" = 1, "5x5" = 5, "10x10" = 10)
 fits_res <- lapply(resolutions, function(res) {
-  fit_scenario(sims$Moving, spatial = c(FALSE, TRUE), spatial_res = res)
+  fit_scenario(sims$Moving, models = c(targeting, paste0(targeting, "+S")),
+               spatial_res = res)
 })
 ```
 
@@ -265,7 +267,7 @@ plot_diagnostics(fits_res[["5x5"]])
 Effect of resolution on the spatial models:
 
 ```{r resolution-compare, fig.height = 5}
-plot_diagnostics(fits_res, models = paste0(models, "+S"))
+plot_diagnostics(fits_res, models = paste0(targeting, "+S"))
 ```
 
 What to look for:
@@ -296,7 +298,7 @@ extra <- c(
   HBF_year_re = "year + s(Xs, Ys, k = 8) + HBF + s(year, HBF, bs = 're')"
 )
 fits_int <- lapply(sims[c("Fixed", "Moving")], standardize_tuna_indices,
-                   models = c("HBF", "HBF_thermo", "HBS"), add_models = extra,
+                   models = c("HBF+S", "HBF_thermo+S", "HBS+S"), add_models = extra,
                    engine = "bam")
 plot_diagnostics(fits_int)
 ```

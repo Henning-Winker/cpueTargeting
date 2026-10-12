@@ -38,7 +38,8 @@ tuna$Plots$CPUE           # nominal CPUE versus true biomass
 plot_tuna_vertical_distributions()
 
 # Standardise with and without HBF
-comparison <- standardize_tuna_indices(tuna, spatial = c(FALSE, TRUE), spatial_res = 5)
+comparison <- standardize_tuna_indices(tuna, spatial_res = 5,
+  models = c("Base", "Base+S", "DPC+S", "Cluster+S", "HBF+S", "HBS+S"))
 comparison$diagnostics
 plot_indices(comparison, models = c("Base+S", "DPC+S", "Cluster+S", "HBF+S", "HBS+S"))
 

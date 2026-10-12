@@ -2,15 +2,13 @@
 \alias{standardize_tuna_indices}
 \title{Standardise simulated CPUE with alternative targeting covariates}
 \usage{
-standardize_tuna_indices(simulation, models = NULL, spatial = TRUE,
-  spatial_res = 5, spatial_k = NULL, add_models = NULL, vessel_re = FALSE,
+standardize_tuna_indices(simulation, models = NULL, spatial_res = 5, spatial_k = NULL, add_models = NULL, vessel_re = FALSE,
   n_clusters = 3, seed = 1, engine = c("gam", "bam"))
 }
 \arguments{
 \item{simulation}{Output of \code{\link{simulate_tuna}} or \code{\link{simulate_bathymetric}}.}
-\item{models}{Targeting models to fit (default: all that apply).}
-\item{spatial}{\code{TRUE}, \code{FALSE}, or \code{c(FALSE, TRUE)} to fit every
-model both without and with the spatial smoother.}
+\item{models}{Models to fit, e.g. \code{c("Base", "Base+S", "DPC+S", "HBF+S")}.
+Default: every model that applies, with and without \code{+S}.}
 \item{spatial_res}{Size of the reporting blocks in cells (5 = 5 x 5 blocks as
 in the CPUE guidelines; 1 = full resolution).}
 \item{spatial_k}{Basis dimension of the spatial smoother. By default it grows
@@ -47,16 +45,17 @@ when the thermocline varies).
 standardisation with the HBF-predicted vertical overlap as effective effort
 (tuna model only; assumes the habitat model is known).
 }
-With \code{spatial = TRUE} a spatial smoother \code{s(Xs, Ys)} is added to
-every model and \code{+S} is appended to its name (so \code{Base+S} is the
-spatial-only model). \code{Xs}, \code{Ys} are the centres of
+Append \code{+S} to any model name to add a spatial smoother
+\code{s(Xs, Ys)}, e.g. \code{"DPC+S"}; \code{"Base+S"} is the spatial-only
+model. \code{Xs}, \code{Ys} are the centres of
 \code{spatial_res} x \code{spatial_res} blocks of cells. The latent
 \code{hook_depth} and realised \code{vertical_avail} are never used as
 predictors.}
 \examples{
 \dontrun{
 om <- simulate_tuna(seed = 42)
-comparison <- standardize_tuna_indices(om, spatial = c(FALSE, TRUE))
+comparison <- standardize_tuna_indices(om, models = c("Base", "Base+S",
+                                        "DPC+S", "Cluster+S", "HBF+S"))
 comparison$diagnostics
 plot_indices(comparison)
 }

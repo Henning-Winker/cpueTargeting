@@ -18,18 +18,17 @@
 #'   the HBF-predicted vertical overlap as effective effort (Bigelow et al.
 #'   2002; tuna model only; assumes the habitat model is known).
 #'
-#' With `spatial = TRUE` a spatial smoother `s(Xs, Ys)` is added to every
-#' model and `+S` is appended to its name (so `Base+S` is the spatial-only
-#' model). `Xs`, `Ys` are the centres of `spatial_res` x `spatial_res` blocks
-#' of cells, i.e. the resolution at which positions are reported.
+#' Append `+S` to any model name to add a spatial smoother `s(Xs, Ys)`, e.g.
+#' `"DPC+S"`; `"Base+S"` is the spatial-only model. `Xs`, `Ys` are the
+#' centres of `spatial_res` x `spatial_res` blocks of cells, i.e. the
+#' resolution at which positions are reported.
 #'
 #' The latent `hook_depth` and realised `vertical_avail` are never used as
 #' predictors.
 #'
 #' @param simulation Output of [simulate_tuna()] or [simulate_bathymetric()].
-#' @param models Targeting models to fit (default: all that apply).
-#' @param spatial `TRUE`, `FALSE`, or `c(FALSE, TRUE)` to fit every model both
-#'   without and with the spatial smoother.
+#' @param models Models to fit, e.g. `c("Base", "Base+S", "DPC+S", "HBF+S")`.
+#'   Default: every model that applies, with and without `+S`.
 #' @param spatial_res Size of the reporting blocks in cells (5 = 5 x 5 blocks
 #'   as in the CPUE guidelines; 1 = full resolution).
 #' @param spatial_k Basis dimension of the spatial smoother. By default it
@@ -53,11 +52,12 @@
 #' @examples
 #' \dontrun{
 #' om <- simulate_tuna(seed = 42)
-#' comparison <- standardize_tuna_indices(om, spatial = c(FALSE, TRUE))
+#' comparison <- standardize_tuna_indices(om, models = c("Base", "Base+S",
+#'                                         "DPC+S", "Cluster+S", "HBF+S"))
 #' comparison$diagnostics
 #' plot_indices(comparison)
 #' }
-standardize_tuna_indices <- function(simulation, models = NULL, spatial = TRUE,
+standardize_tuna_indices <- function(simulation, models = NULL,
                                      spatial_res = 5, spatial_k = NULL,
                                      add_models = NULL, vessel_re = FALSE,
                                      n_clusters = 3, seed = 1,
@@ -69,9 +69,6 @@ standardize_tuna_indices <- function(simulation, models = NULL, spatial = TRUE,
   if (is.null(simulation$Data) || is.null(simulation$Biomass)) {
     stop("`simulation` must be the output of simulate_tuna() or simulate_bathymetric().",
          call. = FALSE)
-  }
-  if (!is.logical(spatial) || !length(spatial) || anyNA(spatial)) {
-    stop("`spatial` must be TRUE, FALSE or c(FALSE, TRUE).", call. = FALSE)
   }
   species <- levels(simulation$Biomass$Sp)
   d <- as_set_data(simulation$Data)
@@ -121,22 +118,20 @@ standardize_tuna_indices <- function(simulation, models = NULL, spatial = TRUE,
     }
     targeting$HBS <- "offset(log(hbs))"
   }
-  if (!is.null(models)) {
-    unknown <- setdiff(models, names(targeting))
-    if (length(unknown)) stop("Unknown or inapplicable models: ",
-                              paste(unknown, collapse = ", "), call. = FALSE)
-    targeting <- targeting[models]
-  }
+  if (is.null(models)) models <- c(names(targeting), paste0(names(targeting), "+S"))
+  models <- unique(models)
+  with_space <- grepl("\\+S$", models)
+  base_name <- sub("\\+S$", "", models)
+  unknown <- models[!base_name %in% names(targeting)]
+  if (length(unknown)) stop("Unknown or inapplicable models: ",
+                            paste(unknown, collapse = ", "), call. = FALSE)
 
-  # Full model list: each targeting model with and/or without space
+  # Model terms: year + (space) + targeting term
   spatial_term <- sprintf("s(Xs, Ys, k = %d)", spatial_k)
-  terms <- list()
-  for (sp_on in unique(spatial)) {
-    for (m in names(targeting)) {
-      name <- if (sp_on) paste0(m, "+S") else m
-      terms[[name]] <- c("year", if (sp_on) spatial_term, targeting[[m]])
-    }
-  }
+  terms <- lapply(seq_along(models), function(i) {
+    c("year", if (with_space[i]) spatial_term, targeting[[base_name[i]]])
+  })
+  names(terms) <- models
   if (!is.null(add_models)) {
     if (is.null(names(add_models)) || any(names(add_models) == "")) {
       stop("`add_models` must be a named character vector.", call. = FALSE)

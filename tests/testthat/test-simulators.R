@@ -54,7 +54,7 @@ test_that("plots are built", {
 test_that("standardisation runs and returns indices for all models", {
   skip_if_not_installed("mgcv")
   sim <- simulate_tuna(small_tuna(), seed = 4, plots = FALSE)
-  res <- standardize_tuna_indices(sim, models = c("Base", "HBF", "HBS"),
+  res <- standardize_tuna_indices(sim, models = c("Base+S", "HBF+S", "HBS+S"),
     add_models = c(HBF_period = "year + s(Xobs, Yobs, k = 8) + HBF_period"))
   expect_equal(nrow(res$indices), 4 * 4 * 6)
   expect_false(anyNA(res$indices$index))
@@ -62,12 +62,15 @@ test_that("standardisation runs and returns indices for all models", {
   expect_s3_class(plot_indices(list(A = res, B = res), ci = TRUE), "ggplot")
   expect_s3_class(plot_diagnostics(list(A = res, B = res)), "ggplot")
   expect_true(all(c("Base+S", "HBF+S", "HBS+S", "HBF_period") %in% levels(res$indices$model)))
-  fast <- standardize_tuna_indices(sim, models = c("Cluster", "HBF_thermo"),
-                                   spatial = c(FALSE, TRUE), spatial_res = 1,
-                                   engine = "bam")
+  fast <- standardize_tuna_indices(sim, models = c("Cluster", "HBF_thermo",
+                                                  "Cluster+S", "HBF_thermo+S"),
+                                   spatial_res = 1, engine = "bam")
   expect_false(anyNA(fast$indices$index))
-  expect_setequal(levels(fast$indices$model),
-                  c("Cluster", "HBF_thermo", "Cluster+S", "HBF_thermo+S"))
+  expect_equal(levels(fast$indices$model),
+               c("Cluster", "HBF_thermo", "Cluster+S", "HBF_thermo+S"))
+  expect_false(grepl("Xs", fast$formulas[["Cluster"]]))
+  expect_true(grepl("Xs", fast$formulas[["Cluster+S"]]))
+  expect_error(standardize_tuna_indices(sim, models = "Foo+S"), "Unknown")
   expect_equal(length(unique(paste(fast$data$Xs, fast$data$Ys))),
                length(unique(paste(fast$data$X, fast$data$Y))))
 })
