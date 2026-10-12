@@ -83,26 +83,25 @@ bathymetric$Plots$SpDens
 
 ## Tuna spatial and vertical example
 
-The tuna extension adds species-specific vertical availability and HBF-linked
-hook-depth distributions to the horizontal habitat model. Here we use the
-same small grid and check both the returned diagnostics and vertical-profile
-plot.
+The tuna model adds a vertical dimension: species depth profiles are shifted
+by a thermocline anomaly field and hook depths follow the catenary model of
+Bigelow et al. (2002) for each HBF. Here we use a small grid and check the
+returned diagnostics and the vertical-profile plot.
 
 ```{r tuna-simulation}
 tuna_cfg <- tuna_settings()
 tuna_cfg$n_years <- 4
-tuna_cfg$Nvessels <- 4
-tuna_cfg$Tot_effort <- 35
-tuna_cfg$Range_X <- 1:10
-tuna_cfg$Range_Y <- 1:10
-tuna_cfg$SpatialScale <- 2
+tuna_cfg$nx <- 10
+tuna_cfg$ny <- 10
+tuna_cfg$n_vessels <- 4
+tuna_cfg$effort <- 60
 
 tuna <- simulate_tuna(tuna_cfg, seed = 303)
 vertical_plot <- plot_tuna_vertical_distributions(tuna_cfg)
 
 stopifnot(
   all(c("Data", "Biomass", "Plots") %in% names(tuna)),
-  all(c("HBF", "hook_depth_m", "vertical_overlap") %in% names(tuna$Data)),
+  all(c("HBF", "hook_depth", "vertical_avail", "hbs_avail") %in% names(tuna$Data)),
   all(vapply(tuna$Plots, inherits, logical(1), "ggplot")),
   inherits(vertical_plot, "ggplot")
 )
