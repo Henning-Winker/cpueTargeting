@@ -84,8 +84,8 @@ bathymetric$Plots$SpDens
 ## Tuna spatial and vertical example
 
 The tuna model adds a vertical dimension: species depth profiles are shifted
-by a thermocline anomaly field and hook depths follow the catenary model of
-Bigelow et al. (2002) for each HBF. Here we use a small grid and check the
+by a thermocline anomaly field, and each HBF level has a typical hook depth
+with set-level lognormal error (cf. Bigelow et al. 2002). Here we use a small grid and check the
 returned diagnostics and the vertical-profile plot.
 
 ```{r tuna-simulation}

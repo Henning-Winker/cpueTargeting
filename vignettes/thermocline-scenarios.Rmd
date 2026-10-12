@@ -42,8 +42,9 @@ library(ggplot2)
 * Each species has a normal depth profile. Within each pair one species is
   shallow (YFT, ALB) and one deep (BET, BFT). A thermocline anomaly moves all
   profiles up (shallow thermocline) or down (deep thermocline).
-* Hook depth follows Bigelow et al. (2002): catenary depth by HBF, with
-  between-set and within-set variation and current shoaling.
+* Each HBF level has a typical hook depth (roughly as in Bigelow et al.
+  2002, Fig. 2). Each set deviates from it by a lognormal error (line angle,
+  currents, ...), so HBF is an imperfect proxy for where the hooks are.
 * The catchability of a set for a species is the vessel's catchability times
   the overlap between hook and fish depth distributions.
 * Prices favour YFT in years 1-10, BET in years 11-20 and BFT in years 21-30.
@@ -166,14 +167,14 @@ the spatial-only model.
 | DPC | `s(PC1) + s(PC2)` from catch composition | all species' catches |
 | Cluster | fishing tactic (k-means clusters of catch composition) | all species' catches |
 | HBF | HBF factor | HBF from logbooks |
-| HBF_thermo | HBF + `s(thermocline, by = HBF)` | HBF + thermocline (ocean model) |
 | HBS | `offset(log(hbs_avail))`, habitat-based effective effort | HBF + habitat model |
 
-`HBF_thermo` uses the observed thermocline anomaly of the set, as an analyst
-would from an ocean model. `HBS` assumes the habitat model (species depth
-preferences and the HBF-to-hook-depth relationship) is known. `HBF_thermo`
-cannot be fitted in the Constant scenario because the thermocline does not
-vary.
+`HBF` estimates one catchability multiplier per HBF level from the data.
+`HBS` estimates nothing about the gear: it weights each set's effort by the
+overlap between the expected hook profile of its HBF and the species' depth
+profile, as predicted by a habitat model. Here the habitat model knows the
+species' depth preferences and the *average* thermocline, but not the annual
+anomalies, which is roughly what an analyst would have.
 
 Positions are reported at `spatial_res` x `spatial_res` blocks of cells (5 x
 5 as in the guidelines). We start with the spatial smoother on every model
@@ -184,10 +185,8 @@ resolution.
 `engine = "gam"` to reproduce the guideline approach exactly.
 
 ```{r standardise}
-targeting <- c("Base", "DPC", "Cluster", "HBF", "HBF_thermo", "HBS")
+targeting <- c("Base", "DPC", "Cluster", "HBF", "HBS")
 fit_scenario <- function(sim, models, ...) {
-  # HBF_thermo cannot be fitted when the thermocline does not vary
-  if (sd(sim$Data$thermocline) == 0) models <- models[!grepl("HBF_thermo", models)]
   standardize_tuna_indices(sim, models = models, engine = "bam", ...)
 }
 fits <- lapply(sims, fit_scenario, models = paste0(targeting, "+S"), spatial_res = 5)
@@ -199,7 +198,7 @@ fits$Moving$formulas
 ## Indices
 
 ```{r indices, fig.height = 8}
-plot_indices(fits, models = c("Base+S", "DPC+S", "HBF+S", "HBF_thermo+S", "HBS+S"))
+plot_indices(fits, models = c("Base+S", "DPC+S", "Cluster+S", "HBF+S", "HBS+S"))
 ```
 
 ## Accuracy
@@ -232,15 +231,12 @@ knitr::kable(rmse_wide, digits = 3, row.names = FALSE)
 * **Moving**: the HBF factor should no longer be enough, especially for the
   deep species (BET, BFT). In years with a shallow thermocline, deep sets
   catch fewer deep fish and more shallow fish than average, and this shows up
-  in the year effect. Models that know the thermocline (`HBF_thermo`) or the
-  habitat (`HBS`) should do much better.
+  in the year effect. `HBS` uses a habitat model of the average conditions,
+  so it captures the spatial pattern but not the annual anomalies either;
+  how much it gains over `HBF` shows the value of habitat information.
 
-As a rough guide: in a prototype of this setup (seed 1, Tweedie GLMs with a
-5 x 5 block factor instead of the spatial smoother), the RMSE for BET was
-about 0.02-0.03 for the HBF model in the Constant and Fixed scenarios but
-about 0.2 in the Moving scenario, where HBF x thermocline and HBS stayed near
-0.03. Your numbers will differ. A single iteration is only an illustration;
-repeat over seeds before drawing conclusions.
+A single iteration is only an illustration; repeat over seeds before
+drawing conclusions.
 
 # Step 8: with or without space, and at what resolution
 
@@ -298,7 +294,7 @@ extra <- c(
   HBF_year_re = "year + s(Xs, Ys, k = 8) + HBF + s(year, HBF, bs = 're')"
 )
 fits_int <- lapply(sims[c("Fixed", "Moving")], standardize_tuna_indices,
-                   models = c("HBF+S", "HBF_thermo+S", "HBS+S"), add_models = extra,
+                   models = c("HBF+S", "HBS+S"), add_models = extra,
                    engine = "bam")
 plot_diagnostics(fits_int)
 ```
@@ -320,9 +316,10 @@ Points to keep in mind:
 * The interaction can absorb part of the abundance signal of species that
   are caught mainly with one gear configuration. Compare the year effects with
   the truth, not only the fit statistics.
-* The environmental interaction (`HBF_thermo`) explains *why* HBF
-  catchability changes, so it does not compete with the year effect in the
-  same way. It needs the thermocline to be observed, though.
+* If the thermocline (or another driver of fish depth) can be observed, an
+  interaction between HBF and that variable explains *why* HBF catchability
+  changes, and does not compete with the year effect in the same way. It can
+  be tried through `add_models`.
 
 # References
 

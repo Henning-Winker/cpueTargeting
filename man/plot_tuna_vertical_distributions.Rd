@@ -9,9 +9,10 @@ plot_tuna_vertical_distributions(settings = tuna_settings(), file = NULL)
 \item{file}{Optional file path; if supplied, a 300-dpi PNG is saved.}
 }
 \value{A ggplot object.}
-\description{Fish profiles are shown for a cell with zero thermocline anomaly;
-hook profiles are the expected distributions for each HBF level at the mean
-mainline angle without current shoaling.}
+\description{The first panel shows the species depth profiles (for a
+thermocline anomaly of zero). The other panels show the expected hook-depth
+distribution of each HBF level, combining between-set error and within-set
+spread, drawn like Fig. 2 of Bigelow et al. (2002).}
 \examples{
 plot_tuna_vertical_distributions()
 }

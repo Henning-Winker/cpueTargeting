@@ -38,12 +38,10 @@ principal components).
 composition (as a factor).
 \item \code{HBF}: HBF as a factor (tuna model only).
 \item \code{DPC_HBF}: DPC + HBF (tuna model only).
-\item \code{HBF_thermo}: HBF + \code{s(thermocline, by = HBF)}, i.e. the HBF
-effect changes with the observed thermocline anomaly (tuna model only; only
-when the thermocline varies).
 \item \code{HBS}: \code{offset(log(hbs_avail))}, i.e. habitat-based
-standardisation with the HBF-predicted vertical overlap as effective effort
-(tuna model only; assumes the habitat model is known).
+standardisation: effort is weighted by the overlap between the expected hook
+profile of the HBF and the species' depth profile under the average
+thermocline (tuna model only).
 }
 Append \code{+S} to any model name to add a spatial smoother
 \code{s(Xs, Ys)}, e.g. \code{"DPC+S"}; \code{"Base+S"} is the spatial-only

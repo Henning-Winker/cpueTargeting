@@ -6,13 +6,14 @@
   Southern Hemisphere ocean. Horizontal habitat is a preference for SST;
   vertical habitat is a normal depth profile shifted by a thermocline anomaly
   field, so the effect of HBF varies in space.
-* Hook depths follow Bigelow et al. (2002): catenary depth by HBF (eq. 2),
-  between-set variation in the mainline angle, within-set variation (eq. 3) and
-  current shoaling (eq. 4-5). A set's catchability is vessel q times the
-  overlap between hook and fish depth distributions (effective effort).
+* Each HBF level has a typical hook depth (cf. Bigelow et al. 2002, Fig. 2)
+  with lognormal set-level error (`set_cv`) and lognormal within-set spread
+  (`hook_cv`). A set's catchability is vessel q times the overlap between hook
+  and fish depth distributions (effective effort).
 * Skippers choose cells and HBF from expected catch value.
 * `Data` keeps the latent truth (`hook_depth`, `vertical_avail`) and the
-  overlap predicted from HBF (`hbs_avail`).
+  overlap a habitat model would predict from HBF and the average thermocline
+  (`hbs_avail`).
 * `standardize_tuna_indices()` follows the guideline workflow (Tweedie GAMs
   with estimated power) and adds `HBF`, `DPC_HBF` and habitat-based (`HBS`)
   models; optional random vessel effect. It also works for
@@ -51,8 +52,7 @@
   `thermocline_annual_field_sd` let the thermocline move between years
   (default 0: fixed). `Data$thermocline` is the anomaly of that year and the
   full field is returned in `Thermocline`.
-* `standardize_tuna_indices()` gains an `HBF_thermo` model
-  (`s(thermocline, by = HBF)`), user-defined models via `add_models`, and
+* `standardize_tuna_indices()` gains user-defined models via `add_models`, and
   `engine = "bam"` for speed. Appending `+S` to any model name
   (e.g. `"DPC+S"`) adds the spatial smoother `s(Xs, Ys)`; `spatial_res` sets
   the reporting block size and `spatial_k` the basis size. The `Spatial`

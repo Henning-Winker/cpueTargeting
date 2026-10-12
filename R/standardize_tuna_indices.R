@@ -11,12 +11,10 @@
 #'   composition (as a factor).
 #' * `HBF`: HBF as a factor (tuna model only).
 #' * `DPC_HBF`: DPC + HBF (tuna model only).
-#' * `HBF_thermo`: HBF + `s(thermocline, by = HBF)`, i.e. the HBF effect
-#'   changes with the observed thermocline anomaly (tuna model only; only when
-#'   the thermocline varies).
-#' * `HBS`: `offset(log(hbs_avail))`, i.e. habitat-based standardisation with
-#'   the HBF-predicted vertical overlap as effective effort (Bigelow et al.
-#'   2002; tuna model only; assumes the habitat model is known).
+#' * `HBS`: `offset(log(hbs_avail))`, i.e. habitat-based standardisation
+#'   (Bigelow et al. 2002): effort is weighted by the overlap between the
+#'   expected hook profile of the HBF and the species' depth profile under the
+#'   average thermocline (tuna model only).
 #'
 #' Append `+S` to any model name to add a spatial smoother `s(Xs, Ys)`, e.g.
 #' `"DPC+S"`; `"Base+S"` is the spatial-only model. `Xs`, `Ys` are the
@@ -112,10 +110,6 @@ standardize_tuna_indices <- function(simulation, models = NULL,
   if (has_hbf) {
     targeting$HBF <- "HBF"
     targeting$DPC_HBF <- c(dpc, "HBF")
-    # only identifiable when the thermocline varies
-    if (stats::sd(d$thermocline) > 0) {
-      targeting$HBF_thermo <- c("HBF", "s(thermocline, by = HBF, k = 4)")
-    }
     targeting$HBS <- "offset(log(hbs))"
   }
   if (is.null(models)) models <- c(names(targeting), paste0(names(targeting), "+S"))
@@ -152,7 +146,6 @@ standardize_tuna_indices <- function(simulation, models = NULL,
                         hbs = 1)
   if (has_hbf) {
     newdata$HBF <- factor(mode_level(d$HBF), levels = levels(d$HBF))
-    newdata$thermocline <- 0
     newdata$HBF_period <- factor(mode_level(d$HBF_period[d$period == "1"]),
                                  levels = levels(d$HBF_period))
   }

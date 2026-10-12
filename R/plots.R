@@ -68,9 +68,10 @@ plot_om <- function(sim) {
 
 #' Plot species vertical profiles and hook-depth profiles by HBF
 #'
-#' Fish profiles are shown for a cell with zero thermocline anomaly; hook
-#' profiles are the expected distributions for each HBF level at the mean
-#' mainline angle without current shoaling.
+#' The first panel shows the species depth profiles (for a thermocline
+#' anomaly of zero). The other panels show the expected hook-depth
+#' distribution of each HBF level, combining between-set error and within-set
+#' spread, drawn like Fig. 2 of Bigelow et al. (2002).
 #'
 #' @param settings Settings list, usually from [tuna_settings()].
 #' @param file Optional file path; if supplied, a 300-dpi PNG is saved.
@@ -82,29 +83,31 @@ plot_tuna_vertical_distributions <- function(settings = tuna_settings(), file = 
   s <- utils::modifyList(tuna_settings(), settings)
   edges <- seq(0, s$max_depth, by = s$depth_bin)
   mids <- edges[-1] - s$depth_bin / 2
+  panels <- c("Species", paste("HBF", s$HBF_levels))
+  fish_prof <- fish_profiles(0, s, edges)
   fish <- do.call(rbind, lapply(seq_along(s$species), function(i) {
-    p <- stats::dnorm(mids, s$depth_mu[i], s$depth_sd[i])
-    data.frame(depth = mids, proportion = p / sum(p), profile = s$species[i],
-               panel = "Species")
+    data.frame(depth = mids, percent = 100 * fish_prof[[i]][1, ],
+               species = s$species[i], panel = "Species")
   }))
+  fish$species <- factor(fish$species, levels = s$species)
   hooks <- nominal_hook_profiles(s, edges)
   gear <- do.call(rbind, lapply(seq_along(s$HBF_levels), function(h) {
-    data.frame(depth = mids, proportion = hooks[h, ],
-               profile = paste("HBF", s$HBF_levels[h]), panel = "Hooks")
+    data.frame(depth = mids, percent = 100 * hooks[h, ], panel = panels[h + 1])
   }))
-  profiles <- rbind(fish, gear)
-  profiles$panel <- factor(profiles$panel, levels = c("Species", "Hooks"))
-  profiles$profile <- factor(profiles$profile, levels = unique(profiles$profile))
-  p <- ggplot(profiles, aes(x = .data$proportion, y = .data$depth,
-                            colour = .data$profile)) +
-    geom_path(linewidth = 1) +
-    facet_wrap(~panel, scales = "free_x") +
+  fish$panel <- factor(fish$panel, levels = panels)
+  gear$panel <- factor(gear$panel, levels = panels)
+  p <- ggplot() +
+    geom_col(data = gear, aes(x = .data$percent, y = .data$depth),
+             orientation = "y", width = s$depth_bin, fill = "grey30") +
+    geom_path(data = fish, aes(x = .data$percent, y = .data$depth,
+                               colour = .data$species), linewidth = 1) +
+    facet_wrap(~panel, nrow = 1) +
     scale_y_reverse() +
-    labs(x = paste0("Proportion per ", s$depth_bin, "-m bin"), y = "Depth (m)",
+    labs(x = paste0("Frequency (% per ", s$depth_bin, " m)"), y = "Depth (m)",
          colour = NULL) +
     theme_bw() +
     theme(legend.position = "bottom")
-  if (!is.null(file)) ggsave(file, p, width = 9, height = 6, dpi = 300)
+  if (!is.null(file)) ggsave(file, p, width = 11, height = 5, dpi = 300)
   p
 }
 

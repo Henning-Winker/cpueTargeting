@@ -8,8 +8,8 @@ copes with changes in fishing targeting. It contains three operating models:
    WKBMSYSPICT CPUE guidelines. Species follow bathymetry; skippers target
    species through *where* they fish.
 3. `simulate_tuna()`: a longline tuna model that adds *how deep* they fish.
-   Hook depth by hooks between floats (HBF) follows the habitat-based model of
-   Bigelow et al. (2002).
+   Hook depth depends on hooks between floats (HBF), and habitat-based
+   standardisation follows Bigelow et al. (2002).
 
 ## Installation
 
@@ -57,7 +57,7 @@ warm and south is cool.
 | Horizontal distribution | SST field: north-south gradient + random field | `sst_opt`, `sst_tol`, `sst_gradient`, `sst_noise` |
 | Movement | Exponential distance kernel, weighted by habitat | `dispersal` |
 | Vertical distribution | Normal depth profile, shifted by a thermocline anomaly (fixed field + optional annual shift and annual field) | `depth_mu`, `depth_sd`, `thermocline_sd`, `thermocline_annual_sd`, `thermocline_annual_field_sd` |
-| Hook depth | Catenary by HBF; mainline angle varies between sets; hooks vary within sets; current shoaling (Bigelow et al. 2002, eq. 2-5) | `HBF_levels`, `phi_mean`, `phi_sd`, `current_speed` |
+| Hook depth | Typical (median) depth per HBF level (cf. Bigelow et al. 2002, Fig. 2); lognormal set-level error; lognormal spread of hooks within a set | `HBF_levels`, `HBF_depth`, `set_cv`, `hook_cv` |
 | Catchability of a set | Vessel q x overlap between hook and fish depth distributions | `q`, `vessel_cv`, `tweedie_power`, `tweedie_phi` |
 | Spatial targeting | Effort goes to cells with high expected catch value | `price`, `preference` |
 | Vertical targeting | Skippers choose the HBF with the highest expected value | `HBF_choice_temp` |
@@ -78,9 +78,9 @@ all four. Prices favour YFT in years 1-10, BET in years 11-20 and BFT in years
 deep gear.
 
 `Data` also contains the latent truth that analysts would not see:
-`hook_depth` (mean hook depth of the set), `vertical_avail` (realised vertical
-overlap) and `hbs_avail` (overlap predicted from HBF, as used in a
-habitat-based standardisation). Set `thermocline_sd = 0` to make vertical
+`hook_depth` (median hook depth of the set), `vertical_avail` (realised vertical
+overlap) and `hbs_avail` (overlap predicted by a habitat model from HBF and the average
+thermocline, as used in a habitat-based standardisation). Set `thermocline_sd = 0` to make vertical
 availability depend on HBF only, so that an HBF factor can fully correct for
 it.
 

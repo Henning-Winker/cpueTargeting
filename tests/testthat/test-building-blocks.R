@@ -50,13 +50,21 @@ test_that("coarse coordinates are block centres", {
                c(3.5, 3.5, 8.5, 48.5))
 })
 
-test_that("hook depth increases with HBF and matches Bigelow's catenary", {
+test_that("hook profiles follow the lognormal model", {
   s <- tuna_settings()
-  mid <- function(h) max(cpueTargeting:::catenary_depth(seq_len(h), h, 60, s))
-  depths <- vapply(c(5, 10, 15, 20), mid, numeric(1))
-  expect_true(all(diff(depths) > 0))
-  expect_equal(round(depths), c(132, 203, 277, 348))
   edges <- seq(0, s$max_depth, by = s$depth_bin)
+  mids <- edges[-1] - s$depth_bin / 2
   prof <- cpueTargeting:::nominal_hook_profiles(s, edges)
-  expect_equal(rowSums(prof), rep(1, 4))
+  expect_equal(dim(prof), c(length(s$HBF_levels), length(mids)))
+  expect_equal(rowSums(prof), rep(1, length(s$HBF_levels)))
+  # median of each profile is close to HBF_depth
+  med <- apply(prof, 1, function(p) mids[which(cumsum(p) >= 0.5)[1]])
+  expect_true(all(abs(med - s$HBF_depth) <= s$depth_bin))
+  # set-level error: perfect proxy when set_cv = 0
+  set.seed(1)
+  s0 <- modifyList(s, list(set_cv = 0))
+  hooks <- cpueTargeting:::set_hook_profiles(c(5, 20, 20), s0, edges)
+  expect_equal(hooks$median_depth, c(110, 250, 250))
+  hooks <- cpueTargeting:::set_hook_profiles(rep(10, 5000), s, edges)
+  expect_equal(sd(log(hooks$median_depth)), cpueTargeting:::cv_to_sdlog(0.2), tolerance = 0.05)
 })

@@ -18,10 +18,12 @@
 #'   - `shift`: a basin-wide AR(1) shift (`thermocline_annual_sd`,
 #'     `thermocline_annual_rho`), e.g. ENSO-like years;
 #'   - `annual`: a new spatial field each year (`thermocline_annual_field_sd`).
-#' * **Hook depth** follows the catenary model of Bigelow et al. (2002) for
-#'   each HBF (hooks between floats), with between-set variation in the
-#'   mainline angle `phi`, within-set hook-depth variation and shoaling by
-#'   currents.
+#' * **Hook depth**: each HBF (hooks between floats) level has a typical
+#'   (median) hook depth `HBF_depth`, roughly as in Fig. 2 of Bigelow et al.
+#'   (2002). Each set's hook profile is shifted by a lognormal set-level error
+#'   (`set_cv`; e.g. line angle, currents), so HBF is an imperfect proxy for
+#'   depth. Hooks within a set are lognormally spread around the set's median
+#'   (`hook_cv`).
 #' * **Targeting**: species prices change in three 10-year blocks (YFT, then
 #'   BET, then BFT). Skippers choose where to fish and which HBF to use from
 #'   the expected catch value.
@@ -59,18 +61,14 @@ tuna_settings <- function() {
     thermocline_annual_sd = 0,       # SD of a basin-wide annual shift (m), AR(1)
     thermocline_annual_rho = 0.5,    # autocorrelation of the annual shift
     thermocline_annual_field_sd = 0, # SD of an extra year-specific anomaly field (m)
-    current_speed = 0.2,      # mean surface current (m/s); 0 = no shoaling
-    current_cv = 0.5,         # set-to-set CV of current speed
     max_depth = 500,          # depth range of vertical profiles (m)
     depth_bin = 10,           # vertical resolution (m)
 
-    # Longline gear (Bigelow et al. 2002) --------------------------------------
+    # Longline gear ------------------------------------------------------------
     HBF_levels = c(5, 10, 15, 20),
-    phi_mean = 60, phi_sd = 11.3, # mainline angle at the float (degrees)
-    branch_line = 26.3,       # m
-    float_line = 19.4,        # m
-    hook_spacing = 50,        # mainline length between branch lines (m)
-    shoal_slope = -0.025,     # curvature of the shoaling function
+    HBF_depth = c(110, 160, 205, 250), # median hook depth for each HBF (m)
+    set_cv = 0.2,             # between-set error in depth: how well HBF predicts depth
+    hook_cv = 0.35,           # within-set spread of hook depths
 
     # Fleet -------------------------------------------------------------------
     price = matrix(c(rep(c(2.0, 0.5, 0.5, 1.0), 10),   # years 1-10: YFT
@@ -109,8 +107,9 @@ tuna_settings <- function() {
 #'   `Xobs`, `Yobs`, `vessel`, `HBF`, `sst`, `thermocline` (anomaly in that
 #'   year, m),
 #'   `Species`, `Sp`, `CPUE`, and the latent truth `hook_depth` (mean hook
-#'   depth of the set), `vertical_avail` (realised vertical overlap) and
-#'   `hbs_avail` (overlap predicted from HBF alone, as in a habitat-based
+#'   hook depth of the set), `vertical_avail` (realised vertical overlap) and
+#'   `hbs_avail` (overlap predicted by a habitat model from HBF, the expected
+#'   hook profile and the average thermocline, as in a habitat-based
 #'   standardisation);
 #' * `Biomass`: annual nominal and true indices, scaled to mean 1;
 #' * `Biomass.XY`: initial density by cell and species;
@@ -158,7 +157,12 @@ simulate_tuna <- function(settings = tuna_settings(), seed = NULL, plots = TRUE)
   # Vertical structure ------------------------------------------------------------
   edges <- seq(0, s$max_depth, by = s$depth_bin)
   avail_scale <- s$avail_ref / s$depth_bin
-  hbf_profile <- nominal_hook_profiles(s, edges)   # expected hook depths by HBF
+  hbf_profile <- nominal_hook_profiles(s, edges)   # expected hook profile by HBF
+  # What an analyst's habitat model would predict for each HBF (used for HBS):
+  # expected hook profiles and fish profiles under the fixed (average)
+  # thermocline, i.e. without the annual anomalies.
+  hbs_avail_cell <- lapply(fish_profiles(thermocline, s, edges),
+                           function(p) p %*% t(hbf_profile) * avail_scale)
   annual_variation <- s$thermocline_annual_sd > 0 || s$thermocline_annual_field_sd > 0
   shift <- 0
   thermo_years <- matrix(0, n_cells, s$n_years)
@@ -191,7 +195,7 @@ simulate_tuna <- function(settings = tuna_settings(), seed = NULL, plots = TRUE)
     thermo_years[, yr] <- thermocline + shift + annual_field
     if (yr == 1 || annual_variation) {
       fish_profile <- fish_profiles(thermo_years[, yr], s, edges)
-      # expected availability for each HBF (mean angle, no currents)
+      # expected availability for each HBF as seen by skippers this year
       expected_avail <- lapply(fish_profile, function(p) p %*% t(hbf_profile) * avail_scale)
     }
     n_sets <- annual_effort(yr, s$effort, s$effort_cv)
@@ -220,7 +224,7 @@ simulate_tuna <- function(settings = tuna_settings(), seed = NULL, plots = TRUE)
     }, numeric(k))
     avail <- matrix(avail, k, ns)
     hbs <- vapply(seq_len(ns), function(i) {
-      expected_avail[[i]][cbind(cell, match(hbf, s$HBF_levels))]
+      hbs_avail_cell[[i]][cbind(cell, match(hbf, s$HBF_levels))]
     }, numeric(k))
     hbs <- matrix(hbs, k, ns)
 
@@ -234,7 +238,7 @@ simulate_tuna <- function(settings = tuna_settings(), seed = NULL, plots = TRUE)
       sets = data.frame(year = yr, SetID = set_counter + seq_len(k),
                         X = x[cell], Y = y[cell], vessel = vessel, HBF = hbf,
                         sst = sst[cell], thermocline = thermo_years[cell, yr],
-                        hook_depth = hooks$mean_depth),
+                        hook_depth = hooks$median_depth),
       catch = catch$set, avail = avail, hbs = hbs)
     set_counter <- set_counter + k
 
@@ -299,66 +303,44 @@ sample_rows <- function(w) {
   pmin(rowSums(u > cum) + 1L, ncol(w))
 }
 
-#' Hook depths along one basket of longline (Bigelow et al. 2002, eq. 2)
-#'
-#' Catenary depth of hook `j` (1 to `hbf`) for mainline angle `phi` (degrees).
-#' `hbf` and `phi` must be the same length or length one.
-#'
-#' @return Depth (m) of each hook; the vectors are recycled hook-by-hook.
+#' Convert a coefficient of variation to a lognormal SD (log scale)
 #' @noRd
-catenary_depth <- function(j, hbf, phi, s) {
-  n <- hbf + 1
-  half_length <- s$hook_spacing * n / 2
-  cot2 <- 1 / tan(phi * pi / 180)^2
-  s$branch_line + s$float_line +
-    half_length * (sqrt(1 + cot2) - sqrt((1 - 2 * j / n)^2 + cot2))
-}
+cv_to_sdlog <- function(cv) sqrt(log(1 + cv^2))
 
 #' Hook-depth distribution (proportion of hooks per depth bin) of individual sets
 #'
-#' For every set, the depth of each hook comes from the catenary with a
-#' set-specific mainline angle `phi ~ N(phi_mean, phi_sd)`, is reduced by
-#' current shoaling (Bigelow et al. 2002, eq. 4-5), and varies within the set
-#' with SD `8.73 + 4.4 j` (eq. 3), where `j` counts hooks from the nearest float.
+#' A set with a given HBF has median hook depth `HBF_depth * exp(e)` with
+#' `e ~ N(0, sdlog(set_cv))` (set-level error), and its hooks are lognormally
+#' spread around that median with `sdlog(hook_cv)`.
 #'
-#' @return A list with `profile` (sets x depth bins) and `mean_depth`.
+#' @return A list with `profile` (sets x depth bins) and `median_depth`.
 #' @noRd
 set_hook_profiles <- function(hbf, s, edges) {
-  k <- length(hbf)
-  phi <- pmin(pmax(stats::rnorm(k, s$phi_mean, s$phi_sd), 30), 85)
-  sig <- sqrt(log(s$current_cv^2 + 1))
-  speed <- s$current_speed * exp(sig * stats::rnorm(k) - sig^2 / 2)
-  shoaling <- pmin(0.985 * speed, 0.9)     # proportion (eq. 4), capped
-
-  set <- rep.int(seq_len(k), hbf)          # one row per hook
-  j <- sequence(hbf)
-  depth <- catenary_depth(j, hbf[set], phi[set], s)
-  median_depth <- stats::ave(depth, set, FUN = stats::median)
-  depth <- depth - depth * shoaling[set] / (1 + exp(s$shoal_slope * (depth - median_depth)))
-  sd_hook <- 8.73 + 4.4 * pmin(j, hbf[set] + 1 - j)
-
-  profile <- hook_bin_mass(depth, sd_hook, edges)
-  list(profile = rowsum(profile, set) / hbf,
-       mean_depth = as.vector(rowsum(depth, set)) / hbf)
+  median_depth <- s$HBF_depth[match(hbf, s$HBF_levels)] *
+    exp(cv_to_sdlog(s$set_cv) * stats::rnorm(length(hbf)))
+  list(profile = lognormal_bin_mass(median_depth, cv_to_sdlog(s$hook_cv), edges),
+       median_depth = median_depth)
 }
 
-#' Expected hook-depth distribution of each HBF level (mean angle, no currents)
+#' Expected hook-depth distribution of each HBF level
+#'
+#' Lognormal with median `HBF_depth` and the combined between- and within-set
+#' spread: the aggregate distribution an analyst would use (cf. Fig. 2 of
+#' Bigelow et al. 2002). Rows are HBF levels, columns depth bins.
 #' @noRd
 nominal_hook_profiles <- function(s, edges) {
-  t(vapply(s$HBF_levels, function(h) {
-    j <- seq_len(h)
-    depth <- catenary_depth(j, h, s$phi_mean, s)
-    colMeans(hook_bin_mass(depth, 8.73 + 4.4 * pmin(j, h + 1 - j), edges))
-  }, numeric(length(edges) - 1)))
+  sdlog <- sqrt(cv_to_sdlog(s$set_cv)^2 + cv_to_sdlog(s$hook_cv)^2)
+  lognormal_bin_mass(s$HBF_depth, sdlog, edges)
 }
 
-#' Proportion of each hook's normal depth distribution in each bin
+#' Proportion of a lognormal depth distribution in each depth bin
 #'
-#' Mass above the surface or below `max_depth` is reassigned proportionally,
-#' so every row sums to one.
+#' One row per median; hooks deeper than the last edge are reassigned
+#' proportionally, so every row sums to one.
 #' @noRd
-hook_bin_mass <- function(depth, sd, edges) {
-  cdf <- stats::pnorm(outer(depth, edges, function(d, e) e - d) / sd)
+lognormal_bin_mass <- function(median, sdlog, edges) {
+  cdf <- stats::plnorm(matrix(edges, length(median), length(edges), byrow = TRUE),
+                       meanlog = log(median), sdlog = sdlog)
   mass <- cdf[, -1, drop = FALSE] - cdf[, -ncol(cdf), drop = FALSE]
   mass / rowSums(mass)
 }
@@ -383,8 +365,12 @@ check_tuna_settings <- function(s) {
     stop("`thermocline_annual_rho` must be between -1 and 1.", call. = FALSE)
   }
   if (any(c(s$thermocline_sd, s$thermocline_annual_sd,
-            s$thermocline_annual_field_sd, s$current_speed) < 0)) {
-    stop("Thermocline SDs and `current_speed` cannot be negative.", call. = FALSE)
+            s$thermocline_annual_field_sd, s$set_cv) < 0) || s$hook_cv <= 0) {
+    stop("Thermocline SDs and `set_cv` cannot be negative; `hook_cv` must be positive.",
+         call. = FALSE)
+  }
+  if (length(s$HBF_depth) != length(s$HBF_levels) || any(s$HBF_depth <= 0)) {
+    stop("`HBF_depth` needs one positive depth per HBF level.", call. = FALSE)
   }
   if (s$max_depth %% s$depth_bin != 0) {
     stop("`max_depth` must be a multiple of `depth_bin`.", call. = FALSE)

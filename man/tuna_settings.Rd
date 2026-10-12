@@ -24,9 +24,12 @@ everywhere); \code{shift} is a basin-wide AR(1) shift
 (\code{thermocline_annual_sd}, \code{thermocline_annual_rho}), e.g. ENSO-like
 years; \code{annual} is a new spatial field each year
 (\code{thermocline_annual_field_sd}).
-\item Hook depth follows the catenary model of Bigelow et al. (2002) for each
-HBF (hooks between floats), with between-set variation in the mainline angle
-\code{phi}, within-set hook-depth variation and shoaling by currents.
+\item Hook depth: each HBF (hooks between floats) level has a typical
+(median) hook depth \code{HBF_depth}, roughly as in Fig. 2 of Bigelow et al.
+(2002). Each set's hook profile is shifted by a lognormal set-level error
+(\code{set_cv}; e.g. line angle, currents), so HBF is an imperfect proxy for
+depth. Hooks within a set are lognormally spread around the set's median
+(\code{hook_cv}).
 \item Targeting: species prices change in three 10-year blocks (YFT, then
 BET, then BFT). Skippers choose where to fish and which HBF to use from the
 expected catch value.
