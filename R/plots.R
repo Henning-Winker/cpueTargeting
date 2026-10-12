@@ -390,3 +390,86 @@ plot_pcs <- function(comparison, pcs = c("PC1", "PC2"), depth_bin = 20, min_sets
     theme_bw()
   plots
 }
+
+#' Species distributions in three dimensions: sections and depth layers
+#'
+#' Combines the horizontal density of each species with its vertical profile
+#' in each cell (including the thermocline anomaly of the chosen year) and
+#' shows the result in two ways:
+#' * `section`: a latitude x depth section (density averaged over x), with
+#'   depth downwards and north to the right;
+#' * `layers`: maps of the density in depth layers, species by layer.
+#'
+#' Horizontal densities are the initial (unfished) distribution, so the plots
+#' show where each species lives rather than the effect of fishing.
+#'
+#' @param sim Output of [simulate_tuna()].
+#' @param year Year whose thermocline anomaly is used (matters only when the
+#'   thermocline moves between years).
+#' @param layers Depth-layer boundaries (m) for the layer maps.
+#' @return A list of two ggplots, `section` and `layers`.
+#' @export
+#' @examples
+#' \dontrun{
+#' sim <- simulate_tuna(seed = 1)
+#' p <- plot_sections(sim)
+#' p$section
+#' p$layers
+#' }
+plot_sections <- function(sim, year = 1, layers = c(0, 100, 200, 300, 500)) {
+  if (is.null(sim$Thermocline)) stop("`sim` must be the output of simulate_tuna().",
+                                     call. = FALSE)
+  s <- sim$settings
+  env <- sim$Env
+  edges <- seq(0, s$max_depth, by = s$depth_bin)
+  mids <- edges[-1] - s$depth_bin / 2
+  th <- sim$Thermocline
+  anomaly <- th$anomaly[th$year == year][match(paste(env$x, env$y),
+                                               paste(th$x[th$year == year], th$y[th$year == year]))]
+  profiles <- fish_profiles(anomaly, s, edges)
+  dens <- sim$Biomass.XY
+
+  section <- do.call(rbind, lapply(seq_along(s$species), function(i) {
+    b <- dens$Density[dens$variable == s$species[i]]
+    by_lat <- rowsum(b * profiles[[i]], env$y) / as.vector(table(env$y))
+    data.frame(y = rep(as.numeric(rownames(by_lat)), ncol(by_lat)),
+               depth = rep(mids, each = nrow(by_lat)),
+               density = as.vector(by_lat) / max(by_lat),
+               species = s$species[i])
+  }))
+  section$species <- factor(section$species, levels = s$species)
+  p_section <- ggplot(section, aes(x = .data$y, y = .data$depth, fill = .data$density)) +
+    geom_raster() +
+    scale_fill_gradientn(colours = jet_colors(10), name = "Relative\ndensity") +
+    scale_y_reverse(expand = c(0, 0)) +
+    scale_x_continuous(expand = c(0, 0)) +
+    facet_wrap(~species, nrow = 1) +
+    labs(x = "y (south to north)", y = "Depth (m)",
+         title = paste("Latitude x depth sections, year", year)) +
+    theme_bw()
+
+  layer_bins <- cut(mids, breaks = layers, include.lowest = TRUE,
+                    labels = paste0(utils::head(layers, -1), "-", layers[-1], " m"))
+  maps <- do.call(rbind, lapply(seq_along(s$species), function(i) {
+    b <- dens$Density[dens$variable == s$species[i]]
+    share <- vapply(levels(layer_bins), function(l) {
+      rowSums(profiles[[i]][, layer_bins == l, drop = FALSE])
+    }, numeric(nrow(env)))
+    d <- b * share
+    data.frame(x = env$x, y = env$y,
+               layer = factor(rep(levels(layer_bins), each = nrow(env)),
+                              levels = levels(layer_bins)),
+               density = as.vector(d) / max(d), species = s$species[i])
+  }))
+  maps$species <- factor(maps$species, levels = s$species)
+  p_layers <- ggplot(maps, aes(x = .data$x, y = .data$y, fill = .data$density)) +
+    geom_raster() +
+    scale_fill_gradientn(colours = jet_colors(10), name = "Relative\ndensity") +
+    facet_grid(layer ~ species) +
+    coord_quickmap(expand = FALSE) +
+    labs(x = "x", y = "y (north = top)",
+         title = paste("Density by depth layer, year", year)) +
+    theme_bw()
+
+  list(section = p_section, layers = p_layers)
+}

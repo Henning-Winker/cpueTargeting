@@ -143,3 +143,10 @@ test_that("select_models keeps a subset that can be re-attached", {
                c("Base", "Base+S", "Base+S (1x1)"))
   expect_error(select_models(a, "HBF+S"), "not found")
 })
+
+test_that("3D distribution plots are built", {
+  sim <- simulate_tuna(small_tuna(), seed = 9, plots = FALSE)
+  p <- plot_sections(sim, year = 2)
+  expect_s3_class(p$section, "ggplot")
+  expect_s3_class(p$layers, "ggplot")
+})

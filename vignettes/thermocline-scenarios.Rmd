@@ -230,6 +230,21 @@ The resulting species densities:
 sims$Fixed$Plots$SpDens
 ```
 
+The same distributions in three dimensions. The latitude x depth section
+averages over x: YFT and BET sit in the warm north, BFT and ALB in the cool
+south, and within each pair one species is shallow and one deep. The layer
+maps show the density in each depth layer, i.e. what a set fishing at that
+depth would encounter.
+
+```{r sections, fig.height = 3.5}
+sec <- plot_sections(sims$Fixed)
+sec$section
+```
+
+```{r layers, fig.height = 7}
+sec$layers
+```
+
 In the Moving scenario the basin-wide thermocline goes up and down between
 years, and the spatial pattern changes on top of it:
 

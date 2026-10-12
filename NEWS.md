@@ -78,5 +78,5 @@
 ## New functions
 
 * `plot_om()`, `plot_indices()`, `plot_diagnostics()`, `plot_thermocline()`,
-  `plot_thermocline_effect()`, `plot_availability()`, `plot_pcs()`,
+  `plot_thermocline_effect()`, `plot_availability()`, `plot_pcs()`, `plot_sections()`,
   `bind_comparisons()`, `select_models()` and `as_set_data()`.

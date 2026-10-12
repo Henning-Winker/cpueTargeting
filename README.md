@@ -102,6 +102,7 @@ Plots that illustrate each effect:
 | `plot_thermocline(sim)` | annual thermocline series and maps |
 | `plot_availability(sim)` | vertical availability by HBF over time |
 | `sim$Plots$HBF`, `sim$Plots$CPUE` | gear use over time; nominal CPUE versus truth |
+| `plot_sections(sim)` | species distributions in 3D: latitude x depth sections and maps by depth layer |
 | `plot_pcs(fit)` | what the catch-composition PCs capture: loadings, maps, scores against hook depth, scores over time |
 | `plot_indices()`, `plot_diagnostics()` | standardised indices and their accuracy, for one or several scenarios |
 
