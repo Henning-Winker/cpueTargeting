@@ -81,10 +81,12 @@ Default species:
 
 The pairs overlap in space and the species overlap in depth, so most sets catch
 all four. Prices favour ALB in years 1-10 (shallow, cool water), BET in years
-11-20 (deep, warm water) and BFT in years 21-30 (deep, cool water), loosely
-following the historical shift from albacore to bigeye targeting. The first
-switch changes both location and depth; the second mainly location. Effort is cut
-by 25% in years 21-30, so some stocks recover slightly.
+11-20 (deep, warm water) and both BET and BFT in years 21-30, loosely following
+the historical shift from albacore to bigeye targeting. Effort is cut by 25% in
+years 21-30. Stocks start partly fished (`B_start`) and the true trends differ:
+ALB is fished down, BET declines, BFT recovers and declines again once
+targeted, YFT dips and recovers. `tuna_settings("mild")` gives weaker
+targeting.
 
 `Data` also contains the latent truth that analysts would not see:
 `hook_depth` (median hook depth of the set), `vertical_avail` (realised vertical

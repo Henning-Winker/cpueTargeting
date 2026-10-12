@@ -74,17 +74,19 @@
 * Deep species are deeper and narrower by default (BET 260 m, SD 50; BFT
   240 m, SD 55), so deep gear clearly targets them while most sets still
   catch all four species.
-* Default prices follow ALB (years 1-10), BET (11-20), BFT (21-30), with a
-  moderate contrast (target species worth 1.5, others 0.75-1.0) and moderate
-  skipper response (`preference = 1.25`, `HBF_choice_temp = 0.2`).
-* More contrast in the true trends: `q` raised from 0.2 to 3, and new
-  per-species setting `B_start` (initial biomass / carrying capacity; default
-  0.7, 0.6, 0.4, 0.6) and a higher ALB growth rate (`r` = 0.25).
+* Default scenario: prices favour ALB (years 1-10), BET (11-20), then BET
+  and BFT (21-30), with strong targeting (target species worth 4 times the
+  others, `preference = 1.5`, `HBF_choice_temp = 0.15`).
+* Stocks are fished harder (`q` = 3) and start partly fished: new
+  per-species setting `B_start` (initial biomass / carrying capacity;
+  default 0.6, 0.7, 0.2, 0.9). With `r` = 0.30, 0.18, 0.25, 0.25 the true
+  trends differ: ALB is fished down, BET declines, BFT recovers and declines
+  again, YFT dips and recovers.
 * `effort` can be one value per year. By default it increases towards 800
-  sets per year and is cut by 25% in years 21-30, so YFT, BET and ALB recover
-  slightly while BFT levels off.
-* `tuna_settings("stress_test")` keeps the earlier extreme targeting (price
-  contrast 2.0 vs 0.5, `preference = 1.5`, `HBF_choice_temp = 0.15`).
+  sets per year and is cut by 25% in years 21-30.
+* Presets: `tuna_settings("mild")` (moderate targeting) and
+  `tuna_settings("stress_test")` (strong targeting of lightly fished,
+  unfished stocks, as in the first runs).
 
 ## New functions
 

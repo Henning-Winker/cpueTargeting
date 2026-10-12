@@ -25,45 +25,64 @@
 #'   depth. Hooks within a set are lognormally spread around the set's median
 #'   (`hook_cv`).
 #' * **Targeting**: species prices change in three 10-year blocks: ALB
-#'   (shallow, cool water), then BET (deep, warm water), then BFT (deep, cool
-#'   water), loosely following the historical shift from albacore to bigeye
-#'   targeting and the later interest in recovering southern bluefin. Skippers
-#'   choose where to fish and which HBF to use from the expected catch value.
+#'   (shallow, cool water), then BET (deep, warm water), then BET and BFT
+#'   (deep, warm and cool water), loosely following the historical shift from
+#'   albacore to bigeye targeting and the later interest in recovering
+#'   southern bluefin. Skippers choose where to fish and which HBF to use from
+#'   the expected catch value.
 #' * **Effort** increases towards 800 sets per year and is cut by 25% in
 #'   years 21-30, so pressure on some species is relieved.
+#' * **True trends** differ between species: ALB is fished down from 90% of
+#'   carrying capacity, BET declines steadily, BFT recovers from 20% and
+#'   declines again once it is targeted, and YFT dips and recovers.
 #'
 #' All values are conceptual and meant to be tuned. With the same seed,
 #' scenarios that differ only in the thermocline settings share the same SST
 #' field, the same fixed thermocline pattern (scaled by `thermocline_sd`) and
 #' the same vessels; the fishery itself then evolves differently.
 #'
-#' Two presets are available:
-#' * `"default"`: moderate targeting (prices differ by a factor of 2 between
-#'   the target species and the others, `preference = 1.25`,
-#'   `HBF_choice_temp = 0.2`); nominal CPUE is biased by roughly 10-20% by
-#'   decade.
-#' * `"stress_test"`: extreme targeting (prices differ by a factor of 4,
-#'   `preference = 1.5`, `HBF_choice_temp = 0.15`); abrupt, fleet-wide target
-#'   switches with nominal CPUE biased by up to a factor of two. These are the
-#'   settings of the first runs of the vignette.
+#' Three presets are available:
+#' * `"default"`: strong targeting (prices differ by a factor of 4 between
+#'   the target species and the others, `preference = 1.5`,
+#'   `HBF_choice_temp = 0.15`) and stocks fished to 30-60% of carrying
+#'   capacity with contrasting trends. Nominal CPUE is biased by about 15-20%.
+#' * `"mild"`: as the default but with moderate targeting (prices differ by a
+#'   factor of 2, `preference = 1.25`, `HBF_choice_temp = 0.2`). Nominal CPUE
+#'   is only slightly biased, so the standardisation methods are hard to tell
+#'   apart in a single run.
+#' * `"stress_test"`: the first settings of the vignette: strong targeting
+#'   with ALB, BET and BFT blocks, but light fishing from unfished stocks
+#'   (`q = 0.2`, `B_start = 1`, effort increasing towards 800 sets per year),
+#'   so the true trends are nearly flat and nominal CPUE changes mainly
+#'   through targeting.
 #'
-#' @param preset `"default"` or `"stress_test"`.
+#' @param preset `"default"`, `"mild"` or `"stress_test"`.
 #' @return A named list accepted by [simulate_tuna()].
 #' @export
 #' @examples
 #' s <- tuna_settings()
-#' extreme <- tuna_settings("stress_test")
-#' extreme$price[c(1, 11, 21), ]
-tuna_settings <- function(preset = c("default", "stress_test")) {
+#' tuna_settings()$price[c(1, 11, 21), ]
+#' mild <- tuna_settings("mild")
+tuna_settings <- function(preset = c("default", "mild", "stress_test")) {
   preset <- match.arg(preset)
   s <- tuna_settings_default()
+  if (preset == "mild") {
+    s$price <- matrix(c(rep(c(1.0, 0.75, 0.75, 1.5), 10),   # years 1-10: ALB
+                        rep(c(1.0, 1.5, 1.0, 0.75), 10),    # years 11-20: BET
+                        rep(c(0.75, 1.5, 1.5, 0.75), 10)),  # years 21-30: BET + BFT
+                      ncol = 4, byrow = TRUE)
+    s$preference <- 1.25
+    s$HBF_choice_temp <- 0.2
+  }
   if (preset == "stress_test") {
     s$price <- matrix(c(rep(c(1.0, 0.5, 0.5, 2.0), 10),   # years 1-10: ALB
                         rep(c(1.0, 2.0, 1.0, 0.5), 10),   # years 11-20: BET
                         rep(c(0.5, 1.0, 2.0, 0.5), 10)),  # years 21-30: BFT
                       ncol = 4, byrow = TRUE)
-    s$preference <- 1.5
-    s$HBF_choice_temp <- 0.15
+    s$r <- c(0.30, 0.18, 0.12, 0.18)
+    s$B_start <- rep(1, 4)
+    s$q <- 0.2
+    s$effort <- 800
   }
   s
 }
@@ -79,8 +98,8 @@ tuna_settings_default <- function() {
     # Species ----------------------------------------------------------------
     species  = c("YFT", "BET", "BFT", "ALB"),
     B0       = c(400000, 300000, 150000, 350000), # carrying capacity (t)
-    r        = c(0.30, 0.18, 0.12, 0.25),         # intrinsic growth rate
-    B_start  = c(0.7, 0.6, 0.4, 0.6), # initial biomass / carrying capacity (1 = unfished)
+    r        = c(0.30, 0.18, 0.25, 0.25),         # intrinsic growth rate
+    B_start  = c(0.6, 0.7, 0.2, 0.9), # initial biomass / carrying capacity (1 = unfished)
     sst_opt  = c(25, 24, 20, 21),     # preferred SST (deg C)
     sst_tol  = c(3, 3.5, 3, 3.5),     # SD of SST preference (deg C)
     depth_mu = c(90, 260, 240, 110),  # mean depth (m): YFT, ALB shallow; BET, BFT deep
@@ -110,9 +129,9 @@ tuna_settings_default <- function() {
 
     # Fleet -------------------------------------------------------------------
     # columns: YFT, BET, BFT, ALB
-    price = matrix(c(rep(c(1.0, 0.75, 0.75, 1.5), 10),   # years 1-10: ALB
-                     rep(c(1.0, 1.5, 1.0, 0.75), 10),    # years 11-20: BET
-                     rep(c(0.75, 1.0, 1.5, 0.75), 10)),  # years 21-30: BFT
+    price = matrix(c(rep(c(1.0, 0.5, 0.5, 2.0), 10),   # years 1-10: ALB
+                     rep(c(1.0, 2.0, 1.0, 0.5), 10),   # years 11-20: BET
+                     rep(c(0.5, 2.0, 2.0, 0.5), 10)),  # years 21-30: BET + BFT
                    ncol = 4, byrow = TRUE),
     n_vessels = 30,
     # sets per year: one value per year, or a single value for a logistic
@@ -125,8 +144,8 @@ tuna_settings_default <- function() {
     vessel_cv = 0.2,          # between-vessel CV in catchability
     tweedie_power = 1.2,      # set-level noise in catchability
     tweedie_phi = 0.1,
-    preference = 1.25,        # concentration of effort on high-value cells
-    HBF_choice_temp = 0.2,    # lower = skippers pick the best HBF more strictly
+    preference = 1.5,         # concentration of effort on high-value cells
+    HBF_choice_temp = 0.15,   # lower = skippers pick the best HBF more strictly
     avail_ref = 100           # vertical availability of 1 = fish spread evenly
                               # over a 100-m layer fished by all hooks
   )

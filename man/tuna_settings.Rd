@@ -2,10 +2,10 @@
 \alias{tuna_settings}
 \title{Default settings for the longline tuna scenario}
 \usage{
-tuna_settings(preset = c("default", "stress_test"))
+tuna_settings(preset = c("default", "mild", "stress_test"))
 }
 \arguments{
-\item{preset}{\code{"default"} or \code{"stress_test"}.}
+\item{preset}{\code{"default"}, \code{"mild"} or \code{"stress_test"}.}
 }
 \value{A named list accepted by \code{\link{simulate_tuna}}.}
 \description{Four tuna species in a conceptual Southern Hemisphere ocean
@@ -34,12 +34,16 @@ years; \code{annual} is a new spatial field each year
 depth. Hooks within a set are lognormally spread around the set's median
 (\code{hook_cv}).
 \item Targeting: species prices change in three 10-year blocks: ALB
-(shallow, cool water), then BET (deep, warm water), then BFT (deep, cool
-water), loosely following the historical shift from albacore to bigeye
-targeting and the later interest in recovering southern bluefin. Skippers
-choose where to fish and which HBF to use from the expected catch value.
+(shallow, cool water), then BET (deep, warm water), then BET and BFT (deep,
+warm and cool water), loosely following the historical shift from albacore
+to bigeye targeting and the later interest in recovering southern bluefin.
+Skippers choose where to fish and which HBF to use from the expected catch
+value.
 \item Effort increases towards 800 sets per year and is cut by 25\% in
 years 21-30, so pressure on some species is relieved.
+\item True trends differ between species: ALB is fished down from 90\% of
+carrying capacity, BET declines steadily, BFT recovers from 20\% and
+declines again once it is targeted, and YFT dips and recovers.
 }
 All values are conceptual and meant to be tuned. With the same seed,
 scenarios that differ only in the thermocline settings share the same SST
@@ -47,18 +51,23 @@ field, the same fixed thermocline pattern (scaled by \code{thermocline_sd})
 and the same vessels; the fishery itself then evolves differently.}
 \section{Presets}{
 \itemize{
-\item \code{"default"}: moderate targeting (prices differ by a factor of 2
-between the target species and the others, \code{preference = 1.25},
-\code{HBF_choice_temp = 0.2}); nominal CPUE is biased by roughly 10-20\% by
-decade.
-\item \code{"stress_test"}: extreme targeting (prices differ by a factor of 4,
-\code{preference = 1.5}, \code{HBF_choice_temp = 0.15}); abrupt, fleet-wide
-target switches with nominal CPUE biased by up to a factor of two. These are
-the settings of the first runs of the vignette.
+\item \code{"default"}: strong targeting (prices differ by a factor of 4
+between the target species and the others, \code{preference = 1.5},
+\code{HBF_choice_temp = 0.15}) and stocks fished to 30-60\% of carrying
+capacity with contrasting trends. Nominal CPUE is biased by about 15-20\%.
+\item \code{"mild"}: as the default but with moderate targeting (prices
+differ by a factor of 2, \code{preference = 1.25},
+\code{HBF_choice_temp = 0.2}). Nominal CPUE is only slightly biased, so the
+standardisation methods are hard to tell apart in a single run.
+\item \code{"stress_test"}: the first settings of the vignette: strong
+targeting with ALB, BET and BFT blocks, but light fishing from unfished
+stocks (\code{q = 0.2}, \code{B_start = 1}, effort increasing towards 800
+sets per year), so the true trends are nearly flat and nominal CPUE changes
+mainly through targeting.
 }
 }
 \examples{
 s <- tuna_settings()
-extreme <- tuna_settings("stress_test")
-extreme$price[c(1, 11, 21), ]
+tuna_settings()$price[c(1, 11, 21), ]
+mild <- tuna_settings("mild")
 }
