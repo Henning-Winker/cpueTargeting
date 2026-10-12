@@ -78,10 +78,10 @@
 * Default prices follow ALB (years 1-10), BET (11-20), BFT (21-30), with a
   moderate contrast (target species worth 1.5, others 0.75-1.0) and moderate
   skipper response (`preference = 1.25`, `HBF_choice_temp = 0.2`).
-* More contrast in the true trends: `q` raised to 0.8 so stocks are fished
-  down by ~30-40%, and new per-species setting `B_start` (initial biomass /
-  carrying capacity; default 1, 1, 0.3, 1) so that BFT starts depleted and
-  recovers.
+* More contrast in the true trends: `q` raised from 0.2 to 2, and new
+  per-species setting `B_start` (initial biomass / carrying capacity; default
+  0.7, 0.6, 0.5, 0.7). Stocks are fished down to roughly 20-50% of carrying
+  capacity, fastest while they are targeted.
 * `tuna_settings("stress_test")` keeps the earlier extreme targeting (price
   contrast 2.0 vs 0.5, `preference = 1.5`, `HBF_choice_temp = 0.15`).
 
