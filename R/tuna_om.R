@@ -77,7 +77,7 @@ tuna_settings_default <- function() {
     # Species ----------------------------------------------------------------
     species  = c("YFT", "BET", "BFT", "ALB"),
     B0       = c(400000, 300000, 150000, 350000), # carrying capacity (t)
-    r        = c(0.30, 0.18, 0.12, 0.18),         # intrinsic growth rate
+    r        = c(0.30, 0.18, 0.12, 0.25),         # intrinsic growth rate
     B_start  = c(0.7, 0.6, 0.5, 0.2), # initial biomass / carrying capacity (1 = unfished);
                                       #   ALB starts depleted and recovers
     sst_opt  = c(25, 24, 20, 21),     # preferred SST (deg C)
