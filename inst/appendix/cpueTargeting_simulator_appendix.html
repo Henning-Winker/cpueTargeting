@@ -403,10 +403,11 @@ used as a categorical "fishing tactic" (FT) (He et al. 1997):</p>
 \[
 T_i = \gamma_{\mathrm{FT}(i)}, \qquad \mathrm{FT}(i) \in \{1, \dots, G\}.
 \]
-<p>The guidelines used CLARA clustering with the number of clusters set to the number of
-non-trivial principal components plus one (Winker et al. 2014); here \(G\) is set directly
-(<code>n_clusters</code> = 3). Clustering assumes that discrete targeting strategies exist,
-as recommended by Hoyle et al. (2014).</p>
+<p>Following Winker et al. (2014), the number of clusters is the number of principal
+components used by DPC plus one, \(G = n + 1\) (by default 4; setting
+<code>n_clusters</code>). The guidelines used CLARA clustering; here k-means is used.
+Clustering assumes that discrete targeting strategies exist, as recommended by Hoyle et al.
+(2014).</p>
 
 <p><strong>DPC (continuous targeting, direct principal components).</strong> The composition
 matrix \(\mathbf{W}\) is centred, scaled and decomposed by principal component analysis.
@@ -484,7 +485,7 @@ fit &lt;- bam(y ~ year + s(lon, lat, k = 8) + HBF + s(vessel, bs = "re"),
   spatial_res = 5,      # reported blocks of 5 x 5 cells
   spatial_k   = NULL,   # basis size of S (NULL = automatic)
   n_pc        = 3,      # principal components for DPC
-  n_clusters  = 3,      # fishing tactics for Cluster
+  n_clusters  = 4,      # fishing tactics for Cluster (default n_pc + 1)
   vessel_re   = FALSE,  # TRUE adds s(vessel, bs = "re")
   engine      = "bam")  # "gam" (REML) or "bam" (fREML, discrete)
 fits$formulas           # the formulae actually fitted

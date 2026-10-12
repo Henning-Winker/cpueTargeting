@@ -68,6 +68,7 @@
 * `n_pc` sets the number of principal components used by the DPC models
   (default 3; the guidelines used 2); all PCs and the PCA loadings are
   returned.
+* `n_clusters` defaults to `n_pc + 1` (Winker et al. 2014), i.e. 4 clusters.
 * `label`, `bind_comparisons()` and `select_models()` to combine and reuse
   fits (e.g. a 1 x 1 spatial control).
 * Default `effort` in `tuna_settings()` reduced to 800 sets per year.

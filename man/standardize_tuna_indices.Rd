@@ -4,7 +4,7 @@
 \usage{
 standardize_tuna_indices(simulation, models = NULL, spatial_res = 5,
   spatial_k = NULL, add_models = NULL, vessel_re = FALSE, n_pc = 3,
-  n_clusters = 3, seed = 1, engine = c("gam", "bam"), label = NULL)
+  n_clusters = n_pc + 1, seed = 1, engine = c("gam", "bam"), label = NULL)
 }
 \arguments{
 \item{simulation}{Output of \code{\link{simulate_tuna}} or \code{\link{simulate_bathymetric}}.}
@@ -25,7 +25,8 @@ use any column of the returned \code{data}, including \code{Xs}, \code{Ys},
 3; the 2023 CPUE guidelines used 2; at most the number of species). More PCs
 capture more of the targeting signal, but also more risk of absorbing real
 changes in relative abundance.}
-\item{n_clusters}{Number of fishing tactics for the \code{Cluster} model.}
+\item{n_clusters}{Number of fishing tactics for the \code{Cluster} models. By
+default \code{n_pc + 1}, the rule of Winker et al. (2014).}
 \item{seed}{Seed for the k-means clustering.}
 \item{engine}{\code{"gam"} (default) or \code{"bam"} with \code{discrete = TRUE},
 which is much faster for large data sets.}

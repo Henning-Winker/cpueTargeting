@@ -322,7 +322,7 @@ Each model is `year` plus a targeting term; `+S` adds a spatial smoother
 |---|---|---|---|
 | Base | none | ignored | catch per set |
 | Base+S | none, + space | ignored | catch per set + position |
-| Cluster+S | k-means clusters of catch composition | discrete | all species' catches |
+| Cluster+S | k-means clusters of catch composition (4 = PCs + 1) | discrete | all species' catches |
 | DPC+S | `s(PC1) + s(PC2) + s(PC3)` of catch composition | continuous | all species' catches |
 | HBF+S | HBF factor | gear covariate | HBF from logbooks |
 
@@ -411,8 +411,8 @@ knitr::kable(rmse_wide, digits = 3, row.names = FALSE)
   at year 11, and BET rises, when the fleet switches to deeper gear. Space alone, even at
   1 x 1, cannot remove this; DPC and HBF can.
 * **Cluster versus DPC.** Targeting in this simulator is continuous (a graded
-  choice among locations and HBF levels), so three discrete clusters capture
-  little of it. Clusters are recommended only when discrete strategies exist
+  choice among locations and HBF levels), so a few discrete clusters (by
+  default the number of PCs plus one, i.e. 4) capture only part of it. Clusters are recommended only when discrete strategies exist
   (Hoyle et al. 2014).
 * **Moving thermocline.** An HBF factor assumes the same catchability for an
   HBF level in every year, so it cannot follow the annual changes, and may do
