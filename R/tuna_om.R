@@ -47,8 +47,8 @@ tuna_settings <- function() {
     r        = c(0.30, 0.18, 0.12, 0.18),         # intrinsic growth rate
     sst_opt  = c(25, 24, 20, 21),     # preferred SST (deg C)
     sst_tol  = c(3, 3.5, 3, 3.5),     # SD of SST preference (deg C)
-    depth_mu = c(90, 200, 180, 110),  # mean depth (m)
-    depth_sd = c(60, 80, 80, 60),     # SD of depth (m)
+    depth_mu = c(90, 260, 240, 110),  # mean depth (m): YFT, ALB shallow; BET, BFT deep
+    depth_sd = c(60, 50, 55, 60),     # SD of depth (m)
     dispersal = rep(1.5, 4),          # mean movement distance per year (cells)
 
     # Environment ------------------------------------------------------------

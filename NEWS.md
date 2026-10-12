@@ -70,6 +70,9 @@
 * `label`, `bind_comparisons()` and `select_models()` to combine and reuse
   fits (e.g. a 1 x 1 spatial control).
 * Default `effort` in `tuna_settings()` reduced to 800 sets per year.
+* Deep species are deeper and narrower by default (BET 260 m, SD 50; BFT
+  240 m, SD 55), so deep gear clearly targets them while most sets still
+  catch all four species.
 
 ## New functions
 

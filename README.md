@@ -65,12 +65,12 @@ warm and south is cool.
 
 Default species:
 
-| Species | Water | Depth | `sst_opt` | `depth_mu` (m) |
+| Species | Water | Depth | `sst_opt` | `depth_mu` (SD) in m |
 |---|---|---|---|---|
-| YFT (yellowfin) | warm | shallow | 25 | 90 |
-| BET (bigeye) | warm | deep | 24 | 200 |
-| BFT (southern bluefin) | cool | deep | 20 | 180 |
-| ALB (albacore) | cool | shallow | 21 | 110 |
+| YFT (yellowfin) | warm | shallow | 25 | 90 (60) |
+| BET (bigeye) | warm | deep | 24 | 260 (50) |
+| BFT (southern bluefin) | cool | deep | 20 | 240 (55) |
+| ALB (albacore) | cool | shallow | 21 | 110 (60) |
 
 The pairs overlap in space and the species overlap in depth, so most sets catch
 all four. Prices favour YFT in years 1-10, BET in years 11-20 and BFT in years
@@ -111,7 +111,7 @@ To change a scenario, edit the settings list:
 
 ```r
 s <- tuna_settings()
-s$depth_mu <- c(80, 250, 220, 100)   # stronger vertical separation
+s$depth_sd <- c(80, 80, 80, 80)      # more vertical mixing of species
 s$HBF_choice_temp <- 0.05            # skippers choose gear more strictly
 sim <- simulate_tuna(s, seed = 1)
 ```
