@@ -81,9 +81,10 @@ In brief:
 * About 800 sets per year at the end of the series (~19,000 sets in total).
 * True trends go in different directions. `B_start` sets where each stock
   starts relative to carrying capacity (YFT 0.7, BET 0.6, BFT 0.5, ALB 0.2)
-  and `q` how hard it is fished. ALB starts depleted and roughly doubles; YFT
-  stays nearly flat; BET rises slightly, then declines once it is targeted
-  (years 11-20); BFT declines, mostly once it is targeted (years 21-30).
+  and `q` how hard it is fished. ALB starts depleted (20% of carrying
+  capacity) and roughly doubles by year 15; YFT declines slowly to about 45%;
+  BET declines to about 30%, fastest once it is targeted (years 11-20); BFT
+  declines to about 15%, fastest once it is targeted (years 21-30).
   Lower `B_start` for a species to let it recover, raise `q` for steeper
   declines.
 
@@ -213,7 +214,7 @@ the contrast between shallow and deep gear. Check the result with
 |---|---|---|
 | `n_years` | number of years (the `price` matrix needs at least as many rows) | 30 |
 | `effort` | sets per year at the end of the series (effort increases logistically) | 800 |
-| `n_vessels`, `q`, `vessel_cv` | number of vessels, mean catchability, between-vessel CV | 30, 1.5, 0.2 |
+| `n_vessels`, `q`, `vessel_cv` | number of vessels, mean catchability, between-vessel CV | 30, 3, 0.2 |
 | `tweedie_power`, `tweedie_phi` | set-level noise in catchability | 1.2, 0.1 |
 | `obs_res` | positions in `Data` are reported as centres of `obs_res` x `obs_res` blocks | 5 |
 

@@ -116,7 +116,7 @@ tuna_settings_default <- function() {
     n_vessels = 30,
     effort = 800,             # asymptotic number of sets per year (~19,000 in 30 years)
     effort_cv = 0.2,
-    q = 1.5,                  # mean catchability per set at full vertical overlap;
+    q = 3,                    # mean catchability per set at full vertical overlap;
                               #   with effort, sets how strongly stocks are fished down
     vessel_cv = 0.2,          # between-vessel CV in catchability
     tweedie_power = 1.2,      # set-level noise in catchability
