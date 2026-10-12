@@ -3,7 +3,7 @@
 \title{Standardise simulated CPUE with alternative targeting covariates}
 \usage{
 standardize_tuna_indices(simulation, models = NULL, spatial_res = 5, spatial_k = NULL, add_models = NULL, vessel_re = FALSE,
-  n_clusters = 3, seed = 1, engine = c("gam", "bam"))
+  n_clusters = 3, seed = 1, engine = c("gam", "bam"), label = NULL)
 }
 \arguments{
 \item{simulation}{Output of \code{\link{simulate_tuna}} or \code{\link{simulate_bathymetric}}.}
@@ -24,6 +24,8 @@ use any column of the returned \code{data}, including \code{Xs}, \code{Ys},
 \item{seed}{Seed for the k-means clustering.}
 \item{engine}{\code{"gam"} (default) or \code{"bam"} with \code{discrete = TRUE},
 which is much faster for large data sets.}
+\item{label}{Optional text appended to every model name, e.g. \code{" (1x1)"},
+to tell fits at different resolutions apart after \code{\link{bind_comparisons}}.}
 }
 \value{A list with \code{indices} (species, year, model, index with 95\% CI and
 the true index), \code{diagnostics} (root mean squared error of the log index

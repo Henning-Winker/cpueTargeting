@@ -43,6 +43,8 @@
 #' @param seed Seed for the k-means clustering.
 #' @param engine `"gam"` (default) or `"bam"` with `discrete = TRUE`, which is
 #'   much faster for large data sets.
+#' @param label Optional text appended to every model name, e.g. `" (1x1)"`,
+#'   to tell fits at different resolutions apart after [bind_comparisons()].
 #'
 #' @return A list with `indices` (species, year, model, index with 95% CI and
 #'   the true index), `diagnostics` (root mean squared error of the log index
@@ -62,7 +64,7 @@ standardize_tuna_indices <- function(simulation, models = NULL,
                                      spatial_res = 5, spatial_k = NULL,
                                      add_models = NULL, vessel_re = FALSE,
                                      n_clusters = 3, seed = 1,
-                                     engine = c("gam", "bam")) {
+                                     engine = c("gam", "bam"), label = NULL) {
   engine <- match.arg(engine)
   if (!requireNamespace("mgcv", quietly = TRUE)) {
     stop("Install the `mgcv` package to fit CPUE models.", call. = FALSE)
@@ -183,6 +185,10 @@ standardize_tuna_indices <- function(simulation, models = NULL,
     }
   }
   indices <- do.call(rbind, results)
+  if (!is.null(label)) {
+    indices$model <- paste0(indices$model, label)
+    names(formulas) <- paste0(names(formulas), label)
+  }
   indices$species <- factor(indices$species, levels = species)
   indices$model <- factor(indices$model, levels = names(formulas))
   err <- (log(indices$index) - log(indices$true))^2
@@ -208,4 +214,42 @@ tweedie_family <- function() {
     }
   }
   fam
+}
+
+#' Combine several standardisation results into one
+#'
+#' Useful to compare fits made with different settings (e.g. spatial
+#' resolutions) in one plot. Give each call a different `label` so that the
+#' model names are unique.
+#'
+#' @param ... Outputs of [standardize_tuna_indices()].
+#' @return An object like the output of [standardize_tuna_indices()] with the
+#'   `indices`, `diagnostics` and `formulas` of all inputs (`data` is taken
+#'   from the first).
+#' @export
+#' @examples
+#' \dontrun{
+#' a <- standardize_tuna_indices(om, models = c("Base", "HBF+S"))
+#' b <- standardize_tuna_indices(om, models = "Base+S", spatial_res = 1,
+#'                               label = " (1x1)")
+#' plot_diagnostics(bind_comparisons(a, b))
+#' }
+bind_comparisons <- function(...) {
+  fits <- list(...)
+  formulas <- unlist(lapply(fits, `[[`, "formulas"))
+  if (anyDuplicated(names(formulas))) {
+    stop("Model names are not unique; use `label` in standardize_tuna_indices().",
+         call. = FALSE)
+  }
+  stack <- function(what) {
+    out <- do.call(rbind, lapply(fits, function(f) {
+      x <- f[[what]]
+      x$model <- as.character(x$model)
+      x
+    }))
+    out$model <- factor(out$model, levels = names(formulas))
+    out
+  }
+  list(indices = stack("indices"), diagnostics = stack("diagnostics"),
+       formulas = formulas, data = fits[[1]]$data)
 }

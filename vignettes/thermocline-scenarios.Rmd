@@ -185,21 +185,34 @@ resolution.
 `engine = "bam"` uses `mgcv::bam(discrete = TRUE)` for speed; use
 `engine = "gam"` to reproduce the guideline approach exactly.
 
+For a clear contrast we fit `Base` (nominal), `Base+S` (space only) and the
+three targeting approaches with space, all at the 5 x 5 reporting
+resolution. As a control, `Base+S` is also fitted at 1 x 1 (the exact cell):
+how far does perfect spatial information get us without any information on
+targeting?
+
 ```{r standardise}
-targeting <- c("Base", "Cluster", "DPC", "HBF", "Cluster_HBF", "DPC_HBF")
-fit_scenario <- function(sim, models, ...) {
-  standardize_tuna_indices(sim, models = models, engine = "bam", ...)
+models <- c("Base", "Base+S", "Cluster+S", "DPC+S", "HBF+S")
+fit_scenario <- function(sim) {
+  main <- standardize_tuna_indices(sim, models = models, spatial_res = 5,
+                                   engine = "bam")
+  control <- standardize_tuna_indices(sim, models = "Base+S", spatial_res = 1,
+                                      engine = "bam", label = " (1x1)")
+  bind_comparisons(main, control)
 }
-fits <- lapply(sims, fit_scenario, models = paste0(targeting, "+S"), spatial_res = 5)
+fits <- lapply(sims, fit_scenario)
 fits$Moving$formulas
 ```
+
+The combinations `Cluster_HBF+S` and `DPC_HBF+S` can be added to `models`
+in the same way.
 
 # Step 7: compare the indices with the truth
 
 ## Indices
 
 ```{r indices, fig.height = 8}
-plot_indices(fits, models = c("Base+S", "Cluster+S", "DPC+S", "HBF+S"))
+plot_indices(fits, models = c("Base", "Base+S (1x1)", "Cluster+S", "DPC+S", "HBF+S"))
 ```
 
 ## Accuracy
@@ -257,10 +270,11 @@ every model with and without the smoother (e.g. `DPC` and `DPC+S`) at three
 reporting resolutions: 1 x 1 (exact cell), 5 x 5 and 10 x 10 cells.
 
 ```{r spatial-resolution}
+targeting <- c("Base", "Cluster", "DPC", "HBF")
 resolutions <- c("1x1" = 1, "5x5" = 5, "10x10" = 10)
 fits_res <- lapply(resolutions, function(res) {
-  fit_scenario(sims$Moving, models = c(targeting, paste0(targeting, "+S")),
-               spatial_res = res)
+  standardize_tuna_indices(sims$Moving, models = c(targeting, paste0(targeting, "+S")),
+                           spatial_res = res, engine = "bam")
 })
 ```
 

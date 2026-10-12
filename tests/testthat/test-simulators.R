@@ -108,3 +108,16 @@ test_that("effect plots are built", {
   expect_s3_class(plot_thermocline_effect(), "ggplot")
   expect_s3_class(plot_availability(sim), "ggplot")
 })
+
+test_that("fits at different resolutions can be combined", {
+  skip_if_not_installed("mgcv")
+  sim <- simulate_tuna(small_tuna(), seed = 7, plots = FALSE)
+  a <- standardize_tuna_indices(sim, models = c("Base", "HBF+S"), engine = "bam")
+  b <- standardize_tuna_indices(sim, models = "Base+S", spatial_res = 1,
+                                engine = "bam", label = " (1x1)")
+  ab <- bind_comparisons(a, b)
+  expect_equal(levels(ab$indices$model), c("Base", "HBF+S", "Base+S (1x1)"))
+  expect_equal(nrow(ab$diagnostics), 4 * 3)
+  expect_error(bind_comparisons(a, a), "not unique")
+  expect_s3_class(plot_diagnostics(ab), "ggplot")
+})

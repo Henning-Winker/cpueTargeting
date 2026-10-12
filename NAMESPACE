@@ -2,6 +2,7 @@
 
 export(as_set_data)
 export(bathymetric_settings)
+export(bind_comparisons)
 export(plot_availability)
 export(plot_cluster_2014)
 export(plot_diagnostics)
