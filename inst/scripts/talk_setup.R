@@ -4,7 +4,9 @@
 # Run the scripts from the package folder (the git repository), e.g.
 #   source("inst/scripts/run_tuna_flat.R")
 # Results are saved to `rdata_dir` (default ../rdata, i.e. next to the
-# repository), so they are not pushed to GitHub. Parallel runs use the
+# repository), so they are not pushed to GitHub. To save them elsewhere, e.g.
+# in your presentation folder, set before sourcing:
+#   options(cpueTargeting.rdata = "C:/path/to/presentation/rdata") Parallel runs use the
 # INSTALLED package, so install the current version first:
 #   devtools::install()   (or remotes::install_github(..., ref = "<branch>"))
 

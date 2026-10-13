@@ -3,7 +3,10 @@
 # ../rdata. Run from the package folder:
 #   source("inst/scripts/render_docs.R")
 
-options(cpueTargeting.rdata = normalizePath("../rdata", mustWork = TRUE))
+# Same folder as used by the simulation scripts (set the option before
+# sourcing if the results are elsewhere, e.g. in your presentation folder)
+options(cpueTargeting.rdata = normalizePath(getOption("cpueTargeting.rdata", "../rdata"),
+                                            mustWork = TRUE))
 vignettes <- c(bathymetric = "vignettes/bathymetric-example.Rmd",
                flat_vs_contrast = "vignettes/tuna-flat-vs-contrast.Rmd")
 for (v in vignettes) {
