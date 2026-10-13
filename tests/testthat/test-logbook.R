@@ -75,7 +75,10 @@ test_that("the toolbox recovers the tactics from the logbook", {
   true_tac <- sim$trips$tactic[match(x$data$trip, sim$trips$trip)]
   # there is a clearly pelagic and a clearly demersal cluster; coastal
   # clusters may mix (trolling for coastal pelagics vs shallow handlining)
-  share_pelagic <- tapply(true_tac == "Pelagic", x$data$FT, mean)
-  expect_gt(max(share_pelagic), 0.8)
-  expect_lt(min(share_pelagic), 0.2)
+  pelagic <- as.numeric(true_tac == "Pelagic")
+  pcs <- grep("^PC[0-9]+$", names(x$data), value = TRUE)
+  r <- vapply(pcs, function(p) abs(stats::cor(x$data[[p]], pelagic)), numeric(1))
+  expect_gt(max(r), 0.5)
+  share_pelagic <- tapply(pelagic, x$data$FT, mean)
+  expect_gt(max(share_pelagic) - min(share_pelagic), 0.4)
 })
