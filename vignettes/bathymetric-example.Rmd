@@ -17,14 +17,16 @@ knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
                       fig.width = 8, fig.height = 5, dpi = 110)
 library(cpueTargeting)
 library(ggplot2)
-# Pre-run results (see inst/scripts/run_bathymetric.R); without them the code
-# is shown but not run.
+# Results: loaded from rdata/ if pre-run (inst/scripts/run_bathymetric.R);
+# otherwise computed here if options(cpueTargeting.run_vignettes = TRUE),
+# else the code is only shown.
 rdata <- getOption("cpueTargeting.rdata", "../rdata")
 f_single <- file.path(rdata, "bathymetric_single.rds")
 f_reps <- file.path(rdata, "bathymetric_replicates.rds")
-have_single <- file.exists(f_single)
+preloaded <- file.exists(f_single)
+have_single <- preloaded || isTRUE(getOption("cpueTargeting.run_vignettes", FALSE))
 have_reps <- file.exists(f_reps)
-if (have_single) {
+if (preloaded) {
   x <- readRDS(f_single)
   sim <- x$sim
   fit <- x$fit
@@ -49,7 +51,10 @@ The code for the single run (seed 123); all results shown below were pre-run
 with `inst/scripts/run_bathymetric.R`:
 
 ```{r simulate, eval = FALSE}
-sim <- simulate_bathymetric(seed = 123)
+sim <- simulate_bathymetric(seed = 123, plots = FALSE)
+```
+
+```{r run-live-sim, include = FALSE, eval = have_single && !preloaded, ref.label = "simulate"}
 ```
 
 ```{r om-plots, eval = have_single}
@@ -89,6 +94,9 @@ fit_re <- standardize_cpue(sim, models = "DPC+S",
   n_pc = 2, n_clusters = 3, spatial_res = 5, spatial_k = 8, engine = "gam",
   vessel_re = TRUE, label = " + vessel RE")
 fit <- bind_comparisons(fit, fit_re)
+```
+
+```{r run-live-fit, include = FALSE, eval = have_single && !preloaded, ref.label = "standardise"}
 ```
 
 ```{r formulas, eval = have_single}
