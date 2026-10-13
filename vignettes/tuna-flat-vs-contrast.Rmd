@@ -66,9 +66,16 @@ contrast_settings$price <- prices
 flat_settings <- modifyList(contrast_settings, list(q = 0.2, B_start = rep(1, 4)))
 moving <- list(thermocline_annual_sd = 15, thermocline_annual_field_sd = 10)
 
-sim_flat <- simulate_tuna(modifyList(flat_settings, moving), seed = 123)
-sim_contrast <- simulate_tuna(modifyList(contrast_settings, moving), seed = 123)
+scenarios_flat <- list(Fixed = flat_settings,
+                       Moving = modifyList(flat_settings, moving))
+flat <- list(sims = lapply(scenarios_flat, simulate_tuna, seed = 123))
+# same for `contrast` with contrast_settings
 ```
+
+The pre-run results (`rdata/tuna_flat_single.rds` and
+`rdata/tuna_contrast_single.rds`, from `inst/scripts/`) are loaded as `flat`
+and `contrast`, each a list with `sims` and `fits` for the `Fixed` and
+`Moving` scenarios, e.g. `flat$sims$Moving` and `flat$fits$Moving`.
 
 The prices switch the fleet from the cool south (ALB) to the warm north (BET)
 in year 11, which changes both where and how deep it fishes, and split it
@@ -97,11 +104,14 @@ composition), DPC (3 principal components, and 2 for comparison) and HBF (a
 factor for the gear).
 
 ```{r fit-code, eval = FALSE}
-fit <- standardize_cpue(sim_flat, models = models, spatial_res = 5, n_pc = 3,
-                        engine = "bam")
-fit_2pc <- standardize_cpue(sim_flat, models = "DPC+S", n_pc = 2,
-                            label = " (2 PCs)", engine = "bam")
-fit <- bind_comparisons(fit, fit_2pc)
+fit_one <- function(sim) {
+  fit <- standardize_cpue(sim, models = models, spatial_res = 5, n_pc = 3,
+                          engine = "bam")
+  fit_2pc <- standardize_cpue(sim, models = "DPC+S", n_pc = 2,
+                              label = " (2 PCs)", engine = "bam")
+  bind_comparisons(fit, fit_2pc)
+}
+flat$fits <- lapply(flat$sims, fit_one)
 ```
 
 ```{r indices, eval = have_single, fig.height = 7}
