@@ -5,7 +5,7 @@
 plot_diagnostics(comparison, models = NULL)
 }
 \arguments{
-\item{comparison}{Output of \code{\link{standardize_tuna_indices}}, or a named
+\item{comparison}{Output of \code{\link{standardize_cpue}}, or a named
 list of such outputs (one per scenario), shown as differently coloured bars.}
 \item{models}{Optional subset of model names to show.}
 }

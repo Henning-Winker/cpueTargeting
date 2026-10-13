@@ -2,18 +2,22 @@
 \alias{run_replicates}
 \title{Run scenarios over several seeds (replicates)}
 \usage{
-run_replicates(scenarios, seeds, models, extra = NULL, file = NULL, ...)
+run_replicates(scenarios, seeds, models, extra = NULL, file = NULL,
+  simulator = simulate_tuna, ...)
 }
 \arguments{
 \item{scenarios}{Named list of settings lists (see \code{\link{tuna_settings}}).}
 \item{seeds}{Integer vector of seeds.}
-\item{models}{Models passed to \code{\link{standardize_tuna_indices}}.}
+\item{models}{Models passed to \code{\link{standardize_cpue}}.}
 \item{extra}{Optional list of extra standardisation calls, each a list of
-arguments for \code{\link{standardize_tuna_indices}} (e.g. a 1 x 1 control
+arguments for \code{\link{standardize_cpue}} (e.g. a 1 x 1 control
 with a \code{label}); their results are added with
 \code{\link{bind_comparisons}}.}
 \item{file}{Optional \code{.rds} file to save and resume from.}
-\item{...}{Further arguments for \code{\link{standardize_tuna_indices}}
+\item{simulator}{Simulation function, \code{\link{simulate_tuna}} (default)
+or \code{\link{simulate_bathymetric}}; \code{scenarios} must hold matching
+settings.}
+\item{...}{Further arguments for \code{\link{standardize_cpue}}
 (e.g. \code{spatial_res}, \code{n_pc}, \code{engine}).}
 }
 \value{A list with \code{diagnostics} and \code{indices}, each with columns

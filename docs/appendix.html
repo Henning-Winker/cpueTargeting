@@ -237,8 +237,13 @@ Gaussian random field \(\eta\) (SD 1 &deg;C, scale 6 cells). Habitat suitability
 preference, \(h_p(s) = \mathrm{N}\big(\mathrm{SST}(s);\, \mathrm{SST}_p^{opt},\, \tau_p\big)\),
 used in the movement model of A.2 in place of the depth and range terms, with mean movement
 distance \(\lambda_p\) = 1.5 cells. Wide tolerances \(\tau_p\) keep the species mixed in space.
-Initial biomass equals carrying capacity \(B_{0,p}\varepsilon_p\), distributed at the stable
-distribution.</p>
+Carrying capacity \(B_{0,p}\varepsilon_p\) is distributed at the stable distribution, and
+stocks start at a fraction \(\delta_p\) of it (<code>B_start</code>; 1 = unfished). By default
+\(\delta\) = 0.6, 0.7, 0.2 and 0.9 (YFT, BET, BFT, ALB), with \(q\) = 3. Effort follows the
+logistic increase of A.3 towards 800 sets per year but is cut by 25% in years 21-30
+(<code>effort</code> can be one value per year). The true trends then differ between species:
+ALB is fished down to about half while targeted, BET declines steadily, BFT recovers from 20%
+of carrying capacity and declines again once targeted, and YFT dips and recovers.</p>
 
 <h3>B.2 Vertical distribution and the thermocline</h3>
 <p>The water column (0-500 m) is divided into 10-m bins \(j\) with mid-depths \(z_j\). In cell
@@ -288,7 +293,7 @@ A_p(u) = \frac{100\ \mathrm{m}}{\Delta z} \sum_j g_u(z_j)\, f_p(z_j \mid s,t),
 <p>scaled so that \(A_p = 1\) corresponds to fish spread evenly over a 100-m layer fished by all
 hooks (\(\Delta z\) = 10 m). The catchability of the set is
 \(q_p(u) = \tilde q_p(u)\, A_p(u)\), where \(\tilde q_p(u)\) is the vessel catchability with
-Tweedie error of A.5 (mean \(q\) = 0.2). Catch is then calculated as in A.5.</p>
+Tweedie error of A.5 (mean \(q\) = 3). Catch is then calculated as in A.5.</p>
 
 <h3>B.5 Targeting: where and how deep</h3>
 <p>Skippers evaluate the expected value of each cell \(s\) and HBF level \(h\) in year \(t\),</p>
@@ -304,10 +309,13 @@ P(h \mid s,t) \;\propto\; \left(\frac{V(s,h,t)}{\max_{h'} V(s,h',t)}\right)^{1/\
 \]
 <p>where \(\tau\) (<code>HBF_choice_temp</code> = 0.15) controls how strictly the best gear is
 chosen (vertical targeting). Prices change in three 10-year blocks: albacore (shallow, cool
-water), then bigeye (deep, warm water), then southern bluefin (deep, cool water). This loosely
-follows the historical shift from albacore to bigeye targeting in the Japanese longline fleet
-(Hoyle and Okamoto 2013) and the later interest in southern bluefin as it recovers. The first
-switch changes both where and how deep the fleet fishes; the second mainly where.</p>
+water), then bigeye (deep, warm water), then bigeye and southern bluefin together (deep water, warm north and
+cool south). This loosely follows the historical shift from albacore to bigeye targeting in the
+Japanese longline fleet (Hoyle and Okamoto 2013) and the later interest in southern bluefin as it
+recovers. The first switch changes both where and how deep the fleet fishes; in the last decade
+the fleet splits between two deep targets in different areas. Prices of the target species are
+four times those of the others (<code>tuna_settings("mild")</code>: twice, with \(\kappa\) = 1.25
+and \(\tau\) = 0.2).</p>
 
 <h3>B.6 Data and truth</h3>
 <p>For each set and species, <code>Data</code> contains year, set and vessel identifiers, true
@@ -322,20 +330,21 @@ habitat-based standardisation). The true index is the total biomass at the start
 <tr><th>Setting</th><th>Symbol</th><th>YFT</th><th>BET</th><th>BFT</th><th>ALB</th></tr>
 <tr><td>Price, years 1-10</td><td>\(\phi_p\)</td><td class="num">1.0</td><td class="num">0.5</td><td class="num">0.5</td><td class="num">2.0</td></tr>
 <tr><td>Price, years 11-20</td><td>\(\phi_p\)</td><td class="num">1.0</td><td class="num">2.0</td><td class="num">1.0</td><td class="num">0.5</td></tr>
-<tr><td>Price, years 21-30</td><td>\(\phi_p\)</td><td class="num">0.5</td><td class="num">1.0</td><td class="num">2.0</td><td class="num">0.5</td></tr>
+<tr><td>Price, years 21-30</td><td>\(\phi_p\)</td><td class="num">0.5</td><td class="num">2.0</td><td class="num">2.0</td><td class="num">0.5</td></tr>
 <tr><td>Preferred SST (&deg;C)</td><td>\(\mathrm{SST}_p^{opt}\)</td><td class="num">25</td><td class="num">24</td><td class="num">20</td><td class="num">21</td></tr>
 <tr><td>SST tolerance (&deg;C)</td><td>\(\tau_p\)</td><td class="num">3</td><td class="num">3.5</td><td class="num">3</td><td class="num">3.5</td></tr>
 <tr><td>Mean depth (m)</td><td>\(\mu_p\)</td><td class="num">90</td><td class="num">260</td><td class="num">240</td><td class="num">110</td></tr>
 <tr><td>SD of depth (m)</td><td>\(\sigma_p\)</td><td class="num">60</td><td class="num">50</td><td class="num">55</td><td class="num">60</td></tr>
 <tr><td>Carrying capacity (t)</td><td>\(B_{0,p}\)</td><td class="num">400 000</td><td class="num">300 000</td><td class="num">150 000</td><td class="num">350 000</td></tr>
-<tr><td>Intrinsic growth rate</td><td>\(r_p\)</td><td class="num">0.30</td><td class="num">0.18</td><td class="num">0.12</td><td class="num">0.18</td></tr>
+<tr><td>Intrinsic growth rate</td><td>\(r_p\)</td><td class="num">0.30</td><td class="num">0.18</td><td class="num">0.25</td><td class="num">0.25</td></tr>
+<tr><td>Initial biomass / capacity</td><td>\(\delta_p\)</td><td class="num">0.6</td><td class="num">0.7</td><td class="num">0.2</td><td class="num">0.9</td></tr>
 </table></div>
 <div class="table-wrap"><table>
 <tr><th>Group</th><th>Settings</th></tr>
 <tr><td>Space and time</td><td>50 x 50 cells, 30 years, reported positions on 5 x 5 blocks</td></tr>
 <tr><td>Environment</td><td>SST mean 23 &deg;C, gradient 10 &deg;C, noise SD 1 &deg;C (scale 6); thermocline fixed pattern SD 30 m (scale 8), annual shift and annual pattern 0 by default</td></tr>
 <tr><td>Gear</td><td>HBF 5, 10, 15, 20 with median hook depths 110, 160, 205, 250 m; set-level CV 0.2; within-set CV 0.35</td></tr>
-<tr><td>Fleet</td><td>30 vessels, up to 800 sets per year (~19 000 in total), \(q\) = 0.2, vessel CV 0.2, Tweedie power 1.2 and dispersion 0.1, \(\kappa\) = 1.5, \(\tau\) = 0.15</td></tr>
+<tr><td>Fleet</td><td>30 vessels, logistic increase towards 800 sets per year, cut by 25% in years 21-30 (~17 000 in total), \(q\) = 3, vessel CV 0.2, Tweedie power 1.2 and dispersion 0.1, \(\kappa\) = 1.5, \(\tau\) = 0.15</td></tr>
 </table></div>
 
 <h3>B.8 What the extension adds, in short</h3>
@@ -355,7 +364,7 @@ habitat-based standardisation). The true index is the total biomass at the start
 following the workflow of the WKBMSYSPICT CPUE guidelines (Winker and Cardinale 2022). This
 appendix describes the general model, the data processing behind each way of accounting for
 targeting, and how each model is specified in R. All models are fitted with
-<code>standardize_tuna_indices()</code>, which uses the <code>mgcv</code> package (Wood 2017).</p>
+<code>standardize_cpue()</code>, which uses the <code>mgcv</code> package (Wood 2017).</p>
 
 <h3>C.1 General model</h3>
 <p>Let \(y_{i}\) be the catch of the species of interest in set \(i\), fished in year
@@ -479,7 +488,7 @@ fit &lt;- gam(y ~ year + s(lon, lat, k = 8) + s(PC1, k = 3) + s(PC2, k = 3) +
 fit &lt;- bam(y ~ year + s(lon, lat, k = 8) + HBF + s(vessel, bs = "re"),
            family = tw(), method = "fREML", discrete = TRUE, data = sets)</code></pre>
 <p>The same comparison with the package:</p>
-<pre><code>fits &lt;- standardize_tuna_indices(
+<pre><code>fits &lt;- standardize_cpue(
   sim,
   models      = c("Base", "Base+S", "Cluster+S", "DPC+S", "HBF+S"),
   spatial_res = 5,      # reported blocks of 5 x 5 cells
@@ -490,7 +499,7 @@ fit &lt;- bam(y ~ year + s(lon, lat, k = 8) + HBF + s(vessel, bs = "re"),
   engine      = "bam")  # "gam" (REML) or "bam" (fREML, discrete)
 fits$formulas           # the formulae actually fitted
 # further models, e.g. an HBF x period interaction:
-standardize_tuna_indices(sim, models = "HBF+S",
+standardize_cpue(sim, models = "HBF+S",
   add_models = c(HBF_period = "year + s(Xs, Ys, k = 8) + HBF_period"))</code></pre>
 
 <h3>C.6 From model to index, and how accuracy is measured</h3>

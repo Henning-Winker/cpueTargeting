@@ -1,0 +1,182 @@
+---
+title: "Tuna longline targeting: flat versus contrasting true trends"
+author: "Henning Winker"
+output:
+  rmarkdown::html_document:
+    toc: true
+    toc_float: true
+    theme: readable
+vignette: >
+  %\VignetteIndexEntry{Tuna longline targeting: flat versus contrasting true trends}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
+                      fig.width = 9, fig.height = 5, dpi = 110)
+library(cpueTargeting)
+library(ggplot2)
+# Pre-run results (see inst/scripts/run_tuna_flat.R and run_tuna_contrast.R);
+# without them the code is shown but not run.
+rdata <- getOption("cpueTargeting.rdata", "../rdata")
+files <- file.path(rdata, c(flat = "tuna_flat_single.rds",
+                            contrast = "tuna_contrast_single.rds",
+                            flat_reps = "tuna_flat_replicates.rds",
+                            contrast_reps = "tuna_contrast_replicates.rds"))
+names(files) <- c("flat", "contrast", "flat_reps", "contrast_reps")
+have_single <- all(file.exists(files[c("flat", "contrast")]))
+have_reps <- all(file.exists(files[c("flat_reps", "contrast_reps")]))
+if (have_single) {
+  flat <- readRDS(files[["flat"]])
+  contrast <- readRDS(files[["contrast"]])
+}
+models <- c("Base", "Base+S", "Cluster+S", "DPC+S", "HBF+S")
+```
+
+In a tuna longline fishery, skippers target species not only through *where*
+they fish but also through *how deep* they set their hooks, which depends on
+the number of hooks between floats (HBF) and on the depth of the thermocline.
+This vignette compares the standardisation methods in two scenarios with
+**identical targeting** that differ only in the true trends:
+
+| Scenario | Stocks | True trends |
+|---|---|---|
+| **Flat** | unfished at the start, lightly fished (`q = 0.2`, `B_start = 1`) | nearly flat |
+| **Contrasting** | partly fished at the start, fished harder (package defaults) | diverging between species: BFT recovers, BET declines, ... |
+
+With flat trends, every change in the catch composition is caused by
+targeting. With contrasting trends, the composition also changes because the
+species' relative abundances change.
+
+Positions are reported as 5 x 5 blocks: logbooks rarely report positions at
+the scale at which fish and fleets interact, and a longline set may span a
+front. The thermocline moves between years in the results shown here
+(`Moving`); results for a fixed thermocline are in the replicates.
+
+# Settings
+
+```{r settings, eval = FALSE}
+prices <- matrix(c(rep(c(0.3, 0.2, 1.0, 2.0), 10),   # years 1-10: ALB (+ BFT)
+                   rep(c(1.5, 2.5, 0.7, 0.3), 10),   # years 11-20: BET (+ YFT)
+                   rep(c(1.0, 2.0, 1.5, 0.5), 10)),  # years 21-30: BET / BFT
+                 ncol = 4, byrow = TRUE)             # columns: YFT, BET, BFT, ALB
+contrast_settings <- tuna_settings()
+contrast_settings$price <- prices
+flat_settings <- modifyList(contrast_settings, list(q = 0.2, B_start = rep(1, 4)))
+moving <- list(thermocline_annual_sd = 15, thermocline_annual_field_sd = 10)
+
+sim_flat <- simulate_tuna(modifyList(flat_settings, moving), seed = 123)
+sim_contrast <- simulate_tuna(modifyList(contrast_settings, moving), seed = 123)
+```
+
+The prices switch the fleet from the cool south (ALB) to the warm north (BET)
+in year 11, which changes both where and how deep it fishes, and split it
+between BET in the north and BFT in the south in year 21, which changes only
+where it fishes.
+
+```{r vertical, fig.height = 6}
+plot_tuna_vertical_distributions()
+```
+
+# Nominal CPUE versus the truth
+
+```{r nominal, eval = have_single}
+plot_om(flat$sims$Moving)$CPUE + ggtitle("Flat true trends")
+plot_om(contrast$sims$Moving)$CPUE + ggtitle("Contrasting true trends")
+```
+
+The same targeting produces jumps in nominal CPUE at years 11 and 21 in both
+scenarios; only the true trends (blue) differ.
+
+# Standardised indices
+
+All models are Tweedie GAMs with `year` plus a targeting term (`+S`: spatial
+smoother on the 5 x 5 blocks): Base (none), Cluster (4 clusters of the catch
+composition), DPC (3 principal components, and 2 for comparison) and HBF (a
+factor for the gear).
+
+```{r fit-code, eval = FALSE}
+fit <- standardize_cpue(sim_flat, models = models, spatial_res = 5, n_pc = 3,
+                        engine = "bam")
+fit_2pc <- standardize_cpue(sim_flat, models = "DPC+S", n_pc = 2,
+                            label = " (2 PCs)", engine = "bam")
+fit <- bind_comparisons(fit, fit_2pc)
+```
+
+```{r indices, eval = have_single, fig.height = 7}
+fits <- list(Flat = flat$fits$Moving, Contrasting = contrast$fits$Moving)
+plot_indices(fits, models = models, type = "smooth")
+```
+
+```{r rmse, eval = have_single}
+plot_diagnostics(fits)
+```
+
+# What do the PCs capture?
+
+```{r pcs, eval = have_single}
+pp <- plot_pcs(flat$fits$Moving, pcs = c("PC1", "PC2", "PC3"))
+pp$space
+pp$depth
+pp$time
+```
+
+PC1 is the north-south gradient (where), PC2 the depth of the hooks (how
+deep): the PCA separates spatial and vertical targeting without being told
+that depth exists. With flat trends, the PCs change only in steps at the
+price switches. With contrasting trends, a gradual drift is added as the
+species' relative abundances change:
+
+```{r pcs-contrast, eval = have_single}
+plot_pcs(contrast$fits$Moving, pcs = c("PC1", "PC2", "PC3"))$time
+```
+
+# What do the clusters capture?
+
+```{r clusters, eval = have_single}
+pc <- plot_clusters(flat$fits$Moving, switch_years = c(10.5, 20.5))
+pc$composition
+pc$time
+pc$depth
+pc$pca
+```
+
+# Replicates: flat versus contrasting trends
+
+20 seeds of each scenario, with a fixed and a moving thermocline
+(`inst/scripts/run_tuna_flat.R` and `run_tuna_contrast.R`):
+
+```{r replicates, eval = have_reps, fig.height = 7}
+reps <- rbind(
+  data.frame(readRDS(files[["flat_reps"]])$diagnostics, trend = "Flat trends"),
+  data.frame(readRDS(files[["contrast_reps"]])$diagnostics, trend = "Contrasting trends"))
+reps$trend <- factor(reps$trend, levels = c("Flat trends", "Contrasting trends"))
+reps$model <- factor(reps$model, levels = unique(as.character(reps$model)))
+
+ggplot(reps, aes(x = model, y = rmse_log, fill = trend)) +
+  geom_boxplot(outlier.size = 0.6) +
+  facet_grid(species ~ scenario, scales = "free_y") +
+  labs(x = NULL, y = "RMSE of log index", fill = NULL,
+       title = "Same targeting: flat versus contrasting true trends") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "bottom")
+```
+
+# What to take from this
+
+* **Space fixes *where*, not *how deep*.** The spatial term removes much of
+  the bias from the north-south switches, but not the vertical targeting of
+  BET.
+* **HBF works only while the depth of the fish is stable.** With a moving
+  thermocline, the same HBF fishes at different depths relative to the fish
+  each year.
+* **The catch composition captures both**, because it reflects where and how
+  deep each set actually fished. With flat trends, DPC is close to the truth
+  for all species.
+* **But the catch composition also carries abundance.** When species'
+  relative abundances change persistently, the PCs absorb part of the real
+  trend of the species whose relative abundance changes most, and more PCs
+  absorb more. Coarser, discrete clusters are less affected.
+* Plotting the PCs over time helps to tell the two apart: targeting changes
+  are steps at known changes in the fishery, abundance changes are gradual.

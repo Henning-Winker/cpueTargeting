@@ -5,7 +5,7 @@
 select_models(comparison, models)
 }
 \arguments{
-\item{comparison}{Output of \code{\link{standardize_tuna_indices}} or
+\item{comparison}{Output of \code{\link{standardize_cpue}} or
 \code{\link{bind_comparisons}}.}
 \item{models}{Model names to keep.}
 }

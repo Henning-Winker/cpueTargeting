@@ -73,17 +73,32 @@ In brief:
 * The catchability of a set for a species is the vessel's catchability times
   the overlap between hook and fish depth distributions.
 * Prices favour ALB in years 1-10 (shallow, cool water), BET in years 11-20
-  (deep, warm water) and BFT in years 21-30 (deep, cool water), loosely
-  following the historical shift from albacore to bigeye targeting. The first
-  switch changes both location and depth, the second mainly location.
+  (deep, warm water) and both BET and BFT in years 21-30 (deep water, warm
+  north and cool south), loosely following the historical shift from
+  albacore to bigeye targeting. The first switch changes both location and
+  depth; in the last decade the fleet splits between two deep targets in
+  different areas.
   Skippers choose where to fish (spatial targeting) and which HBF to use
   (vertical targeting) from the expected catch value.
-* About 800 sets per year at the end of the series (~19,000 sets in total).
+* Effort increases towards 800 sets per year and is cut by 25% in years
+  21-30 (~17,000 sets in total).
+* True trends differ between species. `B_start` sets where each stock
+  starts (YFT 0.6, BET 0.7, BFT 0.2, ALB 0.9 of carrying capacity) and `q`
+  how hard it is fished. ALB is fished down to about half while targeted and
+  then levels off; BET declines steadily to about 30%; BFT recovers from 20%
+  to almost 50% and declines again once it is targeted; YFT dips and then
+  recovers once effort is cut. Use `effort`, `q`, `B_start` and `r` to change
+  these trends.
 
-The species profiles (first panel) and the expected hook profiles for each
-HBF:
+Where the hooks fish and where the fish are. Each panel is one HBF level:
+the grey bars show the expected depth distribution of the hooks, the
+coloured areas the depth distribution of each species. Where a species'
+area overlaps the grey bars, a set with that HBF can catch it; the numbers
+give the resulting vertical availability, which multiplies catchability in
+the operating model. Shallow gear (HBF 5) catches mostly YFT and ALB; deep
+gear (HBF 20) catches relatively more BET and BFT.
 
-```{r profiles, fig.height = 4}
+```{r profiles, fig.height = 4.5}
 plot_tuna_vertical_distributions()
 ```
 
@@ -97,7 +112,7 @@ defaults, change elements with `modifyList()` (or `$`), and pass the list to
 s <- tuna_settings()
 str(s)                                        # all settings and defaults
 s2 <- modifyList(s, list(effort = 500, set_cv = 0.4))
-sim <- simulate_tuna(s2, seed = 1)
+sim <- simulate_tuna(s2, seed = 123)
 ```
 
 The settings come in five groups. Species-specific settings are vectors in
@@ -114,13 +129,14 @@ and one column per species. The default has three 10-year blocks:
 |---|---|---|---|
 | 1-10 | ALB | shallow, cool south | shallow gear, south |
 | 11-20 | BET | deep, warm north | deep gear, north |
-| 21-30 | BFT | deep, cool south | deep gear, south |
+| 21-30 | BET and BFT | deep, warm north and cool south | deep gear, north and south |
 
 This loosely follows the historical shift from albacore (canning) to bigeye
 (sashimi) targeting in the Japanese longline fleet (Hoyle and Okamoto 2013),
 followed by increasing interest in southern bluefin as it recovers. The
-first switch changes both where and how deep the fleet fishes; the second
-mainly where, which helps to separate spatial from vertical targeting.
+first switch changes both where and how deep the fleet fishes. In the last
+decade both targets are deep, so the fleet splits by area rather than by
+depth, which helps to separate spatial from vertical targeting.
 
 ```{r prices}
 tuna_settings()$price[c(1, 11, 21), ]   # one row from each block
@@ -132,19 +148,38 @@ ALB to BET:
 ```{r prices-custom, eval = FALSE}
 s <- tuna_settings()
 s$price <- matrix(c(rep(c(1.0, 0.5, 0.5, 2.0), 15),   # years 1-15: ALB
-                    rep(c(1.0, 2.0, 1.0, 0.5), 15)),  # years 16-30: BET
+                    rep(c(1.0, 2.0, 1.0, 0.5), 15)),   # years 16-30: BET
                   ncol = 4, byrow = TRUE)              # columns: YFT, BET, BFT, ALB
 ```
 
 Constant prices (the same row every year) switch off targeting changes,
 which is a useful control scenario.
 
+**Presets.** The default has strong targeting: the target species is worth
+four times as much as the others and skippers respond almost
+deterministically, so nominal CPUE is biased by about 15-20%, enough to
+separate the standardisation methods in a single run. Two alternatives:
+
+* `tuna_settings("mild")`: the same stocks and fishery but moderate
+  targeting (prices differ by a factor of two, skippers respond less
+  strictly). Nominal CPUE is only slightly biased and the methods are hard
+  to tell apart without replicates: when targeting is weak, the choice of
+  method matters less than noise.
+* `tuna_settings("stress_test")`: strong targeting of lightly fished,
+  unfished stocks (`q = 0.2`, `B_start = 1`), the settings of the first
+  runs. True trends are nearly flat, so nominal CPUE changes mainly through
+  targeting.
+
+```{r presets, eval = FALSE}
+base <- tuna_settings("mild")   # instead of tuna_settings() in Step 1
+```
+
 How strongly skippers respond:
 
 | Setting | Effect | Default |
 |---|---|---|
-| `preference` | how strongly effort concentrates on high-value cells (spatial targeting); 0 = effort spread evenly | 1.5 |
-| `HBF_choice_temp` | how strictly skippers pick the best HBF (vertical targeting); small = strict, large = nearly random | 0.15 |
+| `preference` | how strongly effort concentrates on high-value cells (spatial targeting); 0 = effort spread evenly | 1.5 (mild: 1.25) |
+| `HBF_choice_temp` | how strictly skippers pick the best HBF (vertical targeting); small = strict, large = nearly random | 0.15 (mild: 0.2) |
 
 ## Species habitat
 
@@ -152,7 +187,8 @@ How strongly skippers respond:
 |---|---|---|
 | `sst_opt`, `sst_tol` | preferred SST and tolerance (deg C): horizontal distribution | 25, 24, 20, 21; 3, 3.5, 3, 3.5 |
 | `depth_mu`, `depth_sd` | mean and SD of the depth profile (m): vertical distribution | 90, 260, 240, 110; 60, 50, 55, 60 |
-| `B0`, `r` | carrying capacity (t) and intrinsic growth rate | 400, 300, 150, 350 thousand t; 0.30, 0.18, 0.12, 0.18 |
+| `B0`, `r` | carrying capacity (t) and intrinsic growth rate | 400, 300, 150, 350 thousand t; 0.30, 0.18, 0.25, 0.25 |
+| `B_start` | initial biomass as a fraction of carrying capacity | 0.6, 0.7, 0.2, 0.9 |
 | `dispersal` | mean movement distance per year (cells) | 1.5 |
 
 Closer `sst_opt` values or larger `sst_tol` mix the species more in space;
@@ -186,8 +222,8 @@ the contrast between shallow and deep gear. Check the result with
 | Setting | Meaning | Default |
 |---|---|---|
 | `n_years` | number of years (the `price` matrix needs at least as many rows) | 30 |
-| `effort` | sets per year at the end of the series (effort increases logistically) | 800 |
-| `n_vessels`, `q`, `vessel_cv` | number of vessels, mean catchability, between-vessel CV | 30, 0.2, 0.2 |
+| `effort` | sets per year: one value per year, or a single value for a logistic increase towards it | logistic increase towards 800, cut by 25% in years 21-30 |
+| `n_vessels`, `q`, `vessel_cv` | number of vessels, mean catchability, between-vessel CV | 30, 3, 0.2 |
 | `tweedie_power`, `tweedie_phi` | set-level noise in catchability | 1.2, 0.1 |
 | `obs_res` | positions in `Data` are reported as centres of `obs_res` x `obs_res` blocks | 5 |
 
@@ -207,7 +243,7 @@ occasionally 50 m, a realistic range for interannual changes in thermocline
 depth over most of the tropical Pacific.
 
 ```{r scenarios}
-base <- tuna_settings()      # effort = 800 sets per year by default
+base <- tuna_settings()      # effort: up to ~700 sets per year, cut by 25% after year 20
 
 scenarios <- list(
   Fixed  = modifyList(base, list(thermocline_sd = 30)),
@@ -223,7 +259,7 @@ With the same seed, both runs share the SST field, the fixed thermocline
 pattern and the vessels.
 
 ```{r simulate}
-seed <- 1
+seed <- 123
 sims <- lapply(scenarios, simulate_tuna, seed = seed)
 ```
 
@@ -284,7 +320,7 @@ plot_thermocline_effect(shifts = c(-30, 0, 30))
 
 ## Gear use
 
-The fleet sets deeper gear when BET is valuable (years 11-20):
+The fleet sets deeper gear once BET is valuable (from year 11):
 
 ```{r hbf-use, fig.height = 3.5}
 sims$Fixed$Plots$HBF + ggtitle("Fixed: proportion of sets by HBF")
@@ -322,15 +358,15 @@ Each model is `year` plus a targeting term; `+S` adds a spatial smoother
 | DPC+S | `s(PC1) + s(PC2) + s(PC3)` of catch composition | continuous | all species' catches |
 | HBF+S | HBF factor | gear covariate | HBF from logbooks |
 
-Two additions:
+One addition: **DPC+S (2 PCs)** uses only the first two principal
+components, as in the 2023 CPUE guidelines. The default (`n_pc = 3`) uses
+three, which with four species is all the information in the catch
+composition.
 
-* **DPC+S (2 PCs)** uses only the first two principal components, as in the
-  2023 CPUE guidelines. The default (`n_pc = 3`) uses three, which with four
-  species is all the information in the catch composition.
-* **Base+S (1x1)** is a control: the spatial model with exact positions.
-  How far does perfect spatial information get us without any information on
-  targeting? Because it is the slowest fit, it is fitted once and stored.
-  Delete the stored file after changing the scenarios or the seed.
+Positions are reported only as 5 x 5 blocks. This is deliberate: logbooks
+rarely report positions at the resolution at which fish and fleets interact,
+and a longline set may span a front. The spatial term therefore cannot
+resolve all spatial targeting, which is the realistic, data-limited case.
 
 `engine = "bam"` uses `mgcv::bam(discrete = TRUE)` for speed; use
 `engine = "gam"` to reproduce the guideline approach exactly.
@@ -338,24 +374,13 @@ Two additions:
 ```{r standardise}
 models <- c("Base", "Base+S", "Cluster+S", "DPC+S", "HBF+S")
 
-fits_main <- lapply(sims, standardize_tuna_indices, models = models,
+fits_main <- lapply(sims, standardize_cpue, models = models,
                     spatial_res = 5, n_pc = 3, engine = "bam")
 
-fits_dpc2 <- lapply(sims, standardize_tuna_indices, models = "DPC+S",
+fits_dpc2 <- lapply(sims, standardize_cpue, models = "DPC+S",
                     spatial_res = 5, n_pc = 2, engine = "bam", label = " (2 PCs)")
 
-control_file <- sprintf("control_1x1_%s_seed%d_effort%d.rds",
-                        paste(names(scenarios), collapse = "_"), seed, base$effort)
-if (file.exists(control_file)) {
-  controls <- readRDS(control_file)
-} else {
-  controls <- lapply(sims, standardize_tuna_indices, models = "Base+S",
-                     spatial_res = 1, spatial_k = 30, engine = "bam",
-                     label = " (1x1)")
-  saveRDS(controls, control_file)
-}
-
-fits <- Map(bind_comparisons, fits_main, fits_dpc2, controls)
+fits <- Map(bind_comparisons, fits_main, fits_dpc2)
 fits$Fixed$formulas
 ```
 
@@ -367,7 +392,7 @@ the same way.
 ## Indices
 
 ```{r indices, fig.height = 6}
-plot_indices(fits, models = c("Base", "Base+S (1x1)", "Cluster+S",
+plot_indices(fits, models = c("Base", "Base+S", "Cluster+S",
                               "DPC+S (2 PCs)", "DPC+S", "HBF+S"))
 ```
 
@@ -404,8 +429,8 @@ knitr::kable(rmse_wide, digits = 3, row.names = FALSE)
   targeting is mainly spatial, e.g. BFT when the fleet moves into cool water.
   Base+S removes most of that bias.
 * **Vertical targeting.** The shallow species (YFT, ALB) drop in nominal CPUE
-  at year 11, and BET rises, when the fleet switches to deeper gear. Space alone, even at
-  1 x 1, cannot remove this; DPC and HBF can.
+  at year 11, and BET rises, when the fleet switches to deeper gear. Space alone cannot
+  remove this; DPC and HBF can.
 * **Cluster versus DPC.** Targeting in this simulator is continuous (a graded
   choice among locations and HBF levels), so a few discrete clusters (by
   default the number of PCs plus one, i.e. 4) capture only part of it. Clusters are recommended only when discrete strategies exist
@@ -487,9 +512,7 @@ fit and finished seeds are skipped, so the run can be interrupted and resumed
 reps <- run_replicates(
   scenarios, seeds = 1:20,
   models = c("Base", "Base+S", "Cluster+S", "DPC+S", "HBF+S"),
-  extra = list(list(models = "DPC+S", n_pc = 2, label = " (2 PCs)", engine = "bam"),
-               list(models = "Base+S", spatial_res = 1, spatial_k = 30,
-                    label = " (1x1)", engine = "bam")),
+  extra = list(list(models = "DPC+S", n_pc = 2, label = " (2 PCs)", engine = "bam")),
   spatial_res = 5, n_pc = 3, engine = "bam",
   file = "replicates_fixed_moving.rds")
 ```
@@ -515,7 +538,7 @@ without the smoother at three reporting resolutions: 1 x 1 (exact cell),
 targeting <- c("Base", "Cluster", "DPC", "HBF")
 resolutions <- c("1x1" = 1, "5x5" = 5, "10x10" = 10)
 fits_res <- lapply(resolutions, function(res) {
-  standardize_tuna_indices(sims$Fixed, models = c(targeting, paste0(targeting, "+S")),
+  standardize_cpue(sims$Fixed, models = c(targeting, paste0(targeting, "+S")),
                            spatial_res = res, spatial_k = if (res == 1) 30 else NULL,
                            engine = "bam")
 })
@@ -544,7 +567,7 @@ extra <- c(
   HBF_period  = "year + s(Xs, Ys, k = 8) + HBF_period",
   HBF_year_re = "year + s(Xs, Ys, k = 8) + HBF + s(year, HBF, bs = 're')"
 )
-fits_int <- lapply(sims, standardize_tuna_indices,
+fits_int <- lapply(sims, standardize_cpue,
                    models = c("HBF+S", "DPC+S"), add_models = extra, engine = "bam")
 plot_diagnostics(fits_int)
 plot_indices(fits_int, models = c("HBF+S", "DPC+S", "HBF_period", "HBF_year_re"))

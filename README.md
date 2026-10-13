@@ -25,7 +25,7 @@ remotes::install_github("henning-winker/cpueTargeting")
 ```
 
 The simulators only need `ggplot2`; `mgcv` is needed for
-`standardize_tuna_indices()`.
+`standardize_cpue()`.
 
 ## Quick start
 
@@ -45,7 +45,7 @@ tuna$Plots$CPUE           # nominal CPUE versus true biomass
 plot_tuna_vertical_distributions()
 
 # Standardise with and without HBF
-comparison <- standardize_tuna_indices(tuna, spatial_res = 5,
+comparison <- standardize_cpue(tuna, spatial_res = 5,
   models = c("Base", "Base+S", "Cluster+S", "DPC+S", "HBF+S", "DPC_HBF+S"))
 comparison$diagnostics
 plot_indices(comparison, models = c("Base+S", "Cluster+S", "DPC+S", "HBF+S", "DPC_HBF+S"))
@@ -81,9 +81,12 @@ Default species:
 
 The pairs overlap in space and the species overlap in depth, so most sets catch
 all four. Prices favour ALB in years 1-10 (shallow, cool water), BET in years
-11-20 (deep, warm water) and BFT in years 21-30 (deep, cool water), loosely
-following the historical shift from albacore to bigeye targeting. The first
-switch changes both location and depth; the second mainly location.
+11-20 (deep, warm water) and both BET and BFT in years 21-30, loosely following
+the historical shift from albacore to bigeye targeting. Effort is cut by 25% in
+years 21-30. Stocks start partly fished (`B_start`) and the true trends differ:
+ALB is fished down, BET declines, BFT recovers and declines again once
+targeted, YFT dips and recovers. `tuna_settings("mild")` gives weaker
+targeting.
 
 `Data` also contains the latent truth that analysts would not see:
 `hook_depth` (median hook depth of the set), `vertical_avail` (realised vertical
@@ -111,6 +114,7 @@ Plots that illustrate each effect:
 | `sim$Plots$HBF`, `sim$Plots$CPUE` | gear use over time; nominal CPUE versus truth |
 | `plot_sections(sim)` | species distributions in 3D: latitude x depth sections and maps by depth layer |
 | `plot_pcs(fit)` | what the catch-composition PCs capture: loadings, maps, scores against hook depth, scores over time |
+| `plot_clusters(fit)` | what the clusters capture: species composition, shares over time, map, hook depth, clusters in PC space |
 | `plot_indices()`, `plot_diagnostics()` | standardised indices and their accuracy, for one or several scenarios |
 
 `bind_comparisons()` and `select_models()` combine and subset standardisation
@@ -119,6 +123,27 @@ results, e.g. to attach a slow control fit without refitting it.
 saving after every fit so that long runs can be resumed; `plot_replicates()`
 shows the accuracy across seeds.
 
+## Simulation scripts and pre-run vignettes
+
+Longer runs live in `inst/scripts/` (run from the package folder):
+
+| Script | Runs |
+|---|---|
+| `run_bathymetric.R` | guideline (Run 22) example: single run (seed 123) and 20 replicates |
+| `run_tuna_flat.R` | tuna, flat true trends: single run and 20 replicates, fixed and moving thermocline |
+| `run_tuna_contrast.R` | tuna, contrasting true trends: as above |
+| `render_docs.R` | renders the vignettes to `docs/` from the pre-run results |
+
+Shared settings (prices, models, seeds, number of parallel workers) are in
+`talk_setup.R`. Each script first saves the single run (seed 123) used by the
+vignettes and then runs the replicates; `options(cpueTargeting.reps = FALSE)`
+runs only the single runs. Results are saved to `rdata/` in the repository,
+which is ignored by git, so they are not pushed (`options(cpueTargeting.rdata
+= "...")` saves them elsewhere). Finished seeds are skipped, so runs can be
+resumed. The vignettes *Targeting along a continuous gradient: the
+bathymetric example* and *Tuna longline targeting: flat versus contrasting
+true trends* load these results; they are also on the [project page](https://henning-winker.github.io/cpueTargeting/).
+
 To change a scenario, edit the settings list:
 
 ```r
@@ -126,6 +151,9 @@ s <- tuna_settings()
 s$depth_sd <- c(80, 80, 80, 80)      # more vertical mixing of species
 s$HBF_choice_temp <- 0.05            # skippers choose gear more strictly
 sim <- simulate_tuna(s, seed = 1)
+
+# Extreme targeting (price contrast 2.0 vs 0.5, strict skippers)
+stress <- simulate_tuna(tuna_settings("stress_test"), seed = 1)
 ```
 
 ## Speed

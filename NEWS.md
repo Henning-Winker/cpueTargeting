@@ -1,3 +1,25 @@
+# cpueTargeting 0.3.0
+
+* `standardize_tuna_indices()` is renamed `standardize_cpue()`, as it works for
+  both simulators. The old name is kept as an alias.
+* New `plot_clusters()`: diagnostics for the Cluster models (composition of
+  each cluster, cluster shares over time, most common cluster in space, hook
+  depth by cluster, clusters in PC space), as in the CPUE guidelines.
+* `run_replicates()` gains `simulator`, so it also runs
+  `simulate_bathymetric()`; new `read_replicates()` combines results saved
+  one file per seed (e.g. from parallel runs).
+* New vignettes *Targeting along a continuous gradient: the bathymetric
+  example* and *Tuna longline targeting: flat versus contrasting true
+  trends*. They load pre-run results; the simulation scripts are in
+  `inst/scripts/` (`run_bathymetric.R`, `run_tuna_flat.R`,
+  `run_tuna_contrast.R`, with shared settings in `talk_setup.R`), and
+  `render_docs.R` renders the vignettes to `docs/`. Results are saved to `rdata/`
+  (ignored by git); `options(cpueTargeting.reps = FALSE)` runs only the
+  single runs used by the vignettes.
+* The 1 x 1 spatial control is no longer part of the standard comparisons:
+  positions are reported as 5 x 5 blocks, the realistic, data-limited case.
+* Single-run illustrations use seed 123.
+
 # cpueTargeting 0.2.0
 
 ## Tuna operating model rebuilt
@@ -71,11 +93,22 @@
 * `n_clusters` defaults to `n_pc + 1` (Winker et al. 2014), i.e. 4 clusters.
 * `label`, `bind_comparisons()` and `select_models()` to combine and reuse
   fits (e.g. a 1 x 1 spatial control).
-* Default `effort` in `tuna_settings()` reduced to 800 sets per year.
 * Deep species are deeper and narrower by default (BET 260 m, SD 50; BFT
   240 m, SD 55), so deep gear clearly targets them while most sets still
   catch all four species.
-* Default prices follow ALB (years 1-10), BET (11-20), BFT (21-30).
+* Default scenario: prices favour ALB (years 1-10), BET (11-20), then BET
+  and BFT (21-30), with strong targeting (target species worth 4 times the
+  others, `preference = 1.5`, `HBF_choice_temp = 0.15`).
+* Stocks are fished harder (`q` = 3) and start partly fished: new
+  per-species setting `B_start` (initial biomass / carrying capacity;
+  default 0.6, 0.7, 0.2, 0.9). With `r` = 0.30, 0.18, 0.25, 0.25 the true
+  trends differ: ALB is fished down, BET declines, BFT recovers and declines
+  again, YFT dips and recovers.
+* `effort` can be one value per year. By default it increases towards 800
+  sets per year and is cut by 25% in years 21-30.
+* Presets: `tuna_settings("mild")` (moderate targeting) and
+  `tuna_settings("stress_test")` (strong targeting of lightly fished,
+  unfished stocks, as in the first runs).
 
 ## New functions
 

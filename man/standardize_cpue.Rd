@@ -1,12 +1,16 @@
-\name{standardize_tuna_indices}
+\name{standardize_cpue}
+\alias{standardize_cpue}
 \alias{standardize_tuna_indices}
 \title{Standardise simulated CPUE with alternative targeting covariates}
 \usage{
-standardize_tuna_indices(simulation, models = NULL, spatial_res = 5,
+standardize_cpue(simulation, models = NULL, spatial_res = 5,
   spatial_k = NULL, add_models = NULL, vessel_re = FALSE, n_pc = 3,
   n_clusters = n_pc + 1, seed = 1, engine = c("gam", "bam"), label = NULL)
+
+standardize_tuna_indices(...)
 }
 \arguments{
+\item{...}{Arguments passed to \code{standardize_cpue()}.}
 \item{simulation}{Output of \code{\link{simulate_tuna}} or \code{\link{simulate_bathymetric}}.}
 \item{models}{Models to fit, e.g. \code{c("Base", "Base+S", "DPC+S", "HBF+S")}.
 Default: \code{Base}, plus \code{Base}, \code{Cluster}, \code{DPC}, \code{HBF},
@@ -65,7 +69,7 @@ predictors.}
 \examples{
 \dontrun{
 om <- simulate_tuna(seed = 42)
-comparison <- standardize_tuna_indices(om, models = c("Base", "Base+S",
+comparison <- standardize_cpue(om, models = c("Base", "Base+S",
                                         "DPC+S", "Cluster+S", "HBF+S"))
 comparison$diagnostics
 plot_indices(comparison)

@@ -70,43 +70,84 @@ plot_om <- function(sim) {
 
 #' Plot species vertical profiles and hook-depth profiles by HBF
 #'
-#' The first panel shows the species depth profiles (for a thermocline
-#' anomaly of zero). The other panels show the expected hook-depth
-#' distribution of each HBF level, combining between-set error and within-set
-#' spread, drawn like Fig. 2 of Bigelow et al. (2002).
+#' One panel per HBF level. Grey bars show where the hooks of a set with that
+#' HBF fish (the expected hook-depth distribution, drawn like Fig. 2 of
+#' Bigelow et al. 2002); the coloured translucent areas show where each
+#' species lives (thermocline anomaly of zero). Where a species' area overlaps
+#' the grey bars, that set can catch it. The number next to each species is
+#' its vertical availability to that HBF, i.e. the overlap that multiplies
+#' catchability in the operating model (see [plot_availability()]).
 #'
 #' @param settings Settings list, usually from [tuna_settings()].
+#' @param overlay Logical; `TRUE` (default) overlays the species on each HBF
+#'   panel; `FALSE` shows the species in a separate first panel.
 #' @param file Optional file path; if supplied, a 300-dpi PNG is saved.
 #' @return A ggplot object.
 #' @export
 #' @examples
 #' plot_tuna_vertical_distributions()
-plot_tuna_vertical_distributions <- function(settings = tuna_settings(), file = NULL) {
+plot_tuna_vertical_distributions <- function(settings = tuna_settings(), overlay = TRUE,
+                                             file = NULL) {
   s <- utils::modifyList(tuna_settings(), settings)
   edges <- seq(0, s$max_depth, by = s$depth_bin)
   mids <- edges[-1] - s$depth_bin / 2
-  panels <- c("Species", paste("HBF", s$HBF_levels))
+  hbf_panels <- paste("HBF", s$HBF_levels)
+  panels <- if (overlay) hbf_panels else c("Species", hbf_panels)
   fish_prof <- fish_profiles(0, s, edges)
-  fish <- do.call(rbind, lapply(seq_along(s$species), function(i) {
-    data.frame(depth = mids, percent = 100 * fish_prof[[i]][1, ],
-               species = s$species[i], panel = "Species")
-  }))
-  fish$species <- factor(fish$species, levels = s$species)
   hooks <- nominal_hook_profiles(s, edges)
-  gear <- do.call(rbind, lapply(seq_along(s$HBF_levels), function(h) {
-    data.frame(depth = mids, percent = 100 * hooks[h, ], panel = panels[h + 1])
-  }))
+
+  fish_one <- function(panel) {
+    out <- do.call(rbind, lapply(seq_along(s$species), function(i) {
+      data.frame(depth = mids, percent = 100 * fish_prof[[i]][1, ],
+                 species = s$species[i], panel = panel)
+    }))
+    out
+  }
+  fish <- if (overlay) do.call(rbind, lapply(hbf_panels, fish_one)) else fish_one("Species")
+  fish$species <- factor(fish$species, levels = s$species)
   fish$panel <- factor(fish$panel, levels = panels)
+  gear <- do.call(rbind, lapply(seq_along(s$HBF_levels), function(h) {
+    data.frame(depth = mids, percent = 100 * hooks[h, ], panel = hbf_panels[h])
+  }))
   gear$panel <- factor(gear$panel, levels = panels)
+
+  # vertical availability of each species to each HBF (as in the OM)
+  avail <- do.call(rbind, lapply(seq_along(s$HBF_levels), function(h) {
+    a <- vapply(fish_prof, function(f) sum(hooks[h, ] * f[1, ]), numeric(1)) *
+      s$avail_ref / s$depth_bin
+    data.frame(panel = hbf_panels[h], species = s$species,
+               label = sprintf("%s %.2f", s$species, a))
+  }))
+  avail$panel <- factor(avail$panel, levels = panels)
+  avail$species <- factor(avail$species, levels = s$species)
+  x_max <- max(c(fish$percent, gear$percent))
+  avail$x <- x_max
+  avail$y <- s$max_depth * (0.62 + 0.08 * (as.integer(avail$species) - 1))
+
   p <- ggplot() +
     geom_col(data = gear, aes(x = .data$percent, y = .data$depth),
-             orientation = "y", width = s$depth_bin, fill = "grey30") +
-    geom_path(data = fish, aes(x = .data$percent, y = .data$depth,
-                               colour = .data$species), linewidth = 1) +
+             orientation = "y", width = s$depth_bin, fill = "grey55", colour = NA)
+  if (overlay) {
+    p <- p +
+      geom_ribbon(data = fish, aes(y = .data$depth, xmin = 0, xmax = .data$percent,
+                                   fill = .data$species),
+                  orientation = "y", alpha = 0.35) +
+      geom_path(data = fish, aes(x = .data$percent, y = .data$depth,
+                                 colour = .data$species), linewidth = 0.7) +
+      geom_text(data = avail, aes(x = .data$x, y = .data$y, label = .data$label,
+                                  colour = .data$species),
+                hjust = 1, size = 3, show.legend = FALSE) +
+      labs(title = "Where the hooks fish (grey) and where the fish are (colour)",
+           subtitle = "Numbers: vertical availability of each species to that HBF")
+  } else {
+    p <- p + geom_path(data = fish, aes(x = .data$percent, y = .data$depth,
+                                        colour = .data$species), linewidth = 1)
+  }
+  p <- p +
     facet_wrap(~panel, nrow = 1) +
     scale_y_reverse() +
     labs(x = paste0("Frequency (% per ", s$depth_bin, " m)"), y = "Depth (m)",
-         colour = NULL) +
+         colour = NULL, fill = NULL) +
     theme_bw() +
     theme(legend.position = "bottom")
   if (!is.null(file)) ggsave(file, p, width = 11, height = 5, dpi = 300)
@@ -115,7 +156,7 @@ plot_tuna_vertical_distributions <- function(settings = tuna_settings(), file = 
 
 #' Plot standardised indices against the true biomass trend
 #'
-#' @param comparison Output of [standardize_tuna_indices()], or a named list of
+#' @param comparison Output of [standardize_cpue()], or a named list of
 #'   such outputs (one per scenario), which are shown as rows.
 #' @param models Optional subset of model names to show.
 #' @param ci Logical; show 95% confidence intervals.
@@ -161,7 +202,7 @@ plot_indices <- function(comparison, models = NULL, ci = FALSE,
 #' Bar chart of the root mean squared error of the log index (relative to the
 #' true biomass index) by model and species.
 #'
-#' @param comparison Output of [standardize_tuna_indices()], or a named list of
+#' @param comparison Output of [standardize_cpue()], or a named list of
 #'   such outputs (one per scenario), shown as differently coloured bars.
 #' @param models Optional subset of model names to show.
 #' @return A ggplot object.
@@ -314,7 +355,7 @@ plot_availability <- function(sim) {
 #' `hook_depth` is latent truth from the operating model; it is used here only
 #' to show what the PCs pick up, not in any standardisation model.
 #'
-#' @param comparison Output of [standardize_tuna_indices()] (or of
+#' @param comparison Output of [standardize_cpue()] (or of
 #'   [bind_comparisons()]).
 #' @param pcs Principal components to show.
 #' @param depth_bin Width of the hook-depth bins (m).
@@ -402,6 +443,135 @@ plot_pcs <- function(comparison, pcs = c("PC1", "PC2"), depth_bin = 20, min_sets
     labs(x = "Year", y = "Mean score", title = "PC scores over time") +
     theme_bw()
   plots
+}
+
+#' What do the catch-composition clusters capture?
+#'
+#' Diagnostic plots for the fishing tactics (clusters) used by the `Cluster`
+#' models, following the CPUE guidelines: the species composition of each
+#' cluster, the share of sets in each cluster by year, the most common
+#' cluster in each cell, the realised hook depth by cluster (tuna model only)
+#' and the sets in PC space coloured by cluster. Clusters are labelled by
+#' their number and main species, e.g. `"2: ALB"`.
+#'
+#' `hook_depth` is latent truth from the operating model; it is used here only
+#' to show what the clusters pick up, not in any standardisation model.
+#'
+#' @param comparison Output of [standardize_cpue()] (or of
+#'   [bind_comparisons()]).
+#' @param switch_years Optional years to mark with vertical lines in the time
+#'   plot, e.g. the years in which prices change (`c(10.5, 20.5)`).
+#' @param max_points Maximum number of sets drawn in the PC plot.
+#' @return A list of ggplots: `composition`, `time`, `space`, `depth` (tuna
+#'   model only) and `pca`.
+#' @export
+#' @examples
+#' \dontrun{
+#' sim <- simulate_tuna(seed = 123)
+#' fit <- standardize_cpue(sim, models = c("Base", "Cluster+S"), engine = "bam")
+#' p <- plot_clusters(fit, switch_years = c(10.5, 20.5))
+#' p$composition
+#' p$time
+#' }
+plot_clusters <- function(comparison, switch_years = NULL, max_points = 5000) {
+  d <- comparison$data
+  if (is.null(d$FT)) stop("No clusters (`FT`) in `comparison$data`.", call. = FALSE)
+  species <- rownames(comparison$pca$loadings)
+  catch <- as.matrix(d[, species])
+
+  # Species composition of each cluster and labels "number: main species"
+  totals <- rowsum(catch, as.character(d$FT))
+  share <- totals / rowSums(totals)
+  share <- share[order(as.integer(rownames(share))), , drop = FALSE]
+  labels <- paste0(rownames(share), ": ", species[apply(share, 1, which.max)])
+  names(labels) <- rownames(share)
+  d$tactic <- factor(labels[as.character(d$FT)], levels = labels)
+  colours <- cluster_colours(length(labels))
+  names(colours) <- labels
+  plots <- list()
+
+  comp <- data.frame(tactic = factor(rep(labels, ncol(share)), levels = labels),
+                     species = factor(rep(species, each = nrow(share)), levels = species),
+                     share = as.vector(share))
+  plots$composition <- ggplot(comp, aes(x = .data$tactic, y = .data$share,
+                                        fill = .data$species)) +
+    geom_col() +
+    labs(x = "Cluster (main species)", y = "Share of the catch", fill = "Species",
+         title = "What each cluster catches") +
+    theme_bw()
+
+  # Share of sets in each cluster by year
+  year <- as.integer(as.character(d$year))
+  counts <- as.data.frame(table(year = year, tactic = d$tactic))
+  counts$year <- as.integer(as.character(counts$year))
+  counts$share <- counts$Freq / stats::ave(counts$Freq, counts$year, FUN = sum)
+  plots$time <- ggplot(counts, aes(x = .data$year, y = .data$share, fill = .data$tactic)) +
+    geom_col(width = 1) +
+    scale_fill_manual(values = colours) +
+    labs(x = "Year", y = "Share of sets", fill = "Cluster",
+         title = "Clusters over time") +
+    theme_bw()
+  if (!is.null(switch_years)) {
+    plots$time <- plots$time +
+      geom_vline(xintercept = switch_years, linetype = 2, linewidth = 0.8)
+  }
+
+  # Most common cluster in each cell
+  cell <- paste(d$X, d$Y)
+  mode_tactic <- tapply(as.character(d$tactic), cell,
+                        function(v) names(which.max(table(v))))
+  first <- !duplicated(cell)
+  space <- data.frame(x = d$X[first], y = d$Y[first],
+                      tactic = factor(mode_tactic[cell[first]], levels = labels))
+  plots$space <- ggplot(space, aes(x = .data$x, y = .data$y, fill = .data$tactic)) +
+    geom_raster() +
+    scale_fill_manual(values = colours) +
+    coord_quickmap(expand = FALSE) +
+    labs(x = "x", y = "y (north = top)", fill = "Cluster",
+         title = "Most common cluster by cell") +
+    theme_bw()
+
+  # Realised hook depth by cluster (tuna model only)
+  if ("hook_depth" %in% names(d)) {
+    plots$depth <- ggplot(d, aes(x = .data$tactic, y = .data$hook_depth,
+                                 fill = .data$tactic)) +
+      geom_boxplot(outlier.size = 0.3, show.legend = FALSE) +
+      scale_fill_manual(values = colours) +
+      scale_y_reverse() +
+      labs(x = "Cluster (main species)", y = "Realised median hook depth of the set (m)",
+           title = "How deep each cluster fishes") +
+      theme_bw()
+  }
+
+  # Sets in PC space, coloured by cluster
+  if (all(c("PC1", "PC2") %in% names(d))) {
+    keep <- if (nrow(d) > max_points) sort(sample.int(nrow(d), max_points)) else seq_len(nrow(d))
+    load <- comparison$pca$loadings[, c("PC1", "PC2"), drop = FALSE]
+    scale <- 0.8 * max(abs(d$PC1[keep]), abs(d$PC2[keep])) / max(abs(load))
+    arrows <- data.frame(species = rownames(load), x = load[, 1] * scale, y = load[, 2] * scale)
+    var_share <- comparison$pca$variance / sum(comparison$pca$variance)
+    plots$pca <- ggplot(d[keep, ], aes(x = .data$PC1, y = .data$PC2)) +
+      geom_point(aes(colour = .data$tactic), size = 0.6, alpha = 0.5) +
+      geom_segment(data = arrows, aes(x = 0, y = 0, xend = .data$x, yend = .data$y),
+                   arrow = grid::arrow(length = grid::unit(0.15, "cm"))) +
+      geom_label(data = arrows, aes(x = .data$x, y = .data$y, label = .data$species),
+                 size = 3) +
+      scale_colour_manual(values = colours) +
+      guides(colour = guide_legend(override.aes = list(size = 3, alpha = 1))) +
+      labs(x = sprintf("PC1 (%.0f%%)", 100 * var_share[1]),
+           y = sprintf("PC2 (%.0f%%)", 100 * var_share[2]), colour = "Cluster",
+           title = "Clusters cut the continuous PC space into tactics") +
+      theme_bw()
+  }
+  plots
+}
+
+#' Colour-blind safe colours for clusters
+#' @noRd
+cluster_colours <- function(n) {
+  base <- c("#E69F00", "#56B4E9", "#009E73", "#CC79A7", "#0072B2", "#D55E00",
+            "#F0E442", "#999999")
+  if (n <= length(base)) base[seq_len(n)] else grDevices::hcl.colors(n, "Dark 3")
 }
 
 #' Species distributions in three dimensions: sections and depth layers

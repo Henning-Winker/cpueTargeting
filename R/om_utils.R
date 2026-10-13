@@ -108,7 +108,8 @@ dispersal_kernels <- function(x, y, dispersal) {
 #' @noRd
 annual_effort <- function(year, total, cv) {
   sig <- sqrt(log(cv^2 + 1))
-  mean_effort <- total / (1 + exp(-0.1 * year))
+  # one value per year, or a logistic increase towards a single value
+  mean_effort <- if (length(total) > 1) total[year] else total / (1 + exp(-0.1 * year))
   trunc(stats::rlnorm(1, log(mean_effort) - sig^2 / 2, sig))
 }
 

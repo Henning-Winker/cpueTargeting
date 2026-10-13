@@ -1,0 +1,167 @@
+---
+title: "Targeting along a continuous gradient: the bathymetric example"
+author: "Henning Winker"
+output:
+  rmarkdown::html_document:
+    toc: true
+    toc_float: true
+    theme: readable
+vignette: >
+  %\VignetteIndexEntry{Targeting along a continuous gradient: the bathymetric example}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
+                      fig.width = 8, fig.height = 5, dpi = 110)
+library(cpueTargeting)
+library(ggplot2)
+# Pre-run results (see inst/scripts/run_bathymetric.R); without them the code
+# is shown but not run.
+rdata <- getOption("cpueTargeting.rdata", "../rdata")
+f_single <- file.path(rdata, "bathymetric_single.rds")
+f_reps <- file.path(rdata, "bathymetric_replicates.rds")
+have_single <- file.exists(f_single)
+have_reps <- file.exists(f_reps)
+if (have_single) {
+  x <- readRDS(f_single)
+  sim <- x$sim
+  fit <- x$fit
+}
+```
+
+This example uses the spatial multispecies simulator of Thorson et al.
+(2017, Appendix A), which generalises the simulator of Ono et al. (2015), with
+the "Run 22" settings of the CPUE guidelines. Four species live along
+continuous depth-preference gradients over a simulated bathymetry, and 30
+vessels move effort between them following species prices, which change in
+three 10-year blocks (species 1, then 2, then 4). The simulator is described in
+full in the [background document](https://henning-winker.github.io/cpueTargeting/appendix.html).
+
+Positions are reported only as the centres of 5 x 5 blocks. This is the
+realistic case: logbooks rarely report positions at the scale at which fish
+and fleets interact, so a spatial term cannot resolve all spatial targeting.
+
+# The simulated fishery
+
+The code for the single run (seed 123); all results shown below were pre-run
+with `inst/scripts/run_bathymetric.R`:
+
+```{r simulate, eval = FALSE}
+sim <- simulate_bathymetric(seed = 123)
+```
+
+```{r om-plots, eval = have_single}
+p <- plot_om(sim)
+p$Depth
+p$SpDens
+```
+
+Species 1 and 3 live in patches; species 2 and 4 in the surrounding deeper
+water. Catches per set are zero-inflated and right-skewed, so Tweedie GAMs are
+used:
+
+```{r hist, eval = have_single}
+p$Hist
+```
+
+Nominal CPUE (points) against the true biomass (blue): the price-driven
+targeting changes bias nominal CPUE by up to a factor of two.
+
+```{r cpue, eval = have_single}
+p$CPUE
+```
+
+# Standardisation as in the guidelines
+
+All models are Tweedie GAMs with `year` plus a targeting term. `+S` adds a
+spatial smoother `s(Xs, Ys, k = 8)` on the 5 x 5 blocks. As in the guidelines,
+the catch composition is reduced to two principal components (DPC) and three
+clusters (number of PCs + 1). The final DPC model is fitted as a GAMM with a
+random vessel effect.
+
+```{r standardise, eval = FALSE}
+fit <- standardize_cpue(sim,
+  models = c("Base", "Base+S", "Cluster+S", "DPC", "DPC+S"),
+  n_pc = 2, n_clusters = 3, spatial_res = 5, spatial_k = 8, engine = "gam")
+fit_re <- standardize_cpue(sim, models = "DPC+S",
+  n_pc = 2, n_clusters = 3, spatial_res = 5, spatial_k = 8, engine = "gam",
+  vessel_re = TRUE, label = " + vessel RE")
+fit <- bind_comparisons(fit, fit_re)
+```
+
+```{r formulas, eval = have_single}
+fit$formulas
+```
+
+```{r indices, eval = have_single, fig.height = 6}
+plot_indices(fit, type = "smooth")
+```
+
+```{r rmse, eval = have_single}
+plot_diagnostics(fit)
+```
+
+* The spatial term on 5 x 5 blocks hardly improves on Base: the habitat
+  patches are smaller than the reporting blocks.
+* DPC, with or without the spatial term, follows the true trends closely:
+  the catch composition carries the fine-scale information that the reported
+  positions lack.
+* Three discrete clusters capture only part of a continuous gradient.
+
+# What do the PCs capture?
+
+```{r pcs, eval = have_single}
+pp <- plot_pcs(fit, pcs = c("PC1", "PC2"))
+pp$loadings
+pp$space
+pp$time
+```
+
+PC1 maps the habitat patches at the resolution of single cells, from catches
+alone, and jumps when the targeting changes (year 11). PC2 carries little
+signal, as in the guidelines, where only PC1 was non-trivial.
+
+# What do the clusters capture?
+
+```{r clusters, eval = have_single}
+pc <- plot_clusters(fit, switch_years = c(10.5, 20.5))
+pc$composition
+pc$time
+pc$space
+pc$pca
+```
+
+The clusters cut the continuous cloud of catch compositions into three
+tactics. Their shares change with the targeting, but each cluster mixes sets
+from different parts of the gradient.
+
+# Replicates
+
+The same models (without the random vessel effect, and with `engine = "bam"`)
+over 20 seeds (`inst/scripts/run_bathymetric.R`):
+
+```{r replicates, eval = have_reps, fig.height = 6}
+reps <- readRDS(f_reps)
+plot_replicates(reps)
+```
+
+# References
+
+Ono, K., Punt, A.E. and Hilborn, R. (2015) Think outside the grids: an
+objective approach to define spatial strata for catch and effort analysis.
+Fisheries Research 170, 89-101.
+
+Thorson, J.T., Fonner, R., Haltuch, M.A., Ono, K. and Winker, H. (2017)
+Accounting for spatiotemporal variation and fisher targeting when estimating
+abundance from multispecies fishery data. Canadian Journal of Fisheries and
+Aquatic Sciences 74, 1794-1807.
+
+Winker, H., Kerwath, S.E. and Attwood, C.G. (2013) Comparison of two approaches
+to standardize catch-per-unit-effort for targeting behaviour in a
+multispecies hand-line fishery. Fisheries Research 139, 118-131.
+
+Winker, H., Kerwath, S.E. and Attwood, C.G. (2014) Proof of concept for a novel
+procedure to standardize multispecies catch and effort data. Fisheries
+Research 155, 149-159.
