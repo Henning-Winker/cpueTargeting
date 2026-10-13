@@ -401,7 +401,7 @@ eff$numeric
 eff$space
 ```
 
-```{r vessels, fig.height = 4}
+```{r vessel-effects, fig.height = 4}
 plot_vessel_effects(fit, "DPC+S")
 ```
 
