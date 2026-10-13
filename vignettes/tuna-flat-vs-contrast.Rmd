@@ -109,6 +109,20 @@ where it fishes.
 ```{r vertical, fig.height = 6}
 plot_tuna_vertical_distributions()
 ```
+In the Moving scenario the basin-wide thermocline goes up and down between
+years, and the spatial pattern changes on top of it:
+
+```{r thermocline-series, fig.height = 3.5}
+plot_thermocline(contrast$sims$Moving)$series
+```
+
+```{r thermocline-maps, fig.height = 5.5}
+plot_thermocline(contrast$sims$Moving)$maps
+```
+
+```{r tuna-thermocline, fig.height = 5.}
+plot_thermocline_effect()
+```
 
 # Nominal CPUE versus the truth
 
