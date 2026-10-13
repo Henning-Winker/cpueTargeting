@@ -142,7 +142,8 @@ which is ignored by git, so they are not pushed (`options(cpueTargeting.rdata
 = "...")` saves them elsewhere). Finished seeds are skipped, so runs can be
 resumed. The vignettes *Targeting along a continuous gradient: the
 bathymetric example* and *Tuna longline targeting: flat versus contrasting
-true trends* load these results; they are also on the [project page](https://henning-winker.github.io/cpueTargeting/).
+true trends* load these results (or compute them with the same code when
+`options(cpueTargeting.run_vignettes = TRUE)`); they are also on the [project page](https://henning-winker.github.io/cpueTargeting/).
 
 To change a scenario, edit the settings list:
 

@@ -17,21 +17,16 @@ knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
                       fig.width = 9, fig.height = 5, dpi = 110)
 library(cpueTargeting)
 library(ggplot2)
-# Pre-run results (see inst/scripts/run_tuna_flat.R and run_tuna_contrast.R);
-# without them the code is shown but not run.
+# Results: loaded from rdata/ if pre-run (inst/scripts/run_tuna_flat.R and
+# run_tuna_contrast.R); otherwise computed here if
+# options(cpueTargeting.run_vignettes = TRUE), else the code is only shown.
 rdata <- getOption("cpueTargeting.rdata", "../rdata")
-files <- file.path(rdata, c(flat = "tuna_flat_single.rds",
-                            contrast = "tuna_contrast_single.rds",
-                            flat_reps = "tuna_flat_replicates.rds",
-                            contrast_reps = "tuna_contrast_replicates.rds"))
+files <- file.path(rdata, c("tuna_flat_single.rds", "tuna_contrast_single.rds",
+                            "tuna_flat_replicates.rds", "tuna_contrast_replicates.rds"))
 names(files) <- c("flat", "contrast", "flat_reps", "contrast_reps")
-have_single <- all(file.exists(files[c("flat", "contrast")]))
+have_single <- all(file.exists(files[c("flat", "contrast")])) ||
+  isTRUE(getOption("cpueTargeting.run_vignettes", FALSE))
 have_reps <- all(file.exists(files[c("flat_reps", "contrast_reps")]))
-if (have_single) {
-  flat <- readRDS(files[["flat"]])
-  contrast <- readRDS(files[["contrast"]])
-}
-models <- c("Base", "Base+S", "Cluster+S", "DPC+S", "HBF+S")
 ```
 
 In a tuna longline fishery, skippers target species not only through *where*
@@ -56,7 +51,7 @@ front. The thermocline moves between years in the results shown here
 
 # Settings
 
-```{r settings, eval = FALSE}
+```{r settings}
 prices <- matrix(c(rep(c(0.3, 0.2, 1.0, 2.0), 10),   # years 1-10: ALB (+ BFT)
                    rep(c(1.5, 2.5, 0.7, 0.3), 10),   # years 11-20: BET (+ YFT)
                    rep(c(1.0, 2.0, 1.5, 0.5), 10)),  # years 21-30: BET / BFT
@@ -66,16 +61,45 @@ contrast_settings$price <- prices
 flat_settings <- modifyList(contrast_settings, list(q = 0.2, B_start = rep(1, 4)))
 moving <- list(thermocline_annual_sd = 15, thermocline_annual_field_sd = 10)
 
-scenarios_flat <- list(Fixed = flat_settings,
-                       Moving = modifyList(flat_settings, moving))
-flat <- list(sims = lapply(scenarios_flat, simulate_tuna, seed = 123))
-# same for `contrast` with contrast_settings
+with_thermocline <- function(s) list(Fixed = s, Moving = modifyList(s, moving))
+
+models <- c("Base", "Base+S", "Cluster+S", "DPC+S", "HBF+S")
+
+# Standardisation: 5 models, plus DPC+S with 2 PCs
+fit_one <- function(sim) {
+  fit <- standardize_cpue(sim, models = models, spatial_res = 5, n_pc = 3,
+                          engine = "bam")
+  fit_2pc <- standardize_cpue(sim, models = "DPC+S", n_pc = 2,
+                              label = " (2 PCs)", engine = "bam")
+  bind_comparisons(fit, fit_2pc)
+}
+# One scenario: simulations and fits for a fixed and a moving thermocline
+run_single <- function(s, seed = 123) {
+  sims <- lapply(with_thermocline(s), simulate_tuna, seed = seed, plots = FALSE)
+  list(sims = sims, fits = lapply(sims, fit_one))
+}
 ```
 
-The pre-run results (`rdata/tuna_flat_single.rds` and
-`rdata/tuna_contrast_single.rds`, from `inst/scripts/`) are loaded as `flat`
-and `contrast`, each a list with `sims` and `fits` for the `Fixed` and
-`Moving` scenarios, e.g. `flat$sims$Moving` and `flat$fits$Moving`.
+`flat` and `contrast` each hold `sims` and `fits` for the `Fixed` and `Moving`
+thermocline, e.g. `flat$sims$Moving` and `flat$fits$Moving`. The pre-run results
+from `inst/scripts/run_tuna_flat.R` and `run_tuna_contrast.R` are exactly
+these objects:
+
+```{r run, eval = FALSE}
+flat <- run_single(flat_settings)
+contrast <- run_single(contrast_settings)
+```
+
+```{r load, include = FALSE, eval = have_single}
+# Pre-run results if available, otherwise the code above
+if (all(file.exists(files[c("flat", "contrast")]))) {
+  flat <- readRDS(files[["flat"]])
+  contrast <- readRDS(files[["contrast"]])
+} else {
+  flat <- run_single(flat_settings)
+  contrast <- run_single(contrast_settings)
+}
+```
 
 The prices switch the fleet from the cool south (ALB) to the warm north (BET)
 in year 11, which changes both where and how deep it fishes, and split it
@@ -102,17 +126,6 @@ All models are Tweedie GAMs with `year` plus a targeting term (`+S`: spatial
 smoother on the 5 x 5 blocks): Base (none), Cluster (4 clusters of the catch
 composition), DPC (3 principal components, and 2 for comparison) and HBF (a
 factor for the gear).
-
-```{r fit-code, eval = FALSE}
-fit_one <- function(sim) {
-  fit <- standardize_cpue(sim, models = models, spatial_res = 5, n_pc = 3,
-                          engine = "bam")
-  fit_2pc <- standardize_cpue(sim, models = "DPC+S", n_pc = 2,
-                              label = " (2 PCs)", engine = "bam")
-  bind_comparisons(fit, fit_2pc)
-}
-flat$fits <- lapply(flat$sims, fit_one)
-```
 
 ```{r indices, eval = have_single, fig.height = 7}
 fits <- list(Flat = flat$fits$Moving, Contrasting = contrast$fits$Moving)
