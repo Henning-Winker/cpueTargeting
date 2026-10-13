@@ -4,7 +4,7 @@
 copes with changes in fishing targeting. It contains three operating models:
 
 1. `simulate_cluster()`: the multi-habitat cluster example of Winker et al. (2014).
-2. `simulate_bathymetric()`: the four-species Run 22 model used for the
+2. `simulate_bathymetric()`: the four-species model used for the
    WKBMSYSPICT CPUE guidelines. It re-implements the spatial multispecies
    simulator of Thorson et al. (2017, Appendix A; `Generate_scenario_data` in
    [spatial_DFA](https://github.com/James-Thorson/spatial_DFA)), which
@@ -14,9 +14,15 @@ copes with changes in fishing targeting. It contains three operating models:
    Hook depth depends on hooks between floats (HBF), and habitat-based
    standardisation follows Bigelow et al. (2002).
 
-**[Background document](https://henning-winker.github.io/cpueTargeting/appendix.html):** a full description of both simulators, how the
-tuna model extends the spatial simulator, and the standardisation models is
-available online [here](https://henning-winker.github.io/cpueTargeting/appendix.html)
+## Documentation and worked examples
+
+| Page | Content |
+|---|---|
+| [Background document](https://henning-winker.github.io/cpueTargeting/appendix.html) | Full description of both simulators, how the tuna model extends the spatial simulator, and the standardisation models (Base, spatial, Cluster, DPC, HBF) |
+| [Bathymetric example](https://henning-winker.github.io/cpueTargeting/bathymetric-example.html) | Targeting along a continuous depth gradient with the guideline settings: maps, CPUE distributions, indices, what the PCs and clusters capture, replicates |
+| [Tuna longline: flat vs contrasting trends](https://henning-winker.github.io/cpueTargeting/tuna-flat-vs-contrast.html) | Spatial and vertical (HBF) targeting with identical targeting but flat or diverging true trends: when the catch composition captures targeting and when it also absorbs abundance |
+
+All pages are also linked from the [project page](https://henning-winker.github.io/cpueTargeting/).
 
 ## Installation
 
@@ -32,23 +38,29 @@ The simulators only need `ggplot2`; `mgcv` is needed for
 ```r
 library(cpueTargeting)
 
-# Run 22 bathymetric model
-run22 <- simulate_bathymetric(seed = 2)
-run22$Plots$CPUE          # nominal CPUE versus true biomass
+# Bathymetric model (settings of the CPUE guidelines)
+bat <- simulate_bathymetric(seed = 123)
+bat$Plots$SpDens          # species densities
+bat$Plots$CPUE            # nominal CPUE versus true biomass
+fit_bat <- standardize_cpue(bat, models = c("Base", "Base+S", "Cluster+S", "DPC", "DPC+S"),
+                            n_pc = 2, n_clusters = 3, spatial_k = 8)
+plot_indices(fit_bat, type = "smooth")
 
 # Tuna model with vertical targeting
-tuna <- simulate_tuna(seed = 3)
+tuna <- simulate_tuna(seed = 123)
 tuna$Plots$Env            # SST and thermocline anomaly
 tuna$Plots$SpDens         # species densities
 tuna$Plots$HBF            # gear use over time
 tuna$Plots$CPUE           # nominal CPUE versus true biomass
 plot_tuna_vertical_distributions()
 
-# Standardise with and without HBF
-comparison <- standardize_cpue(tuna, spatial_res = 5,
-  models = c("Base", "Base+S", "Cluster+S", "DPC+S", "HBF+S", "DPC_HBF+S"))
+# Standardise: Base, space, clusters, PCs and HBF
+comparison <- standardize_cpue(tuna, spatial_res = 5, n_pc = 2, n_clusters = 4,
+  models = c("Base", "Base+S", "Cluster+S", "DPC+S", "HBF+S"), engine = "bam")
 comparison$diagnostics
-plot_indices(comparison, models = c("Base+S", "Cluster+S", "DPC+S", "HBF+S", "DPC_HBF+S"))
+plot_indices(comparison, type = "smooth")
+plot_pcs(comparison)$time         # what the PCs capture over time
+plot_clusters(comparison)$time    # cluster shares over time
 
 # One row per set (e.g. for your own GAMs)
 sets <- as_set_data(tuna$Data)
@@ -65,10 +77,10 @@ warm and south is cool.
 | Movement | Exponential distance kernel, weighted by habitat | `dispersal` |
 | Vertical distribution | Normal depth profile, shifted by a thermocline anomaly (fixed field + optional annual shift and annual field) | `depth_mu`, `depth_sd`, `thermocline_sd`, `thermocline_annual_sd`, `thermocline_annual_field_sd` |
 | Hook depth | Typical (median) depth per HBF level (cf. Bigelow et al. 2002, Fig. 2); lognormal set-level error; lognormal spread of hooks within a set | `HBF_levels`, `HBF_depth`, `set_cv`, `hook_cv` |
-| Catchability of a set | Vessel q x overlap between hook and fish depth distributions | `q`, `vessel_cv`, `tweedie_power`, `tweedie_phi` |
+| Catchability of a set | Vessel q x overlap between hook and fish depth distributions; fishing catchability `q` sets how hard stocks are fished, index catchability `q_index` sets the zeros and noise of the recorded CPUE | `q`, `q_index`, `vessel_cv`, `tweedie_power`, `tweedie_phi` |
 | Spatial targeting | Effort goes to cells with high expected catch value | `price`, `preference` |
 | Vertical targeting | Skippers choose the HBF with the highest expected value | `HBF_choice_temp` |
-| Population | Schaefer model in each cell, then movement | `B0`, `r` |
+| Population | Schaefer model in each cell, then movement; stocks start at a fraction of carrying capacity | `B0`, `r`, `B_start` |
 
 Default species:
 
@@ -88,6 +100,13 @@ ALB is fished down, BET declines, BFT recovers and declines again once
 targeted, YFT dips and recovers. `tuna_settings("mild")` gives weaker
 targeting.
 
+The tuna example uses different prices, which also switch the fleet between
+water masses (ALB and BFT in the cool south, then BET and YFT in the warm north,
+then BET and BFT), and compares stocks with contrasting true trends (the
+defaults) with lightly fished, unfished stocks (`q = 0.2`, `B_start = 1`) under
+identical targeting. Both share the same observation model (`q_index = 0.2`);
+see `inst/scripts/talk_setup.R`.
+
 `Data` also contains the latent truth that analysts would not see:
 `hook_depth` (median hook depth of the set), `vertical_avail` (realised vertical
 overlap) and `hbs_avail` (overlap predicted by a habitat model from HBF and the average
@@ -100,8 +119,9 @@ By default the thermocline pattern is fixed over time. Setting
 `thermocline_annual_field_sd` (a new spatial field each year) makes it move
 between years, so the catchability of a given HBF changes from year to year;
 about 15 m and 10 m give a realistic ENSO-like range. The vignette *Targeting
-in a longline tuna fishery* walks through a fixed and a moving thermocline
-scenario step by step, comparing Cluster, DPC and HBF.
+in a longline tuna fishery* walks through the settings and a fixed and a moving
+thermocline scenario step by step; the vignette *Tuna longline targeting: flat
+versus contrasting true trends* shows the main results.
 
 Plots that illustrate each effect:
 
@@ -129,7 +149,7 @@ Longer runs live in `inst/scripts/` (run from the package folder):
 
 | Script | Runs |
 |---|---|
-| `run_bathymetric.R` | guideline (Run 22) example: single run (seed 123) and 20 replicates |
+| `run_bathymetric.R` | bathymetric example with the guideline settings: single run (seed 123) and 20 replicates |
 | `run_tuna_flat.R` | tuna, flat true trends: single run and 20 replicates, fixed and moving thermocline |
 | `run_tuna_contrast.R` | tuna, contrasting true trends: as above |
 | `render_docs.R` | renders the vignettes to `docs/` from the pre-run results |
@@ -168,7 +188,7 @@ sets of a year at once.
 
 ## Original code
 
-The original Run 22 scripts (`OMcpueSIM22_original.R`,
+The original scripts used for the guidelines ("Run 22") (`OMcpueSIM22_original.R`,
 `Generate_scenario_data22_original.R`) and the 2014 cluster simulator are kept
 unchanged in `inst/extdata` for reference. The differences between the
 original code and `simulate_bathymetric()` are listed in Appendix A.8 of the
@@ -176,6 +196,13 @@ original code and `simulate_bathymetric()` are listed in Appendix A.8 of the
 and in `NEWS.md`.
 
 ## References
+
+He, X., Bigelow, K.A. and Boggs, C.H. (1997) Cluster analysis of longline sets
+and fishing strategies within the Hawaii-based fishery. Fisheries Research 31,
+147-158.
+
+Hoyle, S.D., Langley, A.D. and Campbell, R.A. (2014) Recommended approaches for
+standardizing CPUE data from pelagic fisheries. WCPFC-SC10-2014/SA-IP-10.
 
 Ono, K., Punt, A.E. and Hilborn, R. (2015) Think outside the grids: an
 objective approach to define spatial strata for catch and effort analysis.

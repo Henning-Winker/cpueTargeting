@@ -94,10 +94,19 @@ The original Run 22 scripts are kept unchanged in the package folder
 <div class="note">Please cite Thorson et al. (2017) and Ono et al. (2015) for the spatial
 simulator when using either function, in addition to the package.</div>
 
+<p><strong>Worked examples.</strong> Two short vignettes illustrate the simulators and the
+standardisation models with a single run (seed 123) and 20 replicates:
+<a href="bathymetric-example.html">Targeting along a continuous gradient: the bathymetric
+example</a> (Appendix A) and <a href="tuna-flat-vs-contrast.html">Tuna longline targeting: flat
+versus contrasting true trends</a> (Appendix B). The settings of these examples are summarised in
+A.7 and B.9. The simulations are run with the scripts in <code>inst/scripts/</code>
+(<code>run_bathymetric.R</code>, <code>run_tuna_flat.R</code>, <code>run_tuna_contrast.R</code>),
+which save their results for the vignettes.</p>
+
 <h2 id="A">2. Appendix A: the spatial multispecies simulator (<code>simulate_bathymetric()</code>)</h2>
 
 <p>The model tracks the biomass density \(d_p(s,t)\) of species \(p = 1,\dots,P\) in grid
-cell \(s = 1,\dots,S\) and year \(t = 1,\dots,T\). The default (Run 22) uses \(P = 4\)
+cell \(s = 1,\dots,S\) and year \(t = 1,\dots,T\). The default (guideline settings) uses \(P = 4\)
 species on a \(50 \times 50\) grid (\(S = 2500\)) over \(T = 30\) years.</p>
 
 <h3>A.1 Habitat: bathymetry</h3>
@@ -143,7 +152,7 @@ error (CV = 0.2):</p>
 U(t) = \left\lfloor \exp\{U^*(t)\} \right\rfloor,\qquad
 U^*(t) \sim \mathrm{N}\!\left(\log\frac{U_T}{1+e^{-0.1t}} - \frac{\sigma_U^2}{2},\; \sigma_U^2\right),
 \]
-<p>with \(U_T\) = <code>Tot_effort</code> (500 in Run 22) and \(\sigma_U^2 = \log(1 + 0.2^2)\).
+<p>with \(U_T\) = <code>Tot_effort</code> (500 in the guideline settings) and \(\sigma_U^2 = \log(1 + 0.2^2)\).
 Sets are allocated to cells in proportion to expected revenue,</p>
 \[
 \pi(s,t) \;\propto\; \Big[\sum_{p} \phi_p(t)\, d_p(s,t)\,\big(1 - e^{-q}\big)\Big]^{\kappa},
@@ -175,7 +184,7 @@ i.e. coarser than the 1 x 1 cells on which the population is simulated. The true
 abundance is the total biomass of each species at the start of each year, scaled to a mean
 of one.</p>
 
-<h3>A.7 Run 22 settings</h3>
+<h3>A.7 Settings of the CPUE guidelines</h3>
 <div class="table-wrap"><table>
 <tr><th>Setting</th><th>Symbol</th><th>Species 1</th><th>Species 2</th><th>Species 3</th><th>Species 4</th></tr>
 <tr><td>Price, years 1-10</td><td>\(\phi_p\)</td><td class="num">1.5</td><td class="num">1</td><td class="num">1</td><td class="num">0.5</td></tr>
@@ -191,9 +200,16 @@ of one.</p>
 and dispersion 0.1, \(\kappa\) = 1. Space: 50 x 50 cells, \(\sigma_z\) = 150 m, \(\phi\) = 4 cells.
 The species correspond loosely to petrale sole, Dover sole, darkblotched rockfish and
 sablefish. Thorson et al. (2017) used different parameter values (their Table B1).</p>
+<p><strong>Example.</strong> The bathymetric vignette uses these settings with seed 123. As in
+the guidelines, the data are standardised with 2 principal components, 3 clusters and a spatial
+smoother <code>s(Xs, Ys, k = 8)</code> on the reported 5 x 5 blocks (Tweedie GAMs,
+<code>engine = "gam"</code>); the final DPC+S model is refitted with a random vessel effect.
+The comparison includes Base, Base+S, Cluster+S, DPC (catch composition only, no spatial term)
+and DPC+S. The original scripts did not fix a seed, so the guideline data set itself cannot be
+reproduced exactly.</p>
 
 <h3>A.8 Differences from the original code</h3>
-<p><code>simulate_bathymetric()</code> keeps the structure and settings of Run 22. The following
+<p><code>simulate_bathymetric()</code> keeps the structure and settings of the guideline version (Run 22). The following
 changes were made when turning the scripts into a package function:</p>
 <ul>
   <li><strong>Growth rate by species.</strong> The original code computed \(r \times d\) with
@@ -291,16 +307,29 @@ availability of species \(p\) to set \(u\) in cell \(s\) is</p>
 A_p(u) = \frac{100\ \mathrm{m}}{\Delta z} \sum_j g_u(z_j)\, f_p(z_j \mid s,t),
 \]
 <p>scaled so that \(A_p = 1\) corresponds to fish spread evenly over a 100-m layer fished by all
-hooks (\(\Delta z\) = 10 m). The catchability of the set is
-\(q_p(u) = \tilde q_p(u)\, A_p(u)\), where \(\tilde q_p(u)\) is the vessel catchability with
-Tweedie error of A.5 (mean \(q\) = 3). Catch is then calculated as in A.5.</p>
+hooks (\(\Delta z\) = 10 m).</p>
+<p><strong>Fishing and index catchability.</strong> The tuna model separates how hard stocks are
+fished from how the catch rates are recorded. The set-level catchability with vessel and Tweedie
+error of A.5 is drawn at the <em>index</em> catchability \(q_I\) (<code>q_index</code> = 0.2),</p>
+\[
+\tilde q_p(u) \sim \mathrm{Tweedie}\big(\text{mean } q_{I,v(u)},\ 1.2,\ 0.1\big), \qquad
+q^{I}_p(u) = \tilde q_p(u)\, A_p(u), \qquad
+q^{F}_p(u) = \frac{q_F}{q_I}\, q^{I}_p(u),
+\]
+<p>where \(q_F\) (<code>q</code> = 3) is the fishing catchability. The recorded CPUE is the
+catch calculated as in A.5 with \(q^{I}_p(u)\), and the catch removed from the population is
+calculated in the same way with \(q^{F}_p(u)\). Both use the same random draws, so a set with a
+zero draw catches nothing and records zero. Raising \(q_F\) therefore depletes the stocks without
+changing the zeros and the noise of the CPUE data, and the recorded CPUE stays in the
+near-linear range of \(1 - \exp\{-q\,A\}\), where it is proportional to density times
+availability. With \(q_I = q_F\) the model reduces to the single catchability of A.5.</p>
 
 <h3>B.5 Targeting: where and how deep</h3>
 <p>Skippers evaluate the expected value of each cell \(s\) and HBF level \(h\) in year \(t\),</p>
 \[
-V(s,h,t) = \sum_p \phi_p(t)\, d_p(s,t) \left(1 - \exp\{-q\, \bar A_p(s,h,t)\}\right),
+V(s,h,t) = \sum_p \phi_p(t)\, d_p(s,t) \left(1 - \exp\{-q_F\, \bar A_p(s,h,t)\}\right),
 \]
-<p>where \(\bar A_p(s,h,t)\) is the availability under the expected hook profile of HBF \(h\)
+<p>where \(q_F\) is the fishing catchability and \(\bar A_p(s,h,t)\) is the availability under the expected hook profile of HBF \(h\)
 and the current thermocline. Effort is allocated to cells in proportion to
 \(\big[\max_h V(s,h,t)\big]^{\kappa}\) with \(\kappa\) = 1.5 (spatial targeting). Each set then
 chooses its HBF with probability</p>
@@ -358,6 +387,27 @@ habitat-based standardisation). The true index is the total biomass at the start
 <tr><td>Latent truth in output</td><td>Biomass</td><td>Biomass, hook depth, vertical availability, habitat-model prediction</td></tr>
 </table></div>
 
+<h3>B.9 Scenarios used in the examples</h3>
+<p>The tuna vignette compares two scenarios with <strong>identical targeting, fleet and observation
+model</strong> that differ only in the true trends. Both use the defaults of B.7 except for the
+prices, which switch the fleet between water masses as well as depths:</p>
+<div class="table-wrap"><table>
+<tr><th>Price</th><th>YFT</th><th>BET</th><th>BFT</th><th>ALB</th><th>Fleet goes to</th></tr>
+<tr><td>Years 1-10</td><td class="num">0.3</td><td class="num">0.2</td><td class="num">1.0</td><td class="num">2.0</td><td>cool south, mostly shallow (ALB, some BFT)</td></tr>
+<tr><td>Years 11-20</td><td class="num">1.5</td><td class="num">2.5</td><td class="num">0.7</td><td class="num">0.3</td><td>warm north, deep for BET and shallow for YFT</td></tr>
+<tr><td>Years 21-30</td><td class="num">1.0</td><td class="num">2.0</td><td class="num">1.5</td><td class="num">0.5</td><td>deep, split between north (BET) and south (BFT)</td></tr>
+</table></div>
+<div class="table-wrap"><table>
+<tr><th>Scenario</th><th>Stocks and fishing</th><th>True trends</th></tr>
+<tr><td>Contrasting</td><td>defaults: \(\delta\) = 0.6, 0.7, 0.2, 0.9; \(q_F\) = 3, \(q_I\) = 0.2</td><td>diverging: ALB and BET fished down, BFT recovers, YFT dips and recovers</td></tr>
+<tr><td>Flat</td><td>unfished, lightly fished: \(\delta\) = 1; \(q_F = q_I\) = 0.2</td><td>nearly flat</td></tr>
+</table></div>
+<p>Each scenario is run with a fixed thermocline (<code>Fixed</code>) and with a thermocline that
+moves between years (<code>Moving</code>: annual shift SD 15 m and annual field SD 10 m). The
+single-run illustrations use seed 123; the replicates use seeds 1-20. With flat trends, every
+change in the catch composition is caused by targeting; with contrasting trends, the composition
+also changes because the species' relative abundances change (C.6).</p>
+
 <h2 id="C">4. Appendix C: standardisation models</h2>
 
 <p>The simulated data are standardised with Tweedie generalised additive (mixed) models,
@@ -393,7 +443,10 @@ reported positions. In the simulator, positions are reported as the centres of
 \(k\) controls the maximum flexibility; by default it grows with the number of reported
 positions (8 for 100 blocks, at most 60). In model names, the suffix <code>+S</code> adds
 this term (e.g. <code>DPC+S</code>). Settings: <code>spatial_res</code> (block size in
-cells; 1 = exact position) and <code>spatial_k</code>.</p>
+cells; 1 = exact position) and <code>spatial_k</code>. The examples use the reported 5 x 5
+blocks throughout: logbooks rarely report positions at the scale at which fish and fleets
+interact, and a longline set may span a front, so a spatial term cannot resolve all spatial
+targeting. This data-limited case is the realistic one.</p>
 
 <h3>C.3 Targeting terms</h3>
 
@@ -412,11 +465,12 @@ used as a categorical "fishing tactic" (FT) (He et al. 1997):</p>
 \[
 T_i = \gamma_{\mathrm{FT}(i)}, \qquad \mathrm{FT}(i) \in \{1, \dots, G\}.
 \]
-<p>Following Winker et al. (2014), the number of clusters is the number of principal
-components used by DPC plus one, \(G = n + 1\) (by default 4; setting
-<code>n_clusters</code>). The guidelines used CLARA clustering; here k-means is used.
-Clustering assumes that discrete targeting strategies exist, as recommended by Hoyle et al.
-(2014).</p>
+<p>The number of clusters \(G\) has to be chosen (setting <code>n_clusters</code>). One option,
+used by default, is the number of principal components plus one, \(G = n + 1\) (Winker et al.
+2014); the examples use 3 clusters (bathymetric) and 4 (tuna). The clusters are formed from the
+composition itself, not from the PC scores, so they do not depend on the number of PCs used by
+DPC. The guidelines used CLARA clustering; here k-means is used. Clustering assumes that discrete
+targeting strategies exist (Hoyle et al. 2014).</p>
 
 <p><strong>DPC (continuous targeting, direct principal components).</strong> The composition
 matrix \(\mathbf{W}\) is centred, scaled and decomposed by principal component analysis.
@@ -433,7 +487,11 @@ non-trivial components with the optimal coordinates test (a non-graphical soluti
 Cattell's scree test, <code>nFactors::nScree()</code>), because model selection criteria such
 as AIC tend to retain too many components. With \(P\) species there are at most \(P - 1\)
 informative components; using more components captures more of the targeting signal but also
-increases the risk of absorbing real changes in relative abundance (C.6).</p>
+increases the risk of absorbing real changes in relative abundance (C.6). The examples use 2
+components for the bathymetric case (as in the guidelines) and compare 3 and 2 components for
+the tuna case: with flat trends the third component is mostly noise and harmless; with
+diverging trends it starts to follow the abundance changes, and 2 components give the more
+accurate indices.</p>
 
 <p><strong>HBF (recorded gear covariate).</strong> The number of hooks between floats is used
 as a factor, one catchability multiplier per HBF level (Hoyle et al. 2014):</p>
@@ -523,6 +581,12 @@ and can be partly absorbed by the targeting terms, removing part of the true tre
 largest with few species (with two species the composition has a single dimension, so targeting
 and abundance cannot be separated) and when many components are used. Model selection criteria
 are therefore not reliable guides to the number of components or clusters (Winker et al. 2014).</p>
+<p>The tuna examples isolate this effect: with identical targeting and observation model, DPC is
+close to the truth for all species when trends are flat, but absorbs part of the real trend of
+the species whose relative abundance changes most when trends diverge, and more so with more
+components. A useful diagnostic is to plot the mean PC scores (or cluster shares) over time
+(<code>plot_pcs()</code>, <code>plot_clusters()</code>): targeting changes appear as steps at known
+changes in the fishery, whereas abundance changes appear as gradual drifts.</p>
 
 <h2 id="refs">References</h2>
 <div class="refs">
