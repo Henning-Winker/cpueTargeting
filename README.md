@@ -14,6 +14,28 @@ copes with changes in fishing targeting. It contains three operating models:
    Hook depth depends on hooks between floats (HBF), and habitat-based
    standardisation follows Bigelow et al. (2002).
 
+## A realistic simulated logbook
+
+`simulate_logbook()` simulates a mixed demersal-pelagic fishery with ten
+species and returns a messy trip-level logbook together with the truth.
+Demersal species live along a depth gradient and on patchy reef or sediment
+substrate (shallow/deep reef, shallow/deep sediment, as in Winker et al.
+2014); pelagic species follow SST and migrate seasonally. Each trip chooses a
+tactic (`Reef` handline, `Sediment` longline or `Pelagic` troll) and a place
+by expected value; prices change between periods, a closure bans sediment
+gear from deep water, specialist and flexible vessels enter and leave. The
+logbook reports trips (some combining two sets), coarse and sometimes missing
+positions, rounded catches, under-reported bycatch and a species under two
+names, but not the tactic. See the vignette *A realistic logbook: reef,
+sediment and pelagic tactics*.
+
+```r
+sim <- simulate_logbook(seed = 1)
+sim$Plots$density; sim$Plots$tactics; sim$Plots$cpue
+head(sim$logbook)
+plot_index(fit, true = logbook_truth(sim, "Pagellus bogaraveo"))
+```
+
 ## Toolbox for real data
 
 The same methods can be applied step by step to real logbook or observer

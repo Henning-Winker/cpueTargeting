@@ -27,6 +27,13 @@
   `plot_residuals()` (randomised quantile residuals for Tweedie),
   `plot_effects()`, `plot_vessel_effects()`.
 * New vignette *Analysing real catch and effort data: a step-by-step guide*.
+* `simulate_logbook()`, `logbook_settings()`, `logbook_truth()`,
+  `plot_logbook_om()`: a ten-species demersal-pelagic fishery with
+  reef/sediment x shallow/deep habitats, seasonal pelagic migrants, discrete
+  tactic choice (Reef, Sediment, Pelagic), specialist and flexible vessels,
+  fleet turnover with efficiency creep, price periods and a closure, reported
+  as a messy trip-level logbook. New vignette *A realistic logbook: reef,
+  sediment and pelagic tactics*.
 * GitHub Actions: R CMD check on every push; generated documentation is
   committed automatically.
 * `cluster` added to Suggests.
