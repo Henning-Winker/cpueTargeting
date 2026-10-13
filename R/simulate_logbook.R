@@ -44,8 +44,8 @@ logbook_settings <- function() {
                 "coastal, reef-associated", "coastal"),
     depth_mu = c(60, 50, 350, 400, 150, 500, 700, 300, 100, 60),
     depth_cv = c(0.5, 0.5, 0.3, 0.35, 1.0, 0.3, 0.6, 1.0, 0.7, 1.0),
-    reef = c(1, 0.1, 1, 0.1, 1, 0.5, 1, 1, 1, 1),
-    sediment = c(0.05, 1, 0.05, 1, 0.3, 1, 1, 1, 0.3, 1),
+    reef = c(1, 0.05, 1, 0.05, 1, 0.5, 1, 1, 1, 1),
+    sediment = c(0.02, 1, 0.02, 1, 0.3, 1, 1, 1, 0.3, 1),
     sst_mu = c(NA, NA, NA, NA, NA, NA, 18, 21, 20, 18),
     sst_sd = c(NA, NA, NA, NA, NA, NA, 1.5, 1.2, 2, 2.5),
     season_amp = c(0, 0, 0, 0, 0, 0, 0.7, 0.9, 0.4, 0.3),
@@ -53,12 +53,12 @@ logbook_settings <- function() {
     dispersal = c(0.5, 0.5, 0.5, 0.8, 0.5, 0.8, 2, 2, 1, 1),
     B0 = c(500, 900, 800, 2500, 600, 700, 3000, 1500, 600, 4000),
     r = c(0.25, 0.35, 0.18, 0.30, 0.30, 0.30, 0.40, 0.80, 0.35, 0.80),
-    B_start = c(0.7, 0.8, 0.6, 0.6, 0.9, 0.9, 0.9, 1, 0.8, 1),
+    B_start = c(0.9, 0.8, 0.7, 0.6, 0.9, 0.9, 0.9, 1, 0.8, 1),
     price = c(12, 8, 15, 5, 3, 2, 6, 7, 9, 2),
     stringsAsFactors = FALSE)
   tactics <- rbind(
-    Reef     = c(1.00, 0.60, 1.00, 0.20, 0.80, 0.30, 0.02, 0.02, 0.40, 0.20),
-    Sediment = c(0.30, 1.00, 0.30, 1.00, 0.80, 1.00, 0.01, 0.01, 0.10, 0.05),
+    Reef     = c(1.00, 0.20, 1.00, 0.05, 0.80, 0.10, 0.02, 0.02, 0.40, 0.20),
+    Sediment = c(0.10, 1.00, 0.10, 1.00, 0.50, 1.00, 0.01, 0.01, 0.05, 0.05),
     Pelagic  = c(0.02, 0.01, 0.01, 0.01, 0.01, 0.01, 1.00, 1.00, 0.80, 0.60))
   colnames(tactics) <- species$species
   list(
@@ -69,12 +69,12 @@ logbook_settings <- function() {
     shelf_power = 1.5,           # > 1: narrow shelf, steeper slope offshore
     depth_sd = 40, depth_scale = 4,
     reef_share = 0.25,           # share of cells with reef substrate
-    reef_scale = 1.5,            # patch size of reefs (cells)
+    reef_scale = 2.5,            # patch size of reefs (cells)
     sst_range = c(17, 22),       # SST from north to south
     sst_sd = 0.5, sst_scale = 8,
     species = species,
     tactics = tactics,
-    q = 0.02,                    # catchability scale per set
+    q = 0.06,                    # catchability scale per set
     price_periods = list(years = c(1, 9, 17), demersal = c(1.4, 0.7, 1),
                          pelagic = c(0.6, 1.6, 1)),
     price = NULL,                # optional years x species price matrix
@@ -98,7 +98,7 @@ logbook_settings <- function() {
       missing_position = 0.02,
       two_sets = 0.3,            # share of trips with a second set (reported as one trip)
       switch_tactic = 0.2,       # probability that the second set uses another tactic
-      kg_median = 20,            # median positive catch per species record (kg)
+      kg_trip = 60,              # median total catch per trip (kg)
       round_to = 0.5,
       underreport = list(max_price = 3, below_kg = 2, prob = 0.5),
       synonyms = c("Pagellus bogaraveo" = "Blackspot seabream"),
@@ -338,8 +338,8 @@ simulate_logbook <- function(settings = logbook_settings(), seed = NULL, plots =
 
   # Reporting
   lb <- s$logbook
-  pos <- trip_catch[trip_catch > 0]
-  kg_scale <- if (length(pos)) lb$kg_median / stats::median(pos) else 1
+  tot <- rowSums(trip_catch)
+  kg_scale <- if (any(tot > 0)) lb$kg_trip / stats::median(tot[tot > 0]) else 1
   kg <- trip_catch * kg_scale
   if (!is.null(lb$underreport)) {
     low <- which(sp$price <= lb$underreport$max_price)

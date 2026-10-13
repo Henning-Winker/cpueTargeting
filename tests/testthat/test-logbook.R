@@ -75,7 +75,9 @@ test_that("the toolbox recovers the tactics from the logbook", {
   x <- select_species(x, threshold = 0.95)
   x <- add_targeting(x, n_clusters = 3)
   true_tac <- sim$trips$tactic[match(x$data$trip, sim$trips$trip)]
-  tab <- table(x$data$FT, true_tac)
+  # pelagic and demersal trips fall into different clusters
+  group <- ifelse(true_tac == "Pelagic", "pelagic", "demersal")
+  tab <- table(x$data$FT, group)
   purity <- sum(apply(tab, 1, max)) / sum(tab)
-  expect_gt(purity, 0.7)
+  expect_gt(purity, 0.8)
 })

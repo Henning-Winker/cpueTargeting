@@ -66,8 +66,7 @@ sim$Plots$tactics
 sim$Plots$effort
 ```
 
-The nominal CPUE of many species departs from the true trend because the
-tactics change:
+Nominal CPUE (orange) against the true biomass (black):
 
 ```{r om-cpue, fig.height = 5}
 sim$Plots$cpue
@@ -122,9 +121,16 @@ Here we can check the clusters against the true tactic of each trip (the
 tactic of its first set):
 
 ```{r check-tactics}
-true_tactic <- sim$trips$tactic[match(x$data$trip, sim$trips$trip)]
-table(cluster = x$data$FT, true = true_tactic)
+truth <- sim$trips[match(x$data$trip, sim$trips$trip), ]
+table(cluster = x$data$FT, tactic = truth$tactic)
+table(cluster = x$data$FT, habitat = truth$habitat)
 ```
+
+Clusters describe the **catch composition**, which reflects both the gear
+(tactic) and where it was used (habitat). Trips with two sets, gear
+overlap and neighbouring habitats blur the link, so clusters rarely match
+tactics one to one; what matters for standardisation is whether the
+covariates capture the changes in where and how the fleet fishes.
 
 ```{r targeting-plots, fig.height = 4.5}
 pt <- plot_targeting(x, res = 0.5)
