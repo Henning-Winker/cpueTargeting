@@ -1,6 +1,6 @@
 Package: cpueTargeting
 Title: Simulators for CPUE Targeting and Standardization
-Version: 0.2.0
+Version: 0.3.0
 Authors@R: person("Henning", "Winker", role = c("aut", "cre"),
     email = "henning.winker@fao.org")
 Description: Multispecies operating models for exploring spatial and
@@ -21,6 +21,7 @@ Depends:
 Imports:
     ggplot2 (>= 3.4.0),
     grDevices,
+    grid,
     stats,
     utils
 Suggests:

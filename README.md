@@ -25,7 +25,7 @@ remotes::install_github("henning-winker/cpueTargeting")
 ```
 
 The simulators only need `ggplot2`; `mgcv` is needed for
-`standardize_tuna_indices()`.
+`standardize_cpue()`.
 
 ## Quick start
 
@@ -45,7 +45,7 @@ tuna$Plots$CPUE           # nominal CPUE versus true biomass
 plot_tuna_vertical_distributions()
 
 # Standardise with and without HBF
-comparison <- standardize_tuna_indices(tuna, spatial_res = 5,
+comparison <- standardize_cpue(tuna, spatial_res = 5,
   models = c("Base", "Base+S", "Cluster+S", "DPC+S", "HBF+S", "DPC_HBF+S"))
 comparison$diagnostics
 plot_indices(comparison, models = c("Base+S", "Cluster+S", "DPC+S", "HBF+S", "DPC_HBF+S"))
@@ -114,6 +114,7 @@ Plots that illustrate each effect:
 | `sim$Plots$HBF`, `sim$Plots$CPUE` | gear use over time; nominal CPUE versus truth |
 | `plot_sections(sim)` | species distributions in 3D: latitude x depth sections and maps by depth layer |
 | `plot_pcs(fit)` | what the catch-composition PCs capture: loadings, maps, scores against hook depth, scores over time |
+| `plot_clusters(fit)` | what the clusters capture: species composition, shares over time, map, hook depth, clusters in PC space |
 | `plot_indices()`, `plot_diagnostics()` | standardised indices and their accuracy, for one or several scenarios |
 
 `bind_comparisons()` and `select_models()` combine and subset standardisation
@@ -121,6 +122,24 @@ results, e.g. to attach a slow control fit without refitting it.
 `run_replicates()` repeats simulation and standardisation over many seeds,
 saving after every fit so that long runs can be resumed; `plot_replicates()`
 shows the accuracy across seeds.
+
+## Simulation scripts and pre-run vignettes
+
+Longer runs live in `inst/scripts/` (run from the package folder):
+
+| Script | Runs |
+|---|---|
+| `run_bathymetric.R` | guideline (Run 22) example: single run (seed 123) and 20 replicates |
+| `run_tuna_flat.R` | tuna, flat true trends: single run and 20 replicates, fixed and moving thermocline |
+| `run_tuna_contrast.R` | tuna, contrasting true trends: as above |
+| `render_docs.R` | renders the vignettes to `docs/` from the pre-run results |
+
+Shared settings (prices, models, seeds, number of parallel workers) are in
+`talk_setup.R`. Results are saved to `../rdata/`, next to the repository, so
+they are not pushed. Finished seeds are skipped, so runs can be resumed. The
+vignettes *Targeting along a continuous gradient: the bathymetric example* and
+*Tuna longline targeting: flat versus contrasting true trends* load these
+results; they are also on the [project page](https://henning-winker.github.io/cpueTargeting/).
 
 To change a scenario, edit the settings list:
 

@@ -1,5 +1,8 @@
 #' Standardise simulated CPUE with alternative targeting covariates
 #'
+#' Works for the output of [simulate_tuna()] and [simulate_bathymetric()].
+#' `standardize_tuna_indices()` is the former name and is kept as an alias.
+#'
 #' Fits Tweedie GAMs (`mgcv::gam` with `tw()`, as in the CPUE guidelines) to
 #' each species and compares the annual indices with the true biomass trend.
 #'
@@ -62,12 +65,12 @@
 #' @examples
 #' \dontrun{
 #' om <- simulate_tuna(seed = 42)
-#' comparison <- standardize_tuna_indices(om, models = c("Base", "Base+S",
+#' comparison <- standardize_cpue(om, models = c("Base", "Base+S",
 #'                                         "DPC+S", "Cluster+S", "HBF+S"))
 #' comparison$diagnostics
 #' plot_indices(comparison)
 #' }
-standardize_tuna_indices <- function(simulation, models = NULL,
+standardize_cpue <- function(simulation, models = NULL,
                                      spatial_res = 5, spatial_k = NULL,
                                      add_models = NULL, vessel_re = FALSE,
                                      n_pc = 3, n_clusters = n_pc + 1, seed = 1,
@@ -210,6 +213,11 @@ standardize_tuna_indices <- function(simulation, models = NULL,
        pca = list(loadings = pca$rotation, variance = pca$sdev^2))
 }
 
+#' @rdname standardize_cpue
+#' @param ... Arguments passed to `standardize_cpue()`.
+#' @export
+standardize_tuna_indices <- function(...) standardize_cpue(...)
+
 #' mgcv's tw() family that also works when mgcv is not attached
 #'
 #' The functions inside `mgcv::tw()` are defined in an environment whose
@@ -234,15 +242,15 @@ tweedie_family <- function() {
 #' resolutions) in one plot. Give each call a different `label` so that the
 #' model names are unique.
 #'
-#' @param ... Outputs of [standardize_tuna_indices()].
-#' @return An object like the output of [standardize_tuna_indices()] with the
+#' @param ... Outputs of [standardize_cpue()].
+#' @return An object like the output of [standardize_cpue()] with the
 #'   `indices`, `diagnostics` and `formulas` of all inputs (`data` and `pca`
 #'   are taken from the first).
 #' @export
 #' @examples
 #' \dontrun{
-#' a <- standardize_tuna_indices(om, models = c("Base", "HBF+S"))
-#' b <- standardize_tuna_indices(om, models = "Base+S", spatial_res = 1,
+#' a <- standardize_cpue(om, models = c("Base", "HBF+S"))
+#' b <- standardize_cpue(om, models = "Base+S", spatial_res = 1,
 #'                               label = " (1x1)")
 #' plot_diagnostics(bind_comparisons(a, b))
 #' }
@@ -250,7 +258,7 @@ bind_comparisons <- function(...) {
   fits <- list(...)
   formulas <- unlist(lapply(fits, `[[`, "formulas"))
   if (anyDuplicated(names(formulas))) {
-    stop("Model names are not unique; use `label` in standardize_tuna_indices().",
+    stop("Model names are not unique; use `label` in standardize_cpue().",
          call. = FALSE)
   }
   stack <- function(what) {
@@ -271,7 +279,7 @@ bind_comparisons <- function(...) {
 #' Useful to reuse an expensive fit (e.g. a 1 x 1 spatial control) and attach
 #' it to new fits with [bind_comparisons()] instead of refitting it.
 #'
-#' @param comparison Output of [standardize_tuna_indices()] or
+#' @param comparison Output of [standardize_cpue()] or
 #'   [bind_comparisons()].
 #' @param models Model names to keep.
 #' @return The same structure, restricted to `models`.

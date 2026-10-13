@@ -55,7 +55,7 @@ test_that("plots are built", {
 test_that("standardisation runs and returns indices for all models", {
   skip_if_not_installed("mgcv")
   sim <- simulate_tuna(small_tuna(), seed = 4, plots = FALSE)
-  res <- standardize_tuna_indices(sim, models = c("Base+S", "HBF+S", "HBS+S"),
+  res <- standardize_cpue(sim, models = c("Base+S", "HBF+S", "HBS+S"),
     add_models = c(HBF_period = "year + s(Xobs, Yobs, k = 8) + HBF_period"))
   expect_equal(nrow(res$indices), 4 * 4 * 6)
   expect_false(anyNA(res$indices$index))
@@ -65,7 +65,7 @@ test_that("standardisation runs and returns indices for all models", {
   expect_s3_class(plot_indices(res, type = "points+smooth", span = 0.8), "ggplot")
   expect_s3_class(plot_diagnostics(list(A = res, B = res)), "ggplot")
   expect_true(all(c("Base+S", "HBF+S", "HBS+S", "HBF_period") %in% levels(res$indices$model)))
-  fast <- standardize_tuna_indices(sim, models = c("Cluster", "DPC_HBF",
+  fast <- standardize_cpue(sim, models = c("Cluster", "DPC_HBF",
                                                   "Cluster+S", "DPC_HBF+S"),
                                    spatial_res = 1, engine = "bam")
   expect_false(anyNA(fast$indices$index))
@@ -73,7 +73,7 @@ test_that("standardisation runs and returns indices for all models", {
                c("Cluster", "DPC_HBF", "Cluster+S", "DPC_HBF+S"))
   expect_false(grepl("Xs", fast$formulas[["Cluster"]]))
   expect_true(grepl("Xs", fast$formulas[["Cluster+S"]]))
-  expect_error(standardize_tuna_indices(sim, models = "Foo+S"), "Unknown")
+  expect_error(standardize_cpue(sim, models = "Foo+S"), "Unknown")
   expect_equal(length(unique(paste(fast$data$Xs, fast$data$Ys))),
                length(unique(paste(fast$data$X, fast$data$Y))))
 })
@@ -115,16 +115,16 @@ test_that("effect plots are built", {
 test_that("fits at different resolutions can be combined", {
   skip_if_not_installed("mgcv")
   sim <- simulate_tuna(small_tuna(), seed = 7, plots = FALSE)
-  a <- standardize_tuna_indices(sim, models = c("Base", "HBF+S"), engine = "bam")
-  b <- standardize_tuna_indices(sim, models = "Base+S", spatial_res = 1,
+  a <- standardize_cpue(sim, models = c("Base", "HBF+S"), engine = "bam")
+  b <- standardize_cpue(sim, models = "Base+S", spatial_res = 1,
                                 engine = "bam", label = " (1x1)")
   ab <- bind_comparisons(a, b)
   expect_equal(levels(ab$indices$model), c("Base", "HBF+S", "Base+S (1x1)"))
   expect_equal(nrow(ab$diagnostics), 4 * 3)
   expect_error(bind_comparisons(a, a), "not unique")
-  pc3 <- standardize_tuna_indices(sim, models = "DPC+S", n_pc = 3, engine = "bam")
+  pc3 <- standardize_cpue(sim, models = "DPC+S", n_pc = 3, engine = "bam")
   expect_true(grepl("s(PC3, k = 3)", pc3$formulas[["DPC+S"]], fixed = TRUE))
-  expect_error(standardize_tuna_indices(sim, models = "DPC", n_pc = 5), "n_pc")
+  expect_error(standardize_cpue(sim, models = "DPC", n_pc = 5), "n_pc")
   pcp <- plot_pcs(pc3, pcs = c("PC1", "PC2", "PC3"), min_sets = 1)
   expect_named(pcp, c("loadings", "space", "depth", "time"))
   for (p in pcp) expect_s3_class(p, "ggplot")
@@ -132,11 +132,25 @@ test_that("fits at different resolutions can be combined", {
   expect_s3_class(plot_diagnostics(ab), "ggplot")
 })
 
+test_that("cluster diagnostics and the old function name work", {
+  skip_if_not_installed("mgcv")
+  sim <- simulate_tuna(small_tuna(), seed = 9, plots = FALSE)
+  fit <- standardize_cpue(sim, models = "Cluster+S", n_pc = 2, engine = "bam")
+  pc <- plot_clusters(fit, switch_years = 3.5)
+  expect_named(pc, c("composition", "time", "space", "depth", "pca"))
+  for (p in pc) expect_s3_class(p, "ggplot")
+  bat <- simulate_bathymetric(small_bathymetric(), seed = 9, plots = FALSE)
+  fb <- standardize_cpue(bat, models = "Cluster+S", n_pc = 2, n_clusters = 3, engine = "bam")
+  expect_named(plot_clusters(fb), c("composition", "time", "space", "pca"))
+  old <- standardize_tuna_indices(sim, models = "Base", engine = "bam")
+  expect_equal(old$diagnostics, standardize_cpue(sim, models = "Base", engine = "bam")$diagnostics)
+})
+
 test_that("select_models keeps a subset that can be re-attached", {
   skip_if_not_installed("mgcv")
   sim <- simulate_tuna(small_tuna(), seed = 8, plots = FALSE)
-  a <- standardize_tuna_indices(sim, models = c("Base", "Base+S"), engine = "bam")
-  b <- standardize_tuna_indices(sim, models = "Base+S", spatial_res = 1,
+  a <- standardize_cpue(sim, models = c("Base", "Base+S"), engine = "bam")
+  b <- standardize_cpue(sim, models = "Base+S", spatial_res = 1,
                                 engine = "bam", label = " (1x1)")
   control <- select_models(bind_comparisons(a, b), "Base+S (1x1)")
   expect_equal(levels(control$indices$model), "Base+S (1x1)")

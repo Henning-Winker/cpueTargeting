@@ -5,7 +5,7 @@
 plot_pcs(comparison, pcs = c("PC1", "PC2"), depth_bin = 20, min_sets = 30)
 }
 \arguments{
-\item{comparison}{Output of \code{\link{standardize_tuna_indices}} (or of
+\item{comparison}{Output of \code{\link{standardize_cpue}} (or of
 \code{\link{bind_comparisons}}).}
 \item{pcs}{Principal components to show.}
 \item{depth_bin}{Width of the hook-depth bins (m).}

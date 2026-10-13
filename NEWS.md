@@ -1,3 +1,23 @@
+# cpueTargeting 0.3.0
+
+* `standardize_tuna_indices()` is renamed `standardize_cpue()`, as it works for
+  both simulators. The old name is kept as an alias.
+* New `plot_clusters()`: diagnostics for the Cluster models (composition of
+  each cluster, cluster shares over time, most common cluster in space, hook
+  depth by cluster, clusters in PC space), as in the CPUE guidelines.
+* `run_replicates()` gains `simulator`, so it also runs
+  `simulate_bathymetric()`; new `read_replicates()` combines results saved
+  one file per seed (e.g. from parallel runs).
+* New vignettes *Targeting along a continuous gradient: the bathymetric
+  example* and *Tuna longline targeting: flat versus contrasting true
+  trends*. They load pre-run results; the simulation scripts are in
+  `inst/scripts/` (`run_bathymetric.R`, `run_tuna_flat.R`,
+  `run_tuna_contrast.R`, with shared settings in `talk_setup.R`), and
+  `render_docs.R` renders the vignettes to `docs/`.
+* The 1 x 1 spatial control is no longer part of the standard comparisons:
+  positions are reported as 5 x 5 blocks, the realistic, data-limited case.
+* Single-run illustrations use seed 123.
+
 # cpueTargeting 0.2.0
 
 ## Tuna operating model rebuilt

@@ -6,7 +6,7 @@ plot_indices(comparison, models = NULL, ci = FALSE,
   type = c("lines", "smooth", "points+smooth"), span = 0.5)
 }
 \arguments{
-\item{comparison}{Output of \code{\link{standardize_tuna_indices}}, or a named
+\item{comparison}{Output of \code{\link{standardize_cpue}}, or a named
 list of such outputs (one per scenario), which are shown as rows.}
 \item{models}{Optional subset of model names to show.}
 \item{ci}{Logical; show 95\% confidence intervals.}

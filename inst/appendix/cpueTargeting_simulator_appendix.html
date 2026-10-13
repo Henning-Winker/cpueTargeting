@@ -364,7 +364,7 @@ habitat-based standardisation). The true index is the total biomass at the start
 following the workflow of the WKBMSYSPICT CPUE guidelines (Winker and Cardinale 2022). This
 appendix describes the general model, the data processing behind each way of accounting for
 targeting, and how each model is specified in R. All models are fitted with
-<code>standardize_tuna_indices()</code>, which uses the <code>mgcv</code> package (Wood 2017).</p>
+<code>standardize_cpue()</code>, which uses the <code>mgcv</code> package (Wood 2017).</p>
 
 <h3>C.1 General model</h3>
 <p>Let \(y_{i}\) be the catch of the species of interest in set \(i\), fished in year
@@ -488,7 +488,7 @@ fit &lt;- gam(y ~ year + s(lon, lat, k = 8) + s(PC1, k = 3) + s(PC2, k = 3) +
 fit &lt;- bam(y ~ year + s(lon, lat, k = 8) + HBF + s(vessel, bs = "re"),
            family = tw(), method = "fREML", discrete = TRUE, data = sets)</code></pre>
 <p>The same comparison with the package:</p>
-<pre><code>fits &lt;- standardize_tuna_indices(
+<pre><code>fits &lt;- standardize_cpue(
   sim,
   models      = c("Base", "Base+S", "Cluster+S", "DPC+S", "HBF+S"),
   spatial_res = 5,      # reported blocks of 5 x 5 cells
@@ -499,7 +499,7 @@ fit &lt;- bam(y ~ year + s(lon, lat, k = 8) + HBF + s(vessel, bs = "re"),
   engine      = "bam")  # "gam" (REML) or "bam" (fREML, discrete)
 fits$formulas           # the formulae actually fitted
 # further models, e.g. an HBF x period interaction:
-standardize_tuna_indices(sim, models = "HBF+S",
+standardize_cpue(sim, models = "HBF+S",
   add_models = c(HBF_period = "year + s(Xs, Ys, k = 8) + HBF_period"))</code></pre>
 
 <h3>C.6 From model to index, and how accuracy is measured</h3>

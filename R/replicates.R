@@ -7,12 +7,14 @@
 #'
 #' @param scenarios Named list of settings lists (see [tuna_settings()]).
 #' @param seeds Integer vector of seeds.
-#' @param models Models passed to [standardize_tuna_indices()].
+#' @param models Models passed to [standardize_cpue()].
 #' @param extra Optional list of extra standardisation calls, each a list of
-#'   arguments for [standardize_tuna_indices()] (e.g. a 1 x 1 control with a
+#'   arguments for [standardize_cpue()] (e.g. a 1 x 1 control with a
 #'   `label`); their results are added with [bind_comparisons()].
 #' @param file Optional `.rds` file to save and resume from.
-#' @param ... Further arguments for [standardize_tuna_indices()] (e.g.
+#' @param simulator Simulation function, [simulate_tuna()] (default) or
+#'   [simulate_bathymetric()]; `scenarios` must hold matching settings.
+#' @param ... Further arguments for [standardize_cpue()] (e.g.
 #'   `spatial_res`, `n_pc`, `engine`).
 #' @return A list with `diagnostics` and `indices`, each with columns
 #'   `scenario` and `seed` added.
@@ -28,7 +30,8 @@
 #'                        engine = "bam", file = "replicates.rds")
 #' plot_replicates(reps)
 #' }
-run_replicates <- function(scenarios, seeds, models, extra = NULL, file = NULL, ...) {
+run_replicates <- function(scenarios, seeds, models, extra = NULL, file = NULL,
+                           simulator = simulate_tuna, ...) {
   if (is.null(names(scenarios)) || any(names(scenarios) == "")) {
     stop("`scenarios` must be a named list of settings.", call. = FALSE)
   }
@@ -41,10 +44,10 @@ run_replicates <- function(scenarios, seeds, models, extra = NULL, file = NULL, 
     for (sc in names(scenarios)) {
       if (paste(sc, seed) %in% done) next
       message("Scenario ", sc, ", seed ", seed)
-      sim <- simulate_tuna(scenarios[[sc]], seed = seed, plots = FALSE)
-      fit <- standardize_tuna_indices(sim, models = models, ...)
+      sim <- simulator(scenarios[[sc]], seed = seed, plots = FALSE)
+      fit <- standardize_cpue(sim, models = models, ...)
       for (args in extra) {
-        fit <- bind_comparisons(fit, do.call(standardize_tuna_indices,
+        fit <- bind_comparisons(fit, do.call(standardize_cpue,
                                              c(list(simulation = sim), args)))
       }
       tag <- function(x) data.frame(scenario = sc, seed = seed, x)
@@ -58,6 +61,33 @@ run_replicates <- function(scenarios, seeds, models, extra = NULL, file = NULL, 
   out$indices$model <- factor(out$indices$model, levels = model_levels)
   out$diagnostics$scenario <- factor(out$diagnostics$scenario, levels = names(scenarios))
   out$indices$scenario <- factor(out$indices$scenario, levels = names(scenarios))
+  out
+}
+
+#' Read replicate results saved one file per seed
+#'
+#' Combines the `.rds` files written by [run_replicates()] (e.g. one file per
+#' seed from a parallel run) into one result for [plot_replicates()].
+#'
+#' @param dir Folder with the `.rds` files.
+#' @param pattern Regular expression for the file names.
+#' @param label Optional label stored in a column `label` (e.g. `"Flat
+#'   trends"`), to combine runs of different scenarios.
+#' @return A list with `diagnostics` and `indices`, as from [run_replicates()].
+#' @export
+read_replicates <- function(dir, pattern = "\\.rds$", label = NULL) {
+  files <- list.files(dir, pattern = pattern, full.names = TRUE)
+  if (!length(files)) stop("No result files in ", dir, call. = FALSE)
+  parts <- lapply(files, readRDS)
+  out <- list(diagnostics = do.call(rbind, lapply(parts, `[[`, "diagnostics")),
+              indices = do.call(rbind, lapply(parts, `[[`, "indices")))
+  for (what in names(out)) {
+    x <- out[[what]]
+    x$model <- factor(as.character(x$model), levels = unique(as.character(x$model)))
+    x$scenario <- factor(as.character(x$scenario), levels = unique(as.character(x$scenario)))
+    if (!is.null(label)) x$label <- label
+    out[[what]] <- x
+  }
   out
 }
 

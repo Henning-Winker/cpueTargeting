@@ -112,7 +112,7 @@ defaults, change elements with `modifyList()` (or `$`), and pass the list to
 s <- tuna_settings()
 str(s)                                        # all settings and defaults
 s2 <- modifyList(s, list(effort = 500, set_cv = 0.4))
-sim <- simulate_tuna(s2, seed = 1)
+sim <- simulate_tuna(s2, seed = 123)
 ```
 
 The settings come in five groups. Species-specific settings are vectors in
@@ -259,7 +259,7 @@ With the same seed, both runs share the SST field, the fixed thermocline
 pattern and the vessels.
 
 ```{r simulate}
-seed <- 1
+seed <- 123
 sims <- lapply(scenarios, simulate_tuna, seed = seed)
 ```
 
@@ -358,15 +358,15 @@ Each model is `year` plus a targeting term; `+S` adds a spatial smoother
 | DPC+S | `s(PC1) + s(PC2) + s(PC3)` of catch composition | continuous | all species' catches |
 | HBF+S | HBF factor | gear covariate | HBF from logbooks |
 
-Two additions:
+One addition: **DPC+S (2 PCs)** uses only the first two principal
+components, as in the 2023 CPUE guidelines. The default (`n_pc = 3`) uses
+three, which with four species is all the information in the catch
+composition.
 
-* **DPC+S (2 PCs)** uses only the first two principal components, as in the
-  2023 CPUE guidelines. The default (`n_pc = 3`) uses three, which with four
-  species is all the information in the catch composition.
-* **Base+S (1x1)** is a control: the spatial model with exact positions.
-  How far does perfect spatial information get us without any information on
-  targeting? Because it is the slowest fit, it is fitted once and stored.
-  Delete the stored file after changing the scenarios or the seed.
+Positions are reported only as 5 x 5 blocks. This is deliberate: logbooks
+rarely report positions at the resolution at which fish and fleets interact,
+and a longline set may span a front. The spatial term therefore cannot
+resolve all spatial targeting, which is the realistic, data-limited case.
 
 `engine = "bam"` uses `mgcv::bam(discrete = TRUE)` for speed; use
 `engine = "gam"` to reproduce the guideline approach exactly.
@@ -374,25 +374,13 @@ Two additions:
 ```{r standardise}
 models <- c("Base", "Base+S", "Cluster+S", "DPC+S", "HBF+S")
 
-fits_main <- lapply(sims, standardize_tuna_indices, models = models,
+fits_main <- lapply(sims, standardize_cpue, models = models,
                     spatial_res = 5, n_pc = 3, engine = "bam")
 
-fits_dpc2 <- lapply(sims, standardize_tuna_indices, models = "DPC+S",
+fits_dpc2 <- lapply(sims, standardize_cpue, models = "DPC+S",
                     spatial_res = 5, n_pc = 2, engine = "bam", label = " (2 PCs)")
 
-control_file <- sprintf("control_1x1_%s_seed%d_effort%d.rds",
-                        paste(names(scenarios), collapse = "_"), seed,
-                        round(sum(base$effort)))
-if (file.exists(control_file)) {
-  controls <- readRDS(control_file)
-} else {
-  controls <- lapply(sims, standardize_tuna_indices, models = "Base+S",
-                     spatial_res = 1, spatial_k = 30, engine = "bam",
-                     label = " (1x1)")
-  saveRDS(controls, control_file)
-}
-
-fits <- Map(bind_comparisons, fits_main, fits_dpc2, controls)
+fits <- Map(bind_comparisons, fits_main, fits_dpc2)
 fits$Fixed$formulas
 ```
 
@@ -404,7 +392,7 @@ the same way.
 ## Indices
 
 ```{r indices, fig.height = 6}
-plot_indices(fits, models = c("Base", "Base+S (1x1)", "Cluster+S",
+plot_indices(fits, models = c("Base", "Base+S", "Cluster+S",
                               "DPC+S (2 PCs)", "DPC+S", "HBF+S"))
 ```
 
@@ -441,8 +429,8 @@ knitr::kable(rmse_wide, digits = 3, row.names = FALSE)
   targeting is mainly spatial, e.g. BFT when the fleet moves into cool water.
   Base+S removes most of that bias.
 * **Vertical targeting.** The shallow species (YFT, ALB) drop in nominal CPUE
-  at year 11, and BET rises, when the fleet switches to deeper gear. Space alone, even at
-  1 x 1, cannot remove this; DPC and HBF can.
+  at year 11, and BET rises, when the fleet switches to deeper gear. Space alone cannot
+  remove this; DPC and HBF can.
 * **Cluster versus DPC.** Targeting in this simulator is continuous (a graded
   choice among locations and HBF levels), so a few discrete clusters (by
   default the number of PCs plus one, i.e. 4) capture only part of it. Clusters are recommended only when discrete strategies exist
@@ -524,9 +512,7 @@ fit and finished seeds are skipped, so the run can be interrupted and resumed
 reps <- run_replicates(
   scenarios, seeds = 1:20,
   models = c("Base", "Base+S", "Cluster+S", "DPC+S", "HBF+S"),
-  extra = list(list(models = "DPC+S", n_pc = 2, label = " (2 PCs)", engine = "bam"),
-               list(models = "Base+S", spatial_res = 1, spatial_k = 30,
-                    label = " (1x1)", engine = "bam")),
+  extra = list(list(models = "DPC+S", n_pc = 2, label = " (2 PCs)", engine = "bam")),
   spatial_res = 5, n_pc = 3, engine = "bam",
   file = "replicates_fixed_moving.rds")
 ```
@@ -552,7 +538,7 @@ without the smoother at three reporting resolutions: 1 x 1 (exact cell),
 targeting <- c("Base", "Cluster", "DPC", "HBF")
 resolutions <- c("1x1" = 1, "5x5" = 5, "10x10" = 10)
 fits_res <- lapply(resolutions, function(res) {
-  standardize_tuna_indices(sims$Fixed, models = c(targeting, paste0(targeting, "+S")),
+  standardize_cpue(sims$Fixed, models = c(targeting, paste0(targeting, "+S")),
                            spatial_res = res, spatial_k = if (res == 1) 30 else NULL,
                            engine = "bam")
 })
@@ -581,7 +567,7 @@ extra <- c(
   HBF_period  = "year + s(Xs, Ys, k = 8) + HBF_period",
   HBF_year_re = "year + s(Xs, Ys, k = 8) + HBF + s(year, HBF, bs = 're')"
 )
-fits_int <- lapply(sims, standardize_tuna_indices,
+fits_int <- lapply(sims, standardize_cpue,
                    models = c("HBF+S", "DPC+S"), add_models = extra, engine = "bam")
 plot_diagnostics(fits_int)
 plot_indices(fits_int, models = c("HBF+S", "DPC+S", "HBF_period", "HBF_year_re"))
