@@ -23,8 +23,7 @@ library(ggplot2)
 This guide shows how to prepare fishery-dependent catch and effort data for
 CPUE standardisation when fishers change what they target. It generalises the
 protocol developed for blackspot seabream (GFCM) to any multispecies fishery,
-from the raw logbook to the targeting covariates used in the standardisation
-models.
+from the raw logbook to the standardised index.
 
 | Step | Question | Functions |
 |---|---|---|
@@ -34,6 +33,9 @@ models.
 | 4. Nominal CPUE | What do the raw data say? | `nominal_cpue()`, `plot_nominal()`, `plot_composition()`, `plot_cpue_map()` |
 | 5. Subsetting (optional) | Which operations fished the target's habitat? | `stephens_maccall()`, `plot_stephens_maccall()` |
 | 6. Targeting covariates | How did fishing tactics change? | `add_targeting()`, `plot_oc()`, `plot_biplot()`, `tactic_table()`, `plot_targeting()` |
+| 7. Models | Base, Covariates, DPC, Cluster, spatial, vessel effects | `fit_cpue()` |
+| 8. Diagnostics | Which terms matter, and do the models fit? | `cpue_diagnostics()`, `plot_index()`, `plot_step()`, `plot_influence()`, `plot_residuals()`, `plot_effects()`, `plot_vessel_effects()` |
+| 9. Index | The index for the assessment | `cpue_index()`, `export_index()` |
 
 Every step returns the same kind of object, and every step that removes
 operations writes a line into a processing log, so the final data set can be
@@ -296,6 +298,137 @@ separate from abundance.
 > * Run `add_targeting()` **after** the last subsetting step; PCs and
 >   clusters depend on the operations included.
 
+## Step 7. Fit the standardisation models
+
+`fit_cpue()` fits a set of GAMs (`mgcv`) to the CPUE of one species and
+derives an annual index from each. Every model contains the year effect and
+differs in how it accounts for targeting:
+
+| Model | Terms besides year |
+|---|---|
+| `Base` | none |
+| `Covariates` | `terms` you give (e.g. month, port, gear) |
+| `DPC` | `terms` + smooths of the first `n_pc` PC scores |
+| `Cluster` | `terms` + fishing tactic (`FT`) as a factor |
+| `...+S` | adds a smoother of the reported positions |
+
+`vessel = TRUE` adds a random vessel intercept to every model. The default
+family is Tweedie, whose power parameter is estimated together with the
+model (also with random vessel effects); delta-lognormal and delta-gamma
+models are alternatives.
+
+Here we standardise the deep-water species, whose price rises over the three
+decades so that it is targeted more and more.
+
+```{r fit}
+fit <- fit_cpue(x, species = "Anoplopoma fimbria",
+                models = c("Base", "Base+S", "Cluster+S", "DPC", "DPC+S"),
+                vessel = TRUE, spatial_k = 30, engine = "bam")
+fit
+```
+
+The index of each year is the expected CPUE averaged over a reference set of
+covariate values: all observed positions, the fishing tactics (and months, if
+in the model), the median PC scores, and the average vessel.
+
+> **Guidelines**
+>
+> * Add terms **in a meaningful order** (e.g. Base, then space, then
+>   targeting) so that the step plot shows what each term does.
+> * For a seasonal effect use a cyclic smoother:
+>   `terms = 's(month, bs = "cc", k = 8)', knots = list(month = c(0.5, 12.5))`.
+> * Use `engine = "bam"` for large data sets (tens of thousands of
+>   operations or more).
+> * With many zeros and no clear separation between "could not catch" and
+>   "did not catch", Tweedie is a natural default; compare with a delta
+>   model (`family = "delta_lognormal"`) when the proportion of positive
+>   catches changes strongly over time.
+
+## Step 8. Diagnostics
+
+### Model comparison
+
+```{r diagnostics}
+cpue_diagnostics(fit)
+```
+
+AIC and BIC are only comparable between models with the same data and
+family, and they tend to favour many targeting terms because the catch
+composition is not independent of the response. Use them together with the
+following plots.
+
+### Indices and steps
+
+Since the data are simulated, the true biomass trend is known and can be
+added to the plot.
+
+```{r indices, fig.height = 5}
+truth <- data.frame(year = 1:30 + 1999,
+                    true = sim$Biomass$True[sim$Biomass$Sp == "Sp4"])
+plot_index(fit, true = truth)
+```
+
+```{r step, fig.height = 9}
+plot_step(fit)
+```
+
+### Influence
+
+The influence of a term in a year is the ratio between the expected CPUE
+given that year's covariate values and given the values of all years
+(Bentley et al. 2012). A term that changes the index has influence that
+changes over time.
+
+```{r influence}
+plot_influence(fit, "DPC+S")
+```
+
+### Residuals, effects and vessels
+
+For Tweedie models the residuals are randomised quantile residuals, which
+should be standard normal if the model fits, despite the zeros.
+
+```{r residuals, fig.height = 4}
+res <- plot_residuals(fit, "DPC+S", by = "FT")
+res$qq
+res$fitted
+res$year
+```
+
+```{r effects, fig.height = 4}
+eff <- plot_effects(fit, "DPC+S")
+eff$numeric
+eff$space
+```
+
+```{r vessels, fig.height = 4}
+plot_vessel_effects(fit, "DPC+S")
+```
+
+> **Guidelines**
+>
+> * Check the **influence** of the targeting terms: a strong trend in
+>   influence means targeting changed and the term corrects for it.
+> * Check that residuals show **no trend by year** and no pattern against
+>   the targeting covariates or tactics.
+> * Compare the **DPC and Cluster** indices. If they disagree, look at what
+>   the PCs capture over time (Step 6) and whether the species' relative
+>   abundances may have diverged.
+
+## Step 9. The final index
+
+```{r index}
+cpue_index(fit, "DPC+S")
+```
+
+```{r export, eval = FALSE}
+export_index(fit, "cpue_index_DPC.csv", model = "DPC+S")
+```
+
+`index` is in the units of the data (CPUE at the reference covariate
+values), `relative` is scaled to its mean, and `se_log` is the standard
+error of the log index, the usual input to stock assessment models.
+
 ## Processing log
 
 The log records every step, how many operations it removed, and the
@@ -315,13 +448,20 @@ x$log
 | Fleet | indicator-fleet rule, number of vessels |
 | Subsetting | Stephens & MacCall target, critical value, share kept over time |
 | Targeting | transformation, eigenvalues, OC result, number of PCs and clusters, clustering method, tactic composition |
-| Sensitivity | indices with alternative species sets, numbers of PCs, clusters |
-
-The next steps, fitting the standardisation models (Base, Cluster, DPC,
-spatial and vessel effects) and diagnostics such as influence plots, build on
-the data prepared here.
+| Models | family, terms of each model, random effects, reference set of the index |
+| Diagnostics | model table, step and influence plots, residuals, vessel effects |
+| Index | table with nominal and standardised CPUE, log SE and CV |
+| Sensitivity | indices with alternative species sets, numbers of PCs, clusters, families |
 
 ## References
+
+Bentley, N., Kendrick, T.H., Starr, P.J. and Breen, P.A. (2012) Influence
+plots and metrics: tools for better understanding fisheries
+catch-per-unit-effort standardizations. ICES Journal of Marine Science 69:
+84-88.
+
+Dunn, P.K. and Smyth, G.K. (1996) Randomized quantile residuals. Journal of
+Computational and Graphical Statistics 5: 236-244.
 
 Stephens, A. and MacCall, A. (2004) A multispecies approach to subsetting
 logbook data for purposes of estimating CPUE. Fisheries Research 70: 299-310.

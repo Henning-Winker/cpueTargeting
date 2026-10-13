@@ -29,6 +29,9 @@ guidelines for the decisions involved.
 | 4. Nominal CPUE and catch composition | `nominal_cpue()`, `plot_nominal()`, `plot_composition()`, `plot_cpue_map()` |
 | 5. Habitat-based subsetting (Stephens and MacCall 2004) | `stephens_maccall()`, `plot_stephens_maccall()` |
 | 6. Targeting covariates: composition PCA, Optimal Coordinates test, clustering | `add_targeting()`, `composition_pca()`, `compute_oc()`, `cluster_tactics()`, `plot_oc()`, `plot_biplot()`, `tactic_table()`, `plot_targeting()` |
+| 7. Models (mgcv): Base, Covariates, DPC, Cluster, spatial (`+S`), random vessel effects; Tweedie or delta families | `fit_cpue()` |
+| 8. Diagnostics: model table, influence (Bentley et al. 2012), step plot, quantile residuals, effects, vessel effects | `cpue_diagnostics()`, `plot_index()`, `plot_step()`, `plot_influence()`, `plot_residuals()`, `plot_effects()`, `plot_vessel_effects()` |
+| 9. Index for the assessment, with log SE and CV | `cpue_index()`, `export_index()` |
 
 ```r
 x <- cpue_data(logbook, year = "year", species = "species", catch = "kg",
@@ -41,10 +44,15 @@ x <- add_targeting(x)          # PCs (OC test) and n_pc + 1 clusters
 plot_oc(x); plot_biplot(x); tactic_table(x)
 plot_targeting(x)$time
 x$log                          # every selection step, for reporting
-```
 
-The standardisation models and their diagnostics for real data (influence,
-random vessel effects, index tables) are the next step.
+fit <- fit_cpue(x, species = "Pagellus bogaraveo",
+                models = c("Base", "Covariates", "Cluster", "DPC"),
+                terms = 's(month, bs = "cc", k = 8)', vessel = TRUE,
+                knots = list(month = c(0.5, 12.5)))
+cpue_diagnostics(fit)
+plot_step(fit); plot_influence(fit, "DPC"); plot_residuals(fit, "DPC")$qq
+export_index(fit, "cpue_index.csv", model = "DPC")
+```
 
 ## Documentation and worked examples
 

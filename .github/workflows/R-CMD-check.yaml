@@ -7,7 +7,8 @@ on:
 
 name: R-CMD-check
 
-permissions: read-all
+permissions:
+  contents: write
 
 jobs:
   R-CMD-check:
@@ -34,6 +35,15 @@ jobs:
           roxygen2::roxygenise()
           cat(system("git status --short", intern = TRUE), sep = "\n")
         shell: Rscript {0}
+
+      - name: Commit generated documentation
+        if: github.event_name == 'push'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add man NAMESPACE
+          git diff --cached --quiet || { git commit -m "Update documentation (roxygen2)"; git push; }
+        shell: bash
 
       # Build and check from the shell so that the output can be reported as
       # annotations (readable through the API without downloading logs).
