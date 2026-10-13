@@ -479,11 +479,16 @@ plot_clusters <- function(comparison, switch_years = NULL, max_points = 5000) {
   species <- rownames(comparison$pca$loadings)
   catch <- as.matrix(d[, species])
 
-  # Species composition of each cluster and labels "number: main species"
+  # Species composition of each cluster and labels "number: main species";
+  # clusters with the same main species also show the second species
   totals <- rowsum(catch, as.character(d$FT))
   share <- totals / rowSums(totals)
   share <- share[order(as.integer(rownames(share))), , drop = FALSE]
-  labels <- paste0(rownames(share), ": ", species[apply(share, 1, which.max)])
+  ranked <- t(apply(share, 1, function(x) species[order(x, decreasing = TRUE)]))
+  main <- ranked[, 1]
+  dup <- main %in% main[duplicated(main)]
+  if (ncol(ranked) > 1) main[dup] <- paste0(main[dup], "/", ranked[dup, 2])
+  labels <- paste0(rownames(share), ": ", main)
   names(labels) <- rownames(share)
   d$tactic <- factor(labels[as.character(d$FT)], levels = labels)
   colours <- cluster_colours(length(labels))
