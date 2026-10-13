@@ -1,11 +1,9 @@
 small_logbook <- function() {
   s <- logbook_settings()
-  s$grid <- c(20, 20)
   s$n_years <- 9
   s$trips <- rep(400, 9)
   s$price_periods$years <- c(1, 4, 7)
   s$closure$year <- 7
-  s$shelf_depth <- c(10, 900)
   s
 }
 
