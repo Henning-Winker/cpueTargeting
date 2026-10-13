@@ -19,7 +19,7 @@ library(cpueTargeting)
 library(ggplot2)
 # Pre-run results (see inst/scripts/run_tuna_flat.R and run_tuna_contrast.R);
 # without them the code is shown but not run.
-rdata <- getOption("cpueTargeting.rdata", "../../rdata")
+rdata <- getOption("cpueTargeting.rdata", "../rdata")
 files <- file.path(rdata, c(flat = "tuna_flat_single.rds",
                             contrast = "tuna_contrast_single.rds",
                             flat_reps = "tuna_flat_replicates.rds",

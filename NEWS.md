@@ -13,7 +13,9 @@
   trends*. They load pre-run results; the simulation scripts are in
   `inst/scripts/` (`run_bathymetric.R`, `run_tuna_flat.R`,
   `run_tuna_contrast.R`, with shared settings in `talk_setup.R`), and
-  `render_docs.R` renders the vignettes to `docs/`.
+  `render_docs.R` renders the vignettes to `docs/`. Results are saved to `rdata/`
+  (ignored by git); `options(cpueTargeting.reps = FALSE)` runs only the
+  single runs used by the vignettes.
 * The 1 x 1 spatial control is no longer part of the standard comparisons:
   positions are reported as 5 x 5 blocks, the realistic, data-limited case.
 * Single-run illustrations use seed 123.

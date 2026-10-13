@@ -135,11 +135,14 @@ Longer runs live in `inst/scripts/` (run from the package folder):
 | `render_docs.R` | renders the vignettes to `docs/` from the pre-run results |
 
 Shared settings (prices, models, seeds, number of parallel workers) are in
-`talk_setup.R`. Results are saved to `../rdata/`, next to the repository, so
-they are not pushed. Finished seeds are skipped, so runs can be resumed. The
-vignettes *Targeting along a continuous gradient: the bathymetric example* and
-*Tuna longline targeting: flat versus contrasting true trends* load these
-results; they are also on the [project page](https://henning-winker.github.io/cpueTargeting/).
+`talk_setup.R`. Each script first saves the single run (seed 123) used by the
+vignettes and then runs the replicates; `options(cpueTargeting.reps = FALSE)`
+runs only the single runs. Results are saved to `rdata/` in the repository,
+which is ignored by git, so they are not pushed (`options(cpueTargeting.rdata
+= "...")` saves them elsewhere). Finished seeds are skipped, so runs can be
+resumed. The vignettes *Targeting along a continuous gradient: the
+bathymetric example* and *Tuna longline targeting: flat versus contrasting
+true trends* load these results; they are also on the [project page](https://henning-winker.github.io/cpueTargeting/).
 
 To change a scenario, edit the settings list:
 

@@ -3,16 +3,21 @@
 # Sourced by run_bathymetric.R, run_tuna_flat.R and run_tuna_contrast.R.
 # Run the scripts from the package folder (the git repository), e.g.
 #   source("inst/scripts/run_tuna_flat.R")
-# Results are saved to `rdata_dir` (default ../rdata, i.e. next to the
-# repository), so they are not pushed to GitHub. To save them elsewhere, e.g.
-# in your presentation folder, set before sourcing:
-#   options(cpueTargeting.rdata = "C:/path/to/presentation/rdata") Parallel runs use the
+# Results are saved to `rdata_dir`: by default rdata/ in the repository,
+# which is ignored by git (not pushed) and by R CMD build. To save them
+# elsewhere, e.g. in a presentation folder, set before sourcing:
+#   options(cpueTargeting.rdata = "C:/path/to/presentation/rdata")
+#
+# Each script first does the single run (seed 123) used by the vignettes, then
+# the replicates. To do only the single runs:
+#   options(cpueTargeting.reps = FALSE) Parallel runs use the
 # INSTALLED package, so install the current version first:
 #   devtools::install()   (or remotes::install_github(..., ref = "<branch>"))
 
 library(cpueTargeting)
 
-rdata_dir <- getOption("cpueTargeting.rdata", "../rdata")
+rdata_dir <- getOption("cpueTargeting.rdata", "rdata")
+run_reps  <- getOption("cpueTargeting.reps", TRUE)
 dir.create(rdata_dir, showWarnings = FALSE, recursive = TRUE)
 
 single_seed <- 123      # seed of the single-run illustrations

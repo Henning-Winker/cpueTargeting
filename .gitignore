@@ -5,3 +5,4 @@
 .RData
 .Rproj.user/
 vignettes/*.html
+rdata/

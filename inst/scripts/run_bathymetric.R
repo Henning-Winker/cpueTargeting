@@ -19,9 +19,11 @@ if (!file.exists(single_file)) {
 }
 
 # Replicates (fixed-effect models only, bam for speed) --------------------------------
-out_dir <- file.path(rdata_dir, "replicates_bathymetric")
-run_parallel(scenarios, out_dir, bathy_models, extra = NULL,
-             args = c(bathy_args, engine = "bam"), simulator = simulate_bathymetric)
-reps <- read_replicates(out_dir)
-saveRDS(reps, file.path(rdata_dir, "bathymetric_replicates.rds"))
-plot_replicates(reps)
+if (run_reps) {
+  out_dir <- file.path(rdata_dir, "replicates_bathymetric")
+  run_parallel(scenarios, out_dir, bathy_models, extra = NULL,
+               args = c(bathy_args, engine = "bam"), simulator = simulate_bathymetric)
+  reps <- read_replicates(out_dir)
+  saveRDS(reps, file.path(rdata_dir, "bathymetric_replicates.rds"))
+  plot_replicates(reps)
+}

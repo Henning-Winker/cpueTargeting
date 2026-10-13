@@ -19,7 +19,7 @@ library(cpueTargeting)
 library(ggplot2)
 # Pre-run results (see inst/scripts/run_bathymetric.R); without them the code
 # is shown but not run.
-rdata <- getOption("cpueTargeting.rdata", "../../rdata")
+rdata <- getOption("cpueTargeting.rdata", "../rdata")
 f_single <- file.path(rdata, "bathymetric_single.rds")
 f_reps <- file.path(rdata, "bathymetric_replicates.rds")
 have_single <- file.exists(f_single)
