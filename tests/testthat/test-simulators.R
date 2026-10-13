@@ -221,8 +221,8 @@ test_that("effort can be given per year", {
   s$effort <- c(50, 50, 300, 300, 50, 50)
   s$effort_cv <- 0.01
   sim <- simulate_tuna(s, seed = 1, plots = FALSE)
-  n <- tapply(sim$Data$SetID, sim$Data$year, function(x) length(unique(x)))
-  expect_true(all(n[3:4] > 4 * n[c(1, 2, 5, 6)]))
+  n <- as.vector(tapply(sim$Data$SetID, sim$Data$year, function(x) length(unique(x))))
+  expect_gt(min(n[3:4]), 4 * max(n[c(1, 2, 5, 6)]))
   s$effort <- c(50, 50)
   expect_error(simulate_tuna(s, seed = 1, plots = FALSE), "effort")
   expect_length(tuna_settings()$effort, 30)
