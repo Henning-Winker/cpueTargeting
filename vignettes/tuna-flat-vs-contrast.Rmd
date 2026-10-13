@@ -136,6 +136,16 @@ plot_indices(fits, models = models, type = "smooth")
 plot_diagnostics(fits)
 ```
 
+With diverging trends the number of PCs matters. The contrasting scenario with
+2 PCs and 4 clusters: DPC is best where targeting is gradual or vertical
+(BET), clusters where tactics switch between water masses (YFT).
+
+```{r contrast-2pc, eval = have_single, fig.height = 6}
+plot_indices(select_models(contrast$fits$Moving,
+                           c("Base", "Base+S", "Cluster+S", "DPC+S (2 PCs)")),
+             type = "smooth")
+```
+
 # What do the PCs capture?
 
 ```{r pcs, eval = have_single}
