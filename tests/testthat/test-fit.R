@@ -34,6 +34,8 @@ prepare <- function(fd) {
   add_targeting(x, n_pc = 1, n_clusters = 2, method = "kmeans")
 }
 
+get_gam_for_test <- function(fit, model) fit$models[[model]]$fits$main
+
 rmse_log <- function(fit, model, true) {
   idx <- cpue_index(fit, model)
   t <- true$true / mean(true$true)
@@ -94,8 +96,6 @@ test_that("diagnostics: table, influence, residuals, effects, vessels", {
   expect_equal(names(back), names(tab))
   expect_equal(nrow(back), 10)
 })
-
-get_gam_for_test <- function(fit, model) fit$models[[model]]$fits$main
 
 test_that("delta models, offset, covariate terms and bam work", {
   skip_if_not_installed("mgcv")
