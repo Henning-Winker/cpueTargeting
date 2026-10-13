@@ -1,0 +1,91 @@
+# Runs roxygen2 (man pages), the tests and R CMD check on every push and PR.
+on:
+  push:
+    branches: [main, real-data-toolbox]
+  pull_request:
+  workflow_dispatch:
+
+name: R-CMD-check
+
+permissions:
+  contents: write
+
+jobs:
+  R-CMD-check:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+      R_KEEP_PKG_SOURCE: yes
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: r-lib/actions/setup-pandoc@v2
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: any::rcmdcheck, any::roxygen2, any::cluster
+          needs: check
+
+      - name: Generate documentation with roxygen2
+        run: |
+          roxygen2::roxygenise()
+          cat(system("git status --short", intern = TRUE), sep = "\n")
+        shell: Rscript {0}
+
+      - name: Commit generated documentation
+        if: github.event_name == 'push'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add man NAMESPACE
+          git diff --cached --quiet || { git commit -m "Update documentation (roxygen2)"; git push; }
+        shell: bash
+
+      # Build and check from the shell so that the output can be reported as
+      # annotations (readable through the API without downloading logs).
+      - name: Build
+        run: R CMD build --no-manual . 2>&1 | tee "$RUNNER_TEMP/build.log"; test ${PIPESTATUS[0]} -eq 0
+        shell: bash
+
+      - name: Commit rendered user guide
+        if: github.event_name == 'push'
+        run: |
+          tar -xzf cpueTargeting_*.tar.gz cpueTargeting/inst/doc
+          mkdir -p docs
+          for f in real-data-guide logbook-example; do
+            [ -f cpueTargeting/inst/doc/$f.html ] && cp cpueTargeting/inst/doc/$f.html docs/$f.html
+          done
+          rm -rf cpueTargeting
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/real-data-guide.html docs/logbook-example.html
+          git diff --cached --quiet || { git commit -m "Update rendered vignettes"; git push; }
+        shell: bash
+
+      - name: Check
+        run: |
+          R CMD check --no-manual --as-cran *.tar.gz 2>&1 | tee check.log
+          grep -qE "Status: .*ERROR" check.log && exit 1 || exit 0
+        shell: bash
+        env:
+          _R_CHECK_CRAN_INCOMING_: false
+          _R_CHECK_FORCE_SUGGESTS_: false
+
+      - name: Report problems as annotations
+        if: always()
+        run: |
+          report() {  # $1 title, $2 file, $3 lines
+            [ -f "$2" ] || return 0
+            msg=$(tail -n "$3" "$2" | sed -e 's/%/%25/g' | sed -e ':a;N;$!ba;s/\n/%0A/g')
+            echo "::warning title=$1::$msg"
+          }
+          report "build log" "$RUNNER_TEMP/build.log" 80
+          report "check summary" check.log 120
+          for f in *.Rcheck/tests/testthat.Rout.fail; do report "testthat failures" "$f" 150; done
+          for f in *.Rcheck/00install.out; do grep -q ERROR "$f" && report "install" "$f" 60; done
+          true
+        shell: bash

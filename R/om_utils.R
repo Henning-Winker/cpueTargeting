@@ -134,11 +134,9 @@ allocate_catch <- function(biomass, cell, q) {
   list(set = catch_cell[cell, , drop = FALSE] * share, cell = catch_cell)
 }
 
-#' Schaefer surplus production in each cell (vectorised over species)
-#'
-#' `r` has one value per species and is applied by column. (The original code
-#' used `r * B`, which recycles `r` over cells rather than species.)
-#' @noRd
+#' The growth rate `r` has one value per species and is applied by column. (The
+#' original code multiplied `B` by `r` directly, which recycles `r` over cells
+#' rather than species.)
 schaefer_update <- function(biomass, carrying, r, catch) {
   r_mat <- matrix(r, nrow(biomass), ncol(biomass), byrow = TRUE)
   growth <- ifelse(carrying > 0, r_mat * biomass * (1 - biomass / carrying), 0)

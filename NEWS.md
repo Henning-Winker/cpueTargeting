@@ -1,3 +1,43 @@
+# cpueTargeting 0.4.0
+
+## Toolbox for real data (steps 1-6)
+
+* `cpue_data()` brings long or wide logbook data into one row per operation
+  with species columns, merges species synonyms, removes missing effort, and
+  keeps a processing log; `subset()` method and `cpue_matrix()`.
+* Exploration: `plot_fleet()` (operations by year, vessel x year tiles, fleet
+  turnover, covariate shares), `select_vessels()` (core fleet),
+  `nominal_cpue()`, `plot_nominal()`, `plot_composition()`, `plot_cpue_map()`.
+* Species selection: `species_curve()`, `plot_species_curve()` and
+  `select_species()` (cumulative share of occurrence or weight, optional
+  `Other` group).
+* Habitat-based subsetting of Stephens and MacCall (2004):
+  `stephens_maccall()` and `plot_stephens_maccall()`.
+* Targeting covariates: `composition_pca()`, `compute_oc()` (Optimal
+  Coordinates test of the CPUE guidelines, robust when all components pass),
+  `cluster_tactics()` (CLARA, k-means or Ward), `add_targeting()`,
+  `tactic_table()`, `plot_oc()`, `plot_biplot()`, `plot_targeting()`.
+* Models for real data (steps 7-9): `fit_cpue()` fits Base, Covariates, DPC
+  and Cluster GAMs (optionally `+S` spatial and random vessel effects) with
+  `mgcv`, Tweedie (power estimated jointly, no two-step `gamm()`) or
+  delta-lognormal / delta-gamma families, and derives indices averaged over a
+  reference set with delta-method log SEs. `cpue_index()`, `export_index()`.
+* Diagnostics: `cpue_diagnostics()`, `plot_index()`, `plot_step()`,
+  `influence_cpue()` and `plot_influence()` (Bentley et al. 2012),
+  `plot_residuals()` (randomised quantile residuals for Tweedie),
+  `plot_effects()`, `plot_vessel_effects()`.
+* New vignette *Analysing real catch and effort data: a step-by-step guide*.
+* `simulate_logbook()`, `logbook_settings()`, `logbook_truth()`,
+  `plot_logbook_om()`: a ten-species demersal-pelagic fishery with
+  reef/sediment x shallow/deep habitats, seasonal pelagic migrants, discrete
+  tactic choice (Reef, Sediment, Pelagic), specialist and flexible vessels,
+  fleet turnover with efficiency creep, price periods and a closure, reported
+  as a messy trip-level logbook. New vignette *A realistic logbook: reef,
+  sediment and pelagic tactics*.
+* GitHub Actions: R CMD check on every push; generated documentation is
+  committed automatically.
+* `cluster` added to Suggests.
+
 # cpueTargeting 0.3.0
 
 * `standardize_tuna_indices()` is renamed `standardize_cpue()`, as it works for

@@ -14,6 +14,68 @@ copes with changes in fishing targeting. It contains three operating models:
    Hook depth depends on hooks between floats (HBF), and habitat-based
    standardisation follows Bigelow et al. (2002).
 
+## A realistic simulated logbook
+
+`simulate_logbook()` simulates a mixed demersal-pelagic fishery with ten
+species and returns a messy trip-level logbook together with the truth.
+Demersal species live along a depth gradient and on patchy reef or sediment
+substrate (shallow/deep reef, shallow/deep sediment, as in Winker et al.
+2014); pelagic species follow SST and migrate seasonally. Each trip chooses a
+tactic (`Reef` handline, `Sediment` longline or `Pelagic` troll) and a place
+by expected value; prices change between periods, a closure bans sediment
+gear from deep water, specialist and flexible vessels enter and leave. The
+logbook reports trips (some combining two sets), coarse and sometimes missing
+positions, rounded catches, under-reported bycatch and a species under two
+names, but not the tactic. See the vignette *A realistic logbook: reef,
+sediment and pelagic tactics*.
+
+```r
+sim <- simulate_logbook(seed = 1)
+sim$Plots$density; sim$Plots$tactics; sim$Plots$cpue
+head(sim$logbook)
+plot_index(fit, true = logbook_truth(sim, "Pagellus bogaraveo"))
+```
+
+## Toolbox for real data
+
+The same methods can be applied step by step to real logbook or observer
+data. The vignette *Analysing real catch and effort data: a step-by-step
+guide* (`vignettes/real-data-guide.Rmd`) walks through each step with
+guidelines for the decisions involved.
+
+| Step | Functions |
+|---|---|
+| 1. Format: long or wide logbooks to one row per operation, synonyms, processing log | `cpue_data()`, `subset()`, `cpue_matrix()` |
+| 2. Fleet: operations by year and vessel, fleet turnover, core vessels | `plot_fleet()`, `select_vessels()` |
+| 3. Species: cumulative species curves and the species set | `species_curve()`, `plot_species_curve()`, `select_species()` |
+| 4. Nominal CPUE and catch composition | `nominal_cpue()`, `plot_nominal()`, `plot_composition()`, `plot_cpue_map()` |
+| 5. Habitat-based subsetting (Stephens and MacCall 2004) | `stephens_maccall()`, `plot_stephens_maccall()` |
+| 6. Targeting covariates: composition PCA, Optimal Coordinates test, clustering | `add_targeting()`, `composition_pca()`, `compute_oc()`, `cluster_tactics()`, `plot_oc()`, `plot_biplot()`, `tactic_table()`, `plot_targeting()` |
+| 7. Models (mgcv): Base, Covariates, DPC, Cluster, spatial (`+S`), random vessel effects; Tweedie or delta families | `fit_cpue()` |
+| 8. Diagnostics: model table, influence (Bentley et al. 2012), step plot, quantile residuals, effects, vessel effects | `cpue_diagnostics()`, `plot_index()`, `plot_step()`, `plot_influence()`, `plot_residuals()`, `plot_effects()`, `plot_vessel_effects()` |
+| 9. Index for the assessment, with log SE and CV | `cpue_index()`, `export_index()` |
+
+```r
+x <- cpue_data(logbook, year = "year", species = "species", catch = "kg",
+               effort = "hours", id = "trip", vessel = "vessel",
+               covariates = "month",
+               synonyms = c("Trichiurus lepturus" = "Lepidopus caudatus"))
+plot_species_curve(x, threshold = 0.95)
+x <- select_species(x, threshold = 0.95, keep = "Pagellus bogaraveo")
+x <- add_targeting(x)          # PCs (OC test) and n_pc + 1 clusters
+plot_oc(x); plot_biplot(x); tactic_table(x)
+plot_targeting(x)$time
+x$log                          # every selection step, for reporting
+
+fit <- fit_cpue(x, species = "Pagellus bogaraveo",
+                models = c("Base", "Covariates", "Cluster", "DPC"),
+                terms = 's(month, bs = "cc", k = 8)', vessel = TRUE,
+                knots = list(month = c(0.5, 12.5)))
+cpue_diagnostics(fit)
+plot_step(fit); plot_influence(fit, "DPC"); plot_residuals(fit, "DPC")$qq
+export_index(fit, "cpue_index.csv", model = "DPC")
+```
+
 ## Documentation and worked examples
 
 | Page | Content |

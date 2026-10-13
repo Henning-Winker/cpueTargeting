@@ -1,0 +1,198 @@
+---
+title: "A realistic logbook: reef, sediment and pelagic tactics"
+author: "Henning Winker"
+output:
+  rmarkdown::html_document:
+    toc: true
+    toc_float: true
+    theme: readable
+vignette: >
+  %\VignetteIndexEntry{A realistic logbook: reef, sediment and pelagic tactics}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
+                      fig.width = 8, fig.height = 4.5, dpi = 110,
+                      eval = requireNamespace("cluster", quietly = TRUE))
+library(cpueTargeting)
+library(ggplot2)
+```
+
+This example applies the whole toolbox to a simulated logbook that looks like
+real data: ten species, discrete fishing tactics, trips that combine sets,
+rounding, under-reporting, a species recorded under two names, missing
+positions, fleet turnover and a closure. Because the data are simulated, the
+true tactics and the true biomass trends are known, so we can check what each
+step recovers.
+
+# The simulated fishery
+
+`simulate_logbook()` combines the spatial multispecies simulator with the
+habitat-based tactics of Winker et al. (2014).
+
+* **Habitats.** Depth increases offshore (shelf to slope) and the substrate is
+  patchy: reef patches within sediment. Demersal densities are depth
+  preference x substrate affinity, which gives four habitats as continuous
+  gradients: shallow reef, deep reef, shallow sediment and deep sediment.
+  Pelagic species follow sea temperature and distance offshore and migrate
+  seasonally through the area.
+* **Tactics.** Each trip chooses a tactic (`Reef` bottom handline,
+  `Sediment` bottom longline, or `Pelagic` troll) and a place to fish, by
+  expected value. Demersal specialist vessels cannot fish pelagic, pelagic
+  specialists only fish pelagic, the other vessels choose freely.
+* **Changes over time.** Demersal prices are high in 2000-2007, pelagic
+  prices boom in 2008-2015, then prices are neutral; from 2016 the sediment
+  gear is banned deeper than 300 m and effort is cut. Some vessels enter later
+  (and are more efficient), others leave.
+
+```{r simulate}
+sim <- simulate_logbook(seed = 1)
+knitr::kable(sim$settings$species[, c("species", "group", "habitat", "depth_mu",
+                                      "price")], row.names = FALSE)
+```
+
+```{r om-env, fig.height = 4}
+sim$Plots$env
+```
+
+```{r om-density, fig.height = 4.5}
+sim$Plots$density
+```
+
+```{r om-tactics, fig.height = 3.5}
+sim$Plots$tactics
+sim$Plots$effort
+```
+
+Nominal CPUE (orange) against the true biomass (black):
+
+```{r om-cpue, fig.height = 5}
+sim$Plots$cpue
+```
+
+This is what an analyst receives (the tactic is not in the logbook):
+
+```{r logbook}
+head(sim$logbook, 10)
+```
+
+# Steps 1-4: format and explore
+
+```{r format}
+x <- cpue_data(sim$logbook, year = "year", species = "species", catch = "kg",
+               effort = "hours", id = "trip", vessel = "vessel",
+               lon = "lon", lat = "lat", covariates = "month",
+               synonyms = c("Blackspot seabream" = "Pagellus bogaraveo"))
+x <- subset(x, !is.na(lon), note = "positions reported")
+x
+```
+
+```{r fleet, fig.height = 5}
+fl <- plot_fleet(x)
+fl$vessels
+fl$vessel_years
+```
+
+```{r species}
+plot_species_curve(x, threshold = 0.95)
+x <- select_species(x, threshold = 0.95)
+```
+
+```{r composition}
+plot_composition(x)
+```
+
+# Step 6: targeting covariates
+
+```{r targeting}
+x <- add_targeting(x)
+x$targeting$pca
+plot_oc(x)
+```
+
+```{r biplot, fig.height = 6}
+plot_biplot(x)
+tactic_table(x)
+```
+
+Here we can check the clusters against the true tactic of each trip (the
+tactic of its first set):
+
+```{r check-tactics}
+truth <- sim$trips[match(x$data$trip, sim$trips$trip), ]
+table(cluster = x$data$FT, tactic = truth$tactic)
+table(cluster = x$data$FT, habitat = truth$habitat)
+```
+
+Clusters describe the **catch composition**, which reflects both the gear
+(tactic) and where it was used (habitat). Trips with two sets, gear
+overlap and neighbouring habitats blur the link, so clusters rarely match
+tactics one to one; what matters for standardisation is whether the
+covariates capture the changes in where and how the fleet fishes.
+
+```{r targeting-plots, fig.height = 4.5}
+pt <- plot_targeting(x, res = 0.5)
+pt$time
+pt$pcs_time
+pt$map_tactic
+```
+
+# Steps 7-9: standardise two species
+
+## Blackspot seabream (deep reef)
+
+Blackspot seabream lives on deep reefs and is caught mainly by the reef
+tactic, whose use changes with prices.
+
+```{r fit-sbr}
+fit_sbr <- fit_cpue(x, species = "Pagellus bogaraveo",
+                    models = c("Base", "Base+S", "Cluster+S", "DPC+S"),
+                    vessel = TRUE, spatial_k = 40, engine = "bam")
+cpue_diagnostics(fit_sbr)
+```
+
+```{r index-sbr, fig.height = 5}
+plot_index(fit_sbr, true = logbook_truth(sim, "Pagellus bogaraveo"))
+plot_influence(fit_sbr, "DPC+S")
+```
+
+## Dolphinfish (seasonal pelagic migrant)
+
+Dolphinfish is caught by the pelagic tactic and is only present in summer, so
+month is added as a cyclic smoother.
+
+```{r fit-dol}
+fit_dol <- fit_cpue(x, species = "Coryphaena hippurus",
+                    models = c("Base", "Covariates", "Cluster", "DPC"),
+                    terms = 's(month, bs = "cc", k = 6)',
+                    knots = list(month = c(0.5, 12.5)),
+                    vessel = TRUE, engine = "bam")
+cpue_diagnostics(fit_dol)
+```
+
+```{r index-dol, fig.height = 5}
+plot_index(fit_dol, true = logbook_truth(sim, "Coryphaena hippurus"))
+plot_effects(fit_dol, "DPC")$numeric
+```
+
+```{r vessels-dol, fig.height = 4}
+plot_vessel_effects(fit_dol, "DPC")
+```
+
+# Things to try
+
+* `logbook_settings()` lists every setting; change prices, the closure, the
+  share of two-set trips (`logbook$two_sets`), the reef share, or make all
+  vessels flexible to see how each affects the targeting covariates.
+* Compare `n_pc` and the number of clusters, and the species set
+  (`select_species(..., pool_other = TRUE)`).
+* Fit a delta model (`family = "delta_lognormal"`) for species with many
+  zeros.
+
+# References
+
+Winker, H., Kerwath, S.E. and Attwood, C.G. (2014) Proof of concept for a
+novel procedure to standardize multispecies catch and effort data. Fisheries
+Research 155: 149-159.

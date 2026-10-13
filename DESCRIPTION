@@ -1,6 +1,6 @@
 Package: cpueTargeting
-Title: Simulators for CPUE Targeting and Standardization
-Version: 0.3.0
+Title: Simulators and Tools for CPUE Targeting and Standardization
+Version: 0.4.0
 Authors@R: person("Henning", "Winker", role = c("aut", "cre"),
     email = "henning.winker@fao.org")
 Description: Multispecies operating models for exploring spatial and
@@ -11,7 +11,12 @@ Description: Multispecies operating models for exploring spatial and
     <doi:10.1016/j.fishres.2015.05.021>, and its extension to a longline tuna
     fishery with species vertical distributions and hook depth by
     hooks-between-floats, following the habitat-based approach of Bigelow et
-    al. (2002).
+    al. (2002). Provides a step-by-step toolbox for real catch and effort
+    data: data formatting, cumulative species curves, fleet and catch
+    composition exploration, habitat-based subsetting (Stephens and MacCall
+    2004), and targeting covariates from the catch composition (principal
+    components with the Optimal Coordinates test, and clustering into
+    fishing tactics).
 License: GPL-3 + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
@@ -25,6 +30,7 @@ Imports:
     stats,
     utils
 Suggests:
+    cluster,
     knitr,
     mgcv,
     rmarkdown,
