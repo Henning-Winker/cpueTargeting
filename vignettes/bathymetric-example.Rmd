@@ -104,7 +104,11 @@ fit$formulas
 ```
 
 ```{r indices, eval = have_single, fig.height = 6}
-plot_indices(fit, type = "smooth")
+plot_indices(fit)
+```
+
+```{r index trends, eval = have_single, fig.height = 6}
+plot_indices(fit, type = "points+smooth")
 ```
 
 ```{r rmse, eval = have_single}

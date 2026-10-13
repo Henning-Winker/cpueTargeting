@@ -127,9 +127,15 @@ smoother on the 5 x 5 blocks): Base (none), Cluster (4 clusters of the catch
 composition), DPC (3 principal components, and 2 for comparison) and HBF (a
 factor for the gear).
 
+
 ```{r indices, eval = have_single, fig.height = 7}
 fits <- list(Flat = flat$fits$Moving, Contrasting = contrast$fits$Moving)
-plot_indices(fits, models = models, type = "smooth")
+plot_indices(fits, models = models)
+```
+
+```{r index trends, eval = have_single, fig.height = 7}
+
+plot_indices(fits, models = models, type = "points+smooth")
 ```
 
 ```{r rmse, eval = have_single}
