@@ -1,3 +1,25 @@
+# cpueTargeting 0.4.0
+
+## Toolbox for real data (steps 1-6)
+
+* `cpue_data()` brings long or wide logbook data into one row per operation
+  with species columns, merges species synonyms, removes missing effort, and
+  keeps a processing log; `subset()` method and `cpue_matrix()`.
+* Exploration: `plot_fleet()` (operations by year, vessel x year tiles, fleet
+  turnover, covariate shares), `select_vessels()` (core fleet),
+  `nominal_cpue()`, `plot_nominal()`, `plot_composition()`, `plot_cpue_map()`.
+* Species selection: `species_curve()`, `plot_species_curve()` and
+  `select_species()` (cumulative share of occurrence or weight, optional
+  `Other` group).
+* Habitat-based subsetting of Stephens and MacCall (2004):
+  `stephens_maccall()` and `plot_stephens_maccall()`.
+* Targeting covariates: `composition_pca()`, `compute_oc()` (Optimal
+  Coordinates test of the CPUE guidelines, robust when all components pass),
+  `cluster_tactics()` (CLARA, k-means or Ward), `add_targeting()`,
+  `tactic_table()`, `plot_oc()`, `plot_biplot()`, `plot_targeting()`.
+* New vignette *Analysing real catch and effort data: a step-by-step guide*.
+* `cluster` added to Suggests.
+
 # cpueTargeting 0.3.0
 
 * `standardize_tuna_indices()` is renamed `standardize_cpue()`, as it works for

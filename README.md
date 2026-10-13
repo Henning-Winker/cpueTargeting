@@ -14,6 +14,38 @@ copes with changes in fishing targeting. It contains three operating models:
    Hook depth depends on hooks between floats (HBF), and habitat-based
    standardisation follows Bigelow et al. (2002).
 
+## Toolbox for real data
+
+The same methods can be applied step by step to real logbook or observer
+data. The vignette *Analysing real catch and effort data: a step-by-step
+guide* (`vignettes/real-data-guide.Rmd`) walks through each step with
+guidelines for the decisions involved.
+
+| Step | Functions |
+|---|---|
+| 1. Format: long or wide logbooks to one row per operation, synonyms, processing log | `cpue_data()`, `subset()`, `cpue_matrix()` |
+| 2. Fleet: operations by year and vessel, fleet turnover, core vessels | `plot_fleet()`, `select_vessels()` |
+| 3. Species: cumulative species curves and the species set | `species_curve()`, `plot_species_curve()`, `select_species()` |
+| 4. Nominal CPUE and catch composition | `nominal_cpue()`, `plot_nominal()`, `plot_composition()`, `plot_cpue_map()` |
+| 5. Habitat-based subsetting (Stephens and MacCall 2004) | `stephens_maccall()`, `plot_stephens_maccall()` |
+| 6. Targeting covariates: composition PCA, Optimal Coordinates test, clustering | `add_targeting()`, `composition_pca()`, `compute_oc()`, `cluster_tactics()`, `plot_oc()`, `plot_biplot()`, `tactic_table()`, `plot_targeting()` |
+
+```r
+x <- cpue_data(logbook, year = "year", species = "species", catch = "kg",
+               effort = "hours", id = "trip", vessel = "vessel",
+               covariates = "month",
+               synonyms = c("Trichiurus lepturus" = "Lepidopus caudatus"))
+plot_species_curve(x, threshold = 0.95)
+x <- select_species(x, threshold = 0.95, keep = "Pagellus bogaraveo")
+x <- add_targeting(x)          # PCs (OC test) and n_pc + 1 clusters
+plot_oc(x); plot_biplot(x); tactic_table(x)
+plot_targeting(x)$time
+x$log                          # every selection step, for reporting
+```
+
+The standardisation models and their diagnostics for real data (influence,
+random vessel effects, index tables) are the next step.
+
 ## Documentation and worked examples
 
 | Page | Content |
