@@ -51,6 +51,19 @@ jobs:
         run: R CMD build --no-manual . 2>&1 | tee "$RUNNER_TEMP/build.log"; test ${PIPESTATUS[0]} -eq 0
         shell: bash
 
+      - name: Commit rendered user guide
+        if: github.event_name == 'push'
+        run: |
+          tar -xzf cpueTargeting_*.tar.gz cpueTargeting/inst/doc/real-data-guide.html
+          mkdir -p docs
+          cp cpueTargeting/inst/doc/real-data-guide.html docs/real-data-guide.html
+          rm -rf cpueTargeting
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/real-data-guide.html
+          git diff --cached --quiet || { git commit -m "Update rendered user guide"; git pull --rebase; git push; }
+        shell: bash
+
       - name: Check
         run: |
           R CMD check --no-manual --as-cran *.tar.gz 2>&1 | tee check.log
