@@ -19,6 +19,13 @@
 * The 1 x 1 spatial control is no longer part of the standard comparisons:
   positions are reported as 5 x 5 blocks, the realistic, data-limited case.
 * Single-run illustrations use seed 123.
+* New setting `q_index` (default 0.2) separates the catchability at which
+  CPUE is recorded from the fishing catchability `q`. Set-level Tweedie noise
+  is drawn at `q_index`, and the catch removed scales the same draws by
+  `q / q_index`. Fishing harder (larger `q`) therefore no longer removes the
+  zeros and reduces the noise of the CPUE data, and avoids saturating
+  `1 - exp(-q A)`, which damped the targeting signal. With `q_index = q` results are
+  as before.
 
 # cpueTargeting 0.2.0
 

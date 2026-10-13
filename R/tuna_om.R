@@ -139,8 +139,10 @@ tuna_settings_default <- function() {
     # in years 21-30 (~17,000 sets in total)
     effort = round(800 / (1 + exp(-0.1 * 1:30)) * rep(c(1, 0.75), c(20, 10))),
     effort_cv = 0.2,
-    q = 3,                    # mean catchability per set at full vertical overlap;
+    q = 3,                    # fishing catchability per set at full vertical overlap:
                               #   with effort, sets how strongly stocks are fished down
+    q_index = 0.2,            # catchability at which CPUE is recorded: sets the zeros
+                              #   and noise of the data, independent of `q` (set = q to couple)
     vessel_cv = 0.2,          # between-vessel CV in catchability
     tweedie_power = 1.2,      # set-level noise in catchability
     tweedie_phi = 0.1,
@@ -252,7 +254,11 @@ simulate_tuna <- function(settings = tuna_settings(), seed = NULL, plots = TRUE)
 
   # Fleet ------------------------------------------------------------------------
   sig_vessel <- sqrt(log(s$vessel_cv^2 + 1))
-  q_vessel <- stats::rlnorm(s$n_vessels, log(s$q) - sig_vessel^2 / 2, sig_vessel)
+  # Set-level noise is drawn at the index catchability `q_index`, so the zeros
+  # and noise of the recorded CPUE do not depend on the fishing catchability
+  # `q`; the catch removed scales the same draws by q / q_index.
+  q_index <- if (is.null(s$q_index)) s$q else s$q_index
+  q_vessel <- stats::rlnorm(s$n_vessels, log(q_index) - sig_vessel^2 / 2, sig_vessel)
   n_hbf <- length(s$HBF_levels)
 
   records <- vector("list", s$n_years)
@@ -308,14 +314,16 @@ simulate_tuna <- function(settings = tuna_settings(), seed = NULL, plots = TRUE)
     vessel <- sample.int(s$n_vessels, k, replace = TRUE)
     q_set <- matrix(rtweedie_cp(rep(q_vessel[vessel], ns), s$tweedie_power, s$tweedie_phi),
                     k, ns) * avail
-    catch <- allocate_catch(biomass, cell, q_set)
+    observed <- allocate_catch(biomass, cell, q_set)          # recorded CPUE
+    catch <- if (q_index == s$q) observed else                 # catch removed
+      allocate_catch(biomass, cell, q_set * s$q / q_index)
 
     records[[yr]] <- list(
       sets = data.frame(year = yr, SetID = set_counter + seq_len(k),
                         X = x[cell], Y = y[cell], vessel = vessel, HBF = hbf,
                         sst = sst[cell], thermocline = thermo_years[cell, yr],
                         hook_depth = hooks$median_depth),
-      catch = catch$set, avail = avail, hbs = hbs)
+      catch = observed$set, avail = avail, hbs = hbs)
     set_counter <- set_counter + k
 
     biomass <- schaefer_update(biomass, carrying, s$r, catch$cell)
@@ -438,6 +446,9 @@ check_tuna_settings <- function(s) {
   }
   if (length(s$effort) != 1 && length(s$effort) < s$n_years) {
     stop("`effort` must be a single value or one value per year.", call. = FALSE)
+  }
+  if (!is.null(s$q_index) && (length(s$q_index) != 1 || s$q_index <= 0)) {
+    stop("`q_index` must be a single positive value (or NULL).", call. = FALSE)
   }
   if (any(s$B_start <= 0)) stop("`B_start` must be positive.", call. = FALSE)
   if (s$HBF_choice_temp <= 0) stop("`HBF_choice_temp` must be positive.", call. = FALSE)

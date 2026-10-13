@@ -223,7 +223,8 @@ the contrast between shallow and deep gear. Check the result with
 |---|---|---|
 | `n_years` | number of years (the `price` matrix needs at least as many rows) | 30 |
 | `effort` | sets per year: one value per year, or a single value for a logistic increase towards it | logistic increase towards 800, cut by 25% in years 21-30 |
-| `n_vessels`, `q`, `vessel_cv` | number of vessels, mean catchability, between-vessel CV | 30, 3, 0.2 |
+| `n_vessels`, `q`, `vessel_cv` | number of vessels, fishing catchability (how hard stocks are fished), between-vessel CV | 30, 3, 0.2 |
+| `q_index` | catchability at which CPUE is recorded: sets the zeros and noise of the data independently of `q` (set it equal to `q` to couple them) | 0.2 |
 | `tweedie_power`, `tweedie_phi` | set-level noise in catchability | 1.2, 0.1 |
 | `obs_res` | positions in `Data` are reported as centres of `obs_res` x `obs_res` blocks | 5 |
 

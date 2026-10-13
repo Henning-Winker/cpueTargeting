@@ -227,3 +227,14 @@ test_that("effort can be given per year", {
   expect_error(simulate_tuna(s, seed = 1, plots = FALSE), "effort")
   expect_length(tuna_settings()$effort, 30)
 })
+
+test_that("q_index separates the recorded CPUE from fishing pressure", {
+  s <- small_tuna()
+  s$effort_cv <- 0.01
+  hard <- simulate_tuna(modifyList(s, list(q = 3, q_index = 0.2)), seed = 3, plots = FALSE)
+  coupled <- simulate_tuna(modifyList(s, list(q = 3, q_index = 3)), seed = 3, plots = FALSE)
+  zeros <- function(sim) mean(sim$Data$CPUE == 0)
+  expect_gt(zeros(hard), zeros(coupled))
+  expect_error(simulate_tuna(modifyList(s, list(q_index = -1)), seed = 1, plots = FALSE),
+               "q_index")
+})
