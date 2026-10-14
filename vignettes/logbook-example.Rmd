@@ -185,7 +185,7 @@ plot_vessel_effects(fit_dol, "DPC")
 
 * `logbook_settings()` lists every setting; change prices, the closure, the
   share of two-set trips (`logbook$two_sets`), the reef share, or make all
-  vessels flexible to see how each affects the targeting covariates.
+  vessels mixed (`loyalty = 0`) to see how each affects the targeting covariates.
 * Compare `n_pc` and the number of clusters, and the species set
   (`select_species(..., pool_other = TRUE)`).
 * Fit a delta model (`family = "delta_lognormal"`) for species with many

@@ -23,7 +23,7 @@ substrate (shallow/deep reef, shallow/deep sediment, as in Winker et al.
 2014); pelagic species follow SST and migrate seasonally. Each trip chooses a
 tactic (`Reef` handline, `Sediment` longline or `Pelagic` troll) and a place
 by expected value; prices change between periods, a closure bans sediment
-gear from deep water, specialist and flexible vessels enter and leave. The
+gear from deep water, specialist (80% loyal to their home tactics) and mixed vessels enter and leave. The
 logbook reports trips (some combining two sets), coarse and sometimes missing
 positions, rounded catches, under-reported bycatch and a species under two
 names, but not the tactic. See the vignette *A realistic logbook: reef,

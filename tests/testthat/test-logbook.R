@@ -59,7 +59,31 @@ test_that("custom settings are validated", {
   expect_error(simulate_logbook(s), "n_years")
   s <- small_logbook()
   s$vessel_types <- c(demersal = 5, other = 5)
-  expect_error(simulate_logbook(s), "allowed")
+  expect_error(simulate_logbook(s), "home")
+  s <- small_logbook()
+  s$loyalty[["pelagic"]] <- 1.5
+  expect_error(simulate_logbook(s), "loyalty")
+})
+
+test_that("specialists stay loyal to their home tactics most of the time", {
+  sim <- simulate_logbook(small_logbook(), seed = 2, plots = FALSE)
+  tr <- sim$trips
+  pel <- tr[tr$vessel_type == "pelagic", ]
+  expect_gt(mean(pel$loyal), 0.7)
+  expect_lt(mean(pel$loyal), 0.9)
+  expect_true(any(pel$tactic != "Pelagic"))
+  expect_true(all(pel$tactic[pel$loyal] == "Pelagic"))
+  dem <- tr[tr$vessel_type == "demersal" & tr$loyal, ]
+  expect_true(all(dem$tactic %in% c("Reef", "Sediment")))
+  expect_false(any(tr$loyal[tr$vessel_type == "mixed"]))
+  # earlier `allowed` settings: specialists never leave their tactics
+  s <- small_logbook()
+  s$home <- NULL
+  s$loyalty <- NULL
+  s$allowed <- list(demersal = c("Reef", "Sediment"), pelagic = "Pelagic",
+                    mixed = c("Reef", "Sediment", "Pelagic"))
+  tr1 <- simulate_logbook(s, seed = 2, plots = FALSE)$trips
+  expect_true(all(tr1$tactic[tr1$vessel_type == "pelagic"] == "Pelagic"))
 })
 
 test_that("the toolbox recovers the tactics from the logbook", {

@@ -1,5 +1,17 @@
 # cpueTargeting 0.4.0
 
+## Logbook simulator: specialist loyalty and mixed trips
+
+* `simulate_logbook()`: specialist vessels are no longer locked to their
+  tactics. `home` (replacing `allowed`) gives each vessel type's home
+  tactics and `loyalty` the share of its trips that stay on them (default
+  0.8 for demersal and pelagic specialists; the "flexible" type is now
+  `mixed`, loyalty 0, choosing purely by expected value). The other trips
+  choose among all tactics by expected value. `sim$trips$loyal` records
+  which trips stayed home. Old settings with `allowed` still work (loyalty 1).
+* `logbook$switch_tactic` default raised from 0.2 to 0.7: with the default
+  fleet, about 18% of trips now combine two tactics in one logbook record.
+
 ## Toolbox for real data (steps 1-6)
 
 * `cpue_data()` brings long or wide logbook data into one row per operation
@@ -30,7 +42,7 @@
 * `simulate_logbook()`, `logbook_settings()`, `logbook_truth()`,
   `plot_logbook_om()`: a ten-species demersal-pelagic fishery with
   reef/sediment x shallow/deep habitats, seasonal pelagic migrants, discrete
-  tactic choice (Reef, Sediment, Pelagic), specialist and flexible vessels,
+  tactic choice (Reef, Sediment, Pelagic), specialist and mixed vessels,
   fleet turnover with efficiency creep, price periods and a closure, reported
   as a messy trip-level logbook. New vignette *A realistic logbook: reef,
   sediment and pelagic tactics*.
