@@ -144,6 +144,12 @@ test_that("ppc_cpue() compares observed and simulated distributions", {
   expect_equal(nrow(pp$summary), 2 * 10 * 4)
   expect_true(all(pp$summary$lower <= pp$summary$upper, na.rm = TRUE))
   expect_true(all(vapply(pp$plots, inherits, logical(1), "ggplot")))
+  # histogram: one zero bin plus 30 bins of positive CPUE per model, summing to ~1
+  expect_equal(nrow(pp$histogram), 2 * 31)
+  expect_equal(sum(pp$histogram$zero), 2)
+  h <- pp$histogram[pp$histogram$model == "DPC", ]
+  expect_equal(sum(h$observed), 1, tolerance = 0.01)
+  expect_s3_class(ppc_cpue(fit, "DPC", n_sim = 5, scale = "log")$plots$distribution, "ggplot")
   # the Tweedie DPC model reproduces the overall share of zeros
   z <- pp$overall[pp$overall$stat == "zeros" & pp$overall$model == "DPC", ]
   expect_true(z$observed >= z$lower - 0.02 && z$observed <= z$upper + 0.02)

@@ -462,8 +462,13 @@ How to read it:
 * **Upper quantiles** observed below the envelope: the model's tail is too
   heavy (e.g. a negative binomial or a lognormal with large variance);
   above: too light.
-* **Shape of the positive catches** (histogram of log CPUE): systematic
-  departures point to the wrong distribution or power parameter.
+* **Histogram of CPUE, zeros included** (`pp$plots$distribution`): observed
+  bars (the zero bar leftmost) against the predictive distribution (points
+  with 95% ranges). Systematic departures point to the wrong distribution or
+  power parameter. CPUE spans orders of magnitude, so the histogram is on a
+  fourth-root scale by default (zero stays next to the small catches);
+  `scale = "log"` shows the shape of the positive catches best, with the
+  zeros as a separate bar, and `scale = "raw"` the untransformed values.
 * **By year.** Pooled over all operations, errors in opposite directions can
   cancel. The year effect fixes the mean CPUE of each year, not its zeros:
   a model without targeting covariates gives every operation in a year the

@@ -232,8 +232,13 @@ pp_sbr$plots$tails
 > * **Upper quantiles**: observed below the envelope means the tail of the
 >   model is too heavy (e.g. a negative binomial or a lognormal with large
 >   variance), above means too light.
-> * **Shape of positive catches**: systematic departures (e.g. observed
->   peaked where simulated is flat) point to the wrong distribution or power.
+> * **Histogram** (distribution plot): the observed histogram of CPUE,
+>   with the zeros as the leftmost bar, against the predictive distribution
+>   (points with 95% ranges). Bars outside the ranges show where the error
+>   model fails: too many observed zeros next to too few small catches, or
+>   a peak where the model is flat, point to the wrong distribution or
+>   power. The default fourth-root scale keeps zero next to the small
+>   catches; `scale = "log"` shows the shape of the positive catches best.
 > * The pooled check can hide errors that cancel across years, so look at
 >   the by-year plots (or `by = "FT"`, `by = "month"`).
 > * `tail_prob` is the share of replicates at least as large as the observed

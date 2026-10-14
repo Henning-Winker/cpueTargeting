@@ -19,7 +19,7 @@
 #' effects are kept at their estimated values.
 #'
 #' Each replicate is treated as a complete data set: the summaries (share of
-#' zeros, mean, upper quantiles of positive CPUE, histogram of log CPUE) are
+#' zeros, mean, upper quantiles of positive CPUE, histogram of CPUE) are
 #' computed per replicate, and the spread across replicates gives the
 #' envelope (2.5-97.5%) against which the observed value is judged. The
 #' `tail_prob` column is the share of replicates with a value at least as
@@ -34,9 +34,19 @@
 #' * `tails`: observed upper quantiles below the envelope mean the
 #'   distribution's tail is too heavy (e.g. a negative binomial or a
 #'   lognormal with large variance); above means too light.
-#' * `distribution`: the share of operations in each bin of log10 CPUE of
-#'   positive catches; systematic departures show a wrong shape (e.g. the
-#'   wrong Tweedie power).
+#' * `distribution`: the observed histogram of CPUE, **including the zeros**
+#'   (bars; the zero bar is the leftmost) against the predictive distribution
+#'   (points and 95% ranges), as shares of all operations. Systematic
+#'   departures show a wrong shape (e.g. the wrong Tweedie power) or a wrong
+#'   balance between zeros and small catches.
+#'
+#' **Scale of the histogram.** Positive CPUE is strongly right-skewed and often
+#' spans several orders of magnitude: on the raw scale (`scale = "raw"`)
+#' nearly all operations fall in the first bins and the tail is invisible. The
+#' fourth root (default) compresses the tail and keeps zero at its natural
+#' place next to the small catches; `scale = "log"` shows the shape of the
+#' positive catches best (a lognormal is symmetric there), with the zeros as a
+#' separate bar at the left. The axis is labelled in CPUE units.
 #'
 #' Pooled over all operations, errors in opposite directions can cancel, so
 #' the by-year summaries are usually more informative. Models without
@@ -52,7 +62,10 @@
 #' @param param_uncertainty Logical; draw the coefficients of each replicate
 #'   from their approximate posterior.
 #' @param probs Upper quantiles of positive CPUE to compare.
-#' @param bins Number of bins of the histogram of log10 positive CPUE.
+#' @param bins Number of bins of the histogram of positive CPUE (the zeros
+#'   form an extra bin).
+#' @param scale Scale of the histogram: `"fourth_root"` (default), `"log"`
+#'   (log10; zeros shown as a separate bar) or `"raw"`.
 #' @param seed Random seed.
 #' @return An object of class `cpue_ppc`: a list with `summary` (one row per
 #'   model, group and statistic: observed value, median and 2.5-97.5% range
@@ -77,8 +90,9 @@
 #' pp$overall
 #' }
 ppc_cpue <- function(fit, models = NULL, n_sim = 50, by = "year",
-                     param_uncertainty = TRUE, probs = c(0.9, 0.99), bins = 40,
-                     seed = 1) {
+                     param_uncertainty = TRUE, probs = c(0.9, 0.99), bins = 30,
+                     scale = c("fourth_root", "log", "raw"), seed = 1) {
+  scale <- match.arg(scale)
   if (!inherits(fit, "cpue_fit")) stop("`fit` must come from fit_cpue().", call. = FALSE)
   if (!requireNamespace("mgcv", quietly = TRUE)) {
     stop("Install the `mgcv` package.", call. = FALSE)
@@ -101,12 +115,20 @@ ppc_cpue <- function(fit, models = NULL, n_sim = 50, by = "year",
   all_grp <- factor(rep("All", nrow(d)))
   stat_names <- c("zeros", "mean", paste0("q", round(100 * probs)))
 
-  pos_obs <- log10(obs[obs > 0])
+  tf <- switch(scale, fourth_root = function(v) v^0.25, log = log10, raw = identity)
+  itf <- switch(scale, fourth_root = function(v) v^4, log = function(v) 10^v, raw = identity)
+  pos_obs <- tf(obs[obs > 0])
   sims <- lapply(models, function(m) ppc_simulate(fit, m, n_sim, param_uncertainty, eff))
   names(sims) <- models
-  pos_all <- unlist(lapply(sims, function(s) log10(s[s > 0])))
+  pos_all <- unlist(lapply(sims, function(s) tf(s[s > 0])))
   rng <- range(c(pos_obs, stats::quantile(pos_all, c(0.001, 0.999), na.rm = TRUE)))
+  if (scale != "log") rng[1] <- 0
   breaks <- seq(rng[1], rng[2], length.out = bins + 1)
+  width <- diff(breaks[1:2])
+  # position of the zero bin: at 0 on the root and raw scales (left of the
+  # first bin), to the left of the axis on the log scale
+  zero_x <- breaks[1] - width
+  mids <- c(zero_x, (breaks[-1] + breaks[-length(breaks)]) / 2)
 
   summary_rows <- list()
   overall_rows <- list()
@@ -115,10 +137,10 @@ ppc_cpue <- function(fit, models = NULL, n_sim = 50, by = "year",
     s <- sims[[m]]
     summary_rows[[m]] <- ppc_compare(obs, s, grp, probs, stat_names, m)
     overall_rows[[m]] <- ppc_compare(obs, s, all_grp, probs, stat_names, m)
-    h_obs <- ppc_hist(obs, breaks)
-    h_sim <- apply(s, 2, ppc_hist, breaks = breaks)
+    h_obs <- ppc_hist(obs, breaks, tf)
+    h_sim <- apply(s, 2, ppc_hist, breaks = breaks, tf = tf)
     hist_rows[[m]] <- data.frame(
-      model = m, mid = (breaks[-1] + breaks[-length(breaks)]) / 2,
+      model = m, mid = mids, zero = c(TRUE, rep(FALSE, bins)),
       observed = h_obs, median = apply(h_sim, 1, stats::median),
       lower = apply(h_sim, 1, stats::quantile, 0.025),
       upper = apply(h_sim, 1, stats::quantile, 0.975))
@@ -167,19 +189,28 @@ ppc_cpue <- function(fit, models = NULL, n_sim = 50, by = "year",
          title = "Upper tail: observed (orange) and simulated (grey, 95% range)") +
     theme_bw() + rot
 
+  ax <- pretty(breaks[-1], n = 5)
+  ax <- ax[ax > breaks[1] & ax <= breaks[length(breaks)]]
+  ax_lab <- signif(itf(ax), 2)
   distribution <- ggplot(histogram, aes(x = .data$mid)) +
-    geom_ribbon(aes(ymin = .data$lower, ymax = .data$upper), fill = "grey75") +
-    geom_line(aes(y = .data$median), colour = "grey30", linetype = 2) +
-    geom_step(aes(y = .data$observed), colour = "#D55E00", direction = "mid") +
+    geom_col(aes(y = .data$observed, fill = .data$zero), width = width * 0.95,
+             alpha = 0.6) +
+    geom_linerange(aes(ymin = .data$lower, ymax = .data$upper), colour = "grey15") +
+    geom_point(aes(y = .data$median), colour = "grey15", size = 0.9) +
+    scale_fill_manual(values = c(`TRUE` = "#8C2D04", `FALSE` = "#FDAE6B"), guide = "none") +
+    scale_x_continuous(breaks = c(zero_x, ax), labels = c("0", format(ax_lab))) +
     facet_wrap(~model, labeller = labeller(model = facet_lab)) +
-    labs(x = "log10 CPUE of positive catches", y = "Share of all operations",
-         title = "Positive catches: observed (orange) and simulated (grey, 95% range)") +
+    labs(x = paste0("CPUE (", c(fourth_root = "fourth-root", log = "log",
+                               raw = "raw")[[scale]], " scale; leftmost bar: zeros)"),
+         y = "Share of all operations",
+         title = "Observed histogram (bars) and predictive distribution (points, 95% range)") +
     theme_bw()
 
   structure(list(summary = summary, overall = overall, histogram = histogram,
                  plots = list(zeros = zeros, tails = tails, distribution = distribution),
                  settings = list(n_sim = n_sim, by = by, param_uncertainty = param_uncertainty,
-                                 probs = probs, family = fit$settings$family)),
+                                 probs = probs, scale = scale,
+                                 family = fit$settings$family)),
             class = "cpue_ppc")
 }
 
@@ -289,10 +320,12 @@ ppc_compare <- function(obs, sims, grp, probs, stat_names, model) {
   do.call(rbind, out)
 }
 
-#' Share of all operations in each bin of log10 positive CPUE
+#' Share of all operations that are zero and in each bin of transformed
+#' positive CPUE
 #' @noRd
-ppc_hist <- function(v, breaks) {
-  lv <- log10(v[v > 0])
-  lv <- lv[lv >= breaks[1] & lv <= breaks[length(breaks)]]
-  as.numeric(table(cut(lv, breaks, include.lowest = TRUE))) / length(v)
+ppc_hist <- function(v, breaks, tf) {
+  tv <- tf(v[v > 0])
+  tv <- tv[tv >= breaks[1] & tv <= breaks[length(breaks)]]
+  pos <- as.numeric(table(cut(tv, breaks, include.lowest = TRUE)))
+  c(mean(v == 0), pos / length(v))
 }
