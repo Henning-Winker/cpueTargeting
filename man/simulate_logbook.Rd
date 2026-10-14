@@ -19,7 +19,7 @@ A list with
 \item \code{logbook}: one row per trip and recorded species (\code{trip}, \code{year},
 \code{month}, \code{vessel}, \code{hours}, \code{lon}, \code{lat}, \code{species}, \code{kg}), ready for
 \code{\link[=cpue_data]{cpue_data()}};
-\item \code{trips}: the truth per trip (vessel type, tactic of each set, number of
+\item \code{trips}: the truth per trip (vessel type, whether the trip stayed on home tactics (\code{loyal}), tactic of each set, number of
 sets, cell, depth, substrate, habitat);
 \item \code{truth}: true total biomass by year and species (also scaled to mean 1);
 \item \code{nominal}: nominal CPUE (kg/hour) by year and species from the logbook;
@@ -51,8 +51,9 @@ every month.
 \strong{Fleet.} Each month, trips choose a tactic (\code{Reef}, \code{Sediment},
 \code{Pelagic}) and a cell with probability proportional to
 \verb{expected value ^ preference}, where expected value is the sum over species
-of price x catchability of the tactic x available biomass. Specialist
-vessels can use only some tactics. Prices change between periods, which
+of price x catchability of the tactic x available biomass. A share
+\code{loyalty} of a specialist's trips is restricted to its home tactics; its
+other trips, and all trips of mixed vessels, choose among all tactics. Prices change between periods, which
 shifts tactics; a closure bans a tactic from part of the area; vessels
 enter (more efficient) and leave.
 

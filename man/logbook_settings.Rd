@@ -32,9 +32,14 @@ base \code{price}.
 \item \code{price_periods}: years at which prices change and multipliers for
 demersal and pelagic species in each period (default: demersal premium,
 then a pelagic boom, then neutral prices).
-\item Fleet: \code{vessel_types} (numbers of vessels by type), \code{allowed} (tactics
-each type can use), vessel catchability CV, late entries with efficiency
-creep (\code{entry_share}, \code{creep}), early exits (\code{exit_share}).
+\item Fleet: \code{vessel_types} (numbers of vessels by type), \code{home} (home
+tactics of each type), \code{loyalty} (share of a type's trips restricted to
+its home tactics; the other trips choose among all tactics by expected
+value), vessel catchability CV, late entries with efficiency creep
+(\code{entry_share}, \code{creep}), early exits (\code{exit_share}). The default has
+demersal and pelagic specialists with loyalty 0.8 and mixed vessels that
+choose purely by expected value. (\code{allowed}, from earlier versions, is
+still accepted and means \code{home} with loyalty 1.)
 \item \code{trips}: trips per year (default: an increase, cut by 20\% with the
 closure); \code{preference}: how strongly effort concentrates on the most
 valuable cells and tactics.
