@@ -19,7 +19,8 @@ test_that("simulate_logbook() returns a messy logbook and the truth", {
   expect_equal(range(lb$year), c(2000, 2008))
   tr <- sim$trips
   expect_true(all(tr$tactic %in% c("Reef", "Sediment", "Pelagic")))
-  expect_equal(mean(tr$n_sets == 2), 0.3, tolerance = 0.05)
+  # share of two-set trips: binomial noise (SD ~0.008 with ~3600 trips)
+  expect_lt(abs(mean(tr$n_sets == 2) - 0.3), 0.04)
   expect_equal(nrow(sim$truth), 9 * 10)
   expect_equal(as.numeric(tapply(sim$truth$relative, sim$truth$species, mean)), rep(1, 10))
   expect_equal(mean(sim$env$substrate == "reef"), 0.25, tolerance = 0.02)
