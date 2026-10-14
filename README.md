@@ -23,11 +23,13 @@ substrate (shallow/deep reef, shallow/deep sediment, as in Winker et al.
 2014); pelagic species follow SST and migrate seasonally. Each trip chooses a
 tactic (`Reef` handline, `Sediment` longline or `Pelagic` troll) and a place
 by expected value; prices change between periods, a closure bans sediment
-gear from deep water, specialist (80% loyal to their home tactics) and mixed vessels enter and leave. The
-logbook reports trips (some combining two sets), coarse and sometimes missing
+gear from deep water, specialist vessels (80% of their trips on their home
+tactics) and mixed vessels enter and leave. The logbook reports trips (about
+a fifth combining sets of two tactics), coarse and sometimes missing
 positions, rounded catches, under-reported bycatch and a species under two
-names, but not the tactic. See the vignette *A realistic logbook: reef,
-sediment and pelagic tactics*.
+names, but not the tactic. See the vignettes *Setting up the logbook
+simulator: a user guide* and *Standardising a realistic logbook: blackspot
+seabream, conger and dolphinfish*.
 
 ```r
 sim <- simulate_logbook(seed = 1)
@@ -46,13 +48,13 @@ guidelines for the decisions involved.
 | Step | Functions |
 |---|---|
 | 1. Format: long or wide logbooks to one row per operation, synonyms, processing log | `cpue_data()`, `subset()`, `cpue_matrix()` |
-| 2. Fleet: operations by year and vessel, fleet turnover, core vessels | `plot_fleet()`, `select_vessels()` |
+| 2. Fleet: operations by year and vessel, fleet turnover, indicator vessels by activity and target-species rules, vessel catch profiles | `plot_fleet()`, `vessel_summary()`, `select_vessels()`, `plot_vessel_profile()` |
 | 3. Species: cumulative species curves and the species set | `species_curve()`, `plot_species_curve()`, `select_species()` |
 | 4. Nominal CPUE and catch composition | `nominal_cpue()`, `plot_nominal()`, `plot_composition()`, `plot_cpue_map()` |
-| 5. Habitat-based subsetting (Stephens and MacCall 2004) | `stephens_maccall()`, `plot_stephens_maccall()` |
+| 5. Subsetting: habitat-based (Stephens and MacCall 2004); removing irrelevant tactics and recomputing the PCA | `stephens_maccall()`, `plot_stephens_maccall()`, `select_tactics()` |
 | 6. Targeting covariates: composition PCA, Optimal Coordinates test, clustering | `add_targeting()`, `composition_pca()`, `compute_oc()`, `cluster_tactics()`, `plot_oc()`, `plot_biplot()`, `tactic_table()`, `plot_targeting()` |
 | 7. Models (mgcv): Base, Covariates, DPC, Cluster, spatial (`+S`), random vessel effects; Tweedie or delta families | `fit_cpue()` |
-| 8. Diagnostics: model table, influence (Bentley et al. 2012), step plot, quantile residuals, effects, vessel effects | `cpue_diagnostics()`, `plot_index()`, `plot_step()`, `plot_influence()`, `plot_residuals()`, `plot_effects()`, `plot_vessel_effects()` |
+| 8. Diagnostics: model table, influence (Bentley et al. 2012), step plot, quantile residuals, predictive check of the error distribution (zeros and tails by year), effects, vessel effects | `cpue_diagnostics()`, `plot_index()`, `plot_step()`, `plot_influence()`, `plot_residuals()`, `ppc_cpue()`, `plot_effects()`, `plot_vessel_effects()` |
 | 9. Index for the assessment, with log SE and CV | `cpue_index()`, `export_index()` |
 
 ```r
@@ -83,6 +85,9 @@ export_index(fit, "cpue_index.csv", model = "DPC")
 | [Background document](https://henning-winker.github.io/cpueTargeting/appendix.html) | Full description of both simulators, how the tuna model extends the spatial simulator, and the standardisation models (Base, spatial, Cluster, DPC, HBF) |
 | [Bathymetric example](https://henning-winker.github.io/cpueTargeting/bathymetric-example.html) | Targeting along a continuous depth gradient with the guideline settings: maps, CPUE distributions, indices, what the PCs and clusters capture, replicates |
 | [Tuna longline: flat vs contrasting trends](https://henning-winker.github.io/cpueTargeting/tuna-flat-vs-contrast.html) | Spatial and vertical (HBF) targeting with identical targeting but flat or diverging true trends: when the catch composition captures targeting and when it also absorbs abundance |
+| [Real-data guide](https://henning-winker.github.io/cpueTargeting/real-data-guide.html) | The toolbox step by step, from the raw logbook to the index, with guidelines for each decision |
+| [Logbook simulator: user guide](https://henning-winker.github.io/cpueTargeting/logbook-om-guide.html) | Settings and mechanics of `simulate_logbook()`: habitats, tactics, specialist loyalty, mixed trips, reporting; what PCs and clusters capture against the truth |
+| [Logbook standardisation](https://henning-winker.github.io/cpueTargeting/logbook-example.html) | Blackspot seabream, conger and dolphinfish: tactic selection, indicator vessels, error distributions and predictive checks |
 
 All pages are also linked from the [project page](https://henning-winker.github.io/cpueTargeting/).
 

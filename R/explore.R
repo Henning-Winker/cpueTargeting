@@ -203,28 +203,185 @@ plot_fleet <- function(x, by = NULL, max_vessels = 60) {
   out
 }
 
-#' Select core vessels
-#'
-#' Keeps vessels that fished in at least `min_years` years with at least
-#' `min_records` operations in each of those years, a common way to define
-#' an indicator fleet with consistent reporting.
+#' Summary of each vessel's activity and catches of target species
 #'
 #' @param x A `cpue_data` object with a vessel column.
-#' @param min_years Minimum number of qualifying years.
-#' @param min_records Minimum number of operations for a year to qualify.
-#' @return The subsetted `cpue_data` object.
+#' @param target Optional target species (column or original names; several
+#'   species are combined).
+#' @param min_records Number of operations for a year to count in
+#'   `years_qualified`.
+#' @return A data frame with one row per vessel: `records`, `years` (years
+#'   with any record), `years_qualified` (years with at least `min_records`
+#'   records), `first`, `last` and, with `target`, `records_target`
+#'   (operations catching the target), `share_target` (their share of the
+#'   vessel's operations), `years_target` (years in which the target was
+#'   caught) and `catch_target` (total catch of the target).
+#' @seealso [select_vessels()], [plot_vessel_profile()]
 #' @export
-select_vessels <- function(x, min_years = 3, min_records = 10) {
+vessel_summary <- function(x, target = NULL, min_records = 1) {
   check_cpue_data(x)
   r <- x$roles
   if (is.null(r$vessel)) stop("No vessel column was defined in cpue_data().", call. = FALSE)
   v <- as.character(x$data[[r$vessel]])
-  tab <- table(v, x$data[[r$year]])
-  years_ok <- rowSums(tab >= min_records)
-  core <- names(years_ok)[years_ok >= min_years]
-  filter_ops(x, v %in% core, "select core vessels",
-             sprintf("%d of %d vessels (>= %d years with >= %d records)",
-                     length(core), nrow(tab), min_years, min_records))
+  yr <- x$data[[r$year]]
+  tab <- table(v, yr)
+  out <- data.frame(vessel = rownames(tab),
+                    records = as.numeric(rowSums(tab)),
+                    years = as.numeric(rowSums(tab > 0)),
+                    years_qualified = as.numeric(rowSums(tab >= min_records)),
+                    first = as.numeric(tapply(yr, v, min)[rownames(tab)]),
+                    last = as.numeric(tapply(yr, v, max)[rownames(tab)]),
+                    stringsAsFactors = FALSE)
+  if (!is.null(target)) {
+    codes <- species_codes(x, target)
+    if (anyNA(codes)) {
+      stop("Species not found: ", paste(target[is.na(codes)], collapse = ", "), call. = FALSE)
+    }
+    catch <- rowSums(as.matrix(x$data[, codes, drop = FALSE]))
+    pos <- catch > 0
+    out$records_target <- as.numeric(tapply(pos, v, sum)[out$vessel])
+    out$share_target <- out$records_target / out$records
+    out$years_target <- as.numeric(rowSums(table(v[pos], yr[pos]) > 0)[out$vessel])
+    out$years_target[is.na(out$years_target)] <- 0
+    out$catch_target <- as.numeric(tapply(catch, v, sum)[out$vessel])
+  }
+  out <- out[order(-out$records), ]
+  rownames(out) <- NULL
+  out
+}
+
+#' Select core (indicator) vessels
+#'
+#' Keeps vessels that meet a set of rules, a common way to define an
+#' indicator fleet with consistent reporting and a consistent interest in the
+#' target species (e.g. Hoyle et al. 2015):
+#' * activity: at least `min_years` years with at least `min_records`
+#'   operations each;
+#' * target species (optional): caught in at least `min_years_target` years,
+#'   in at least a share `min_share_target` of the vessel's operations,
+#'   and/or a total catch of at least `min_catch_target`.
+#'
+#' Rules on the target species select vessels that fish its habitat
+#' regularly. They are applied to whole vessels, so the selection does not
+#' change with the vessel's targeting from trip to trip; combine them with
+#' [select_tactics()] or [stephens_maccall()] for trip-level selection.
+#' Check the selection with [vessel_summary()] and [plot_vessel_profile()].
+#'
+#' @param x A `cpue_data` object with a vessel column.
+#' @param min_years Minimum number of qualifying years.
+#' @param min_records Minimum number of operations for a year to qualify.
+#' @param target Target species for the optional rules (column or original
+#'   names; several species are combined).
+#' @param min_years_target Minimum number of years with catches of the target.
+#' @param min_share_target Minimum share of the vessel's operations catching
+#'   the target.
+#' @param min_catch_target Minimum total catch of the target.
+#' @return The subsetted `cpue_data` object; the vessel table is attached as
+#'   attribute `vessels` (with a column `selected`).
+#' @references Hoyle, S.D., Langley, A.D. and Campbell, R.A. (2014)
+#'   Recommended approaches for standardizing CPUE data from pelagic
+#'   fisheries. WCPFC-SC10-2014/SA-IP-10.
+#' @export
+#' @examples
+#' \dontrun{
+#' vs <- vessel_summary(x, target = "Conger conger")
+#' x_core <- select_vessels(x, min_years = 5, min_records = 10,
+#'                          target = "Conger conger", min_years_target = 5,
+#'                          min_share_target = 0.3)
+#' attr(x_core, "vessels")
+#' }
+select_vessels <- function(x, min_years = 3, min_records = 10, target = NULL,
+                           min_years_target = NULL, min_share_target = NULL,
+                           min_catch_target = NULL) {
+  check_cpue_data(x)
+  target_rules <- !is.null(min_years_target) || !is.null(min_share_target) ||
+    !is.null(min_catch_target)
+  if (target_rules && is.null(target)) stop("Give `target` for the target rules.", call. = FALSE)
+  vs <- vessel_summary(x, target = target, min_records = min_records)
+  ok <- vs$years_qualified >= min_years
+  rules <- sprintf(">= %d years with >= %d records", min_years, min_records)
+  if (!is.null(min_years_target)) {
+    ok <- ok & vs$years_target >= min_years_target
+    rules <- c(rules, sprintf("target in >= %d years", min_years_target))
+  }
+  if (!is.null(min_share_target)) {
+    ok <- ok & vs$share_target >= min_share_target
+    rules <- c(rules, sprintf("target in >= %.0f%% of records", 100 * min_share_target))
+  }
+  if (!is.null(min_catch_target)) {
+    ok <- ok & vs$catch_target >= min_catch_target
+    rules <- c(rules, sprintf("target catch >= %g", min_catch_target))
+  }
+  vs$selected <- ok
+  core <- vs$vessel[ok]
+  v <- as.character(x$data[[x$roles$vessel]])
+  out <- filter_ops(x, v %in% core, "select core vessels",
+                    sprintf("%d of %d vessels (%s)", length(core), nrow(vs),
+                            paste(rules, collapse = "; ")))
+  attr(out, "vessels") <- vs
+  out
+}
+
+#' Catch profile of each vessel
+#'
+#' Share of each vessel's total catch by species or species group, with
+#' vessels ordered by the share of the first group. Specialists appear at
+#' either end, mixed vessels in between; useful to define indicator vessels
+#' and to see how far the fleet is split into specialists.
+#'
+#' @param x A `cpue_data` object with a vessel column.
+#' @param groups Optional named list of species vectors (column or original
+#'   names), e.g. `list(demersal = ..., pelagic = ...)`. Species not in any
+#'   group are pooled as `other`. Default: each species separately.
+#' @param by Optional named vector with one label per vessel (names = vessel
+#'   ids), e.g. a vessel type, used to facet the plot.
+#' @param max_vessels Show at most this many vessels (those with most records).
+#' @return A ggplot object; the data (one row per vessel and group) are in
+#'   its `data` element.
+#' @seealso [vessel_summary()], [select_vessels()]
+#' @export
+plot_vessel_profile <- function(x, groups = NULL, by = NULL, max_vessels = 80) {
+  check_cpue_data(x)
+  r <- x$roles
+  if (is.null(r$vessel)) stop("No vessel column was defined in cpue_data().", call. = FALSE)
+  v <- as.character(x$data[[r$vessel]])
+  m <- as.matrix(x$data[, x$species, drop = FALSE])
+  if (is.null(groups)) {
+    gm <- m
+    colnames(gm) <- sp_label(x, x$species)
+  } else {
+    if (is.null(names(groups)) || any(names(groups) == "")) {
+      stop("`groups` must be a named list.", call. = FALSE)
+    }
+    codes <- lapply(groups, function(g) {
+      cd <- species_codes(x, g)
+      cd[!is.na(cd)]
+    })
+    gm <- vapply(codes, function(cd) rowSums(m[, cd, drop = FALSE]), numeric(nrow(m)))
+    gm <- matrix(gm, nrow = nrow(m), dimnames = list(NULL, names(groups)))
+    rest <- setdiff(x$species, unlist(codes))
+    if (length(rest)) gm <- cbind(gm, other = rowSums(m[, rest, drop = FALSE]))
+  }
+  agg <- rowsum(gm, v)
+  share <- agg / rowSums(agg)
+  n_rec <- table(v)[rownames(share)]
+  top <- names(sort(n_rec, decreasing = TRUE))[seq_len(min(max_vessels, length(n_rec)))]
+  share <- share[top, , drop = FALSE]
+  ord <- rownames(share)[order(-share[, 1])]
+  d <- data.frame(vessel = factor(rep(rownames(share), ncol(share)), levels = ord),
+                  group = factor(rep(colnames(share), each = nrow(share)),
+                                 levels = colnames(share)),
+                  share = as.vector(share),
+                  records = as.numeric(rep(n_rec[rownames(share)], ncol(share))))
+  if (!is.null(by)) d$by <- unname(by[as.character(d$vessel)])
+  p <- ggplot(d, aes(x = .data$vessel, y = .data$share, fill = .data$group)) +
+    geom_col(width = 1) +
+    scale_fill_manual(values = species_colours(ncol(share))) +
+    labs(x = "Vessel (ordered by share of the first group)", y = "Share of catch",
+         fill = NULL) +
+    theme_bw() + theme(axis.text.x = element_text(angle = 90, size = 6, vjust = 0.5))
+  if (!is.null(by)) p <- p + facet_grid(~by, scales = "free_x", space = "free_x")
+  p
 }
 
 #' Nominal CPUE by year

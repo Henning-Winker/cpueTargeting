@@ -39,10 +39,15 @@ test_that("habitats, vessel types, closure and prices act as specified", {
   }
   expect_gt(ratio("Dentex dentex"), 3)
   expect_lt(ratio("Merluccius merluccius"), 1 / 3)
-  # specialists
-  expect_true(all(tr$tactic[tr$vessel_type == "pelagic"] == "Pelagic"))
-  expect_false(any(tr$tactic[tr$vessel_type == "demersal"] == "Pelagic"))
-  expect_false(any(tr$tactic2[tr$vessel_type == "pelagic"] %in% c("Reef", "Sediment")))
+  # specialists: loyal trips stay on the home tactics (both sets)
+  loyal_pel <- tr$vessel_type == "pelagic" & tr$loyal
+  loyal_dem <- tr$vessel_type == "demersal" & tr$loyal
+  expect_true(all(tr$tactic[loyal_pel] == "Pelagic"))
+  expect_false(any(tr$tactic[loyal_dem] == "Pelagic"))
+  expect_false(any(tr$tactic2[loyal_pel] %in% c("Reef", "Sediment")))
+  # most specialist trips use the home tactics
+  expect_gt(mean(tr$tactic[tr$vessel_type == "pelagic"] == "Pelagic"), 0.75)
+  expect_gt(mean(tr$tactic[tr$vessel_type == "demersal"] != "Pelagic"), 0.75)
   # closure: no sediment sets deeper than 300 m from year 7
   closed <- tr$year >= 2006 & tr$depth >= 300 & tr$tactic == "Sediment"
   expect_equal(sum(closed), 0)

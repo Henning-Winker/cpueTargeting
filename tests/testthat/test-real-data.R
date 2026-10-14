@@ -202,3 +202,52 @@ test_that("the workflow runs on simulated data in long format", {
   expect_gte(x$targeting$n_pc, 1)
   expect_equal(x$targeting$n_clusters, x$targeting$n_pc + 1)
 })
+
+test_that("select_tactics() drops clusters and recomputes the targeting", {
+  skip_if_not_installed("cluster")
+  lb <- make_logbook(n = 1500)
+  x <- cpue_data(lb$long, year = "year", species = "species", catch = "kg", id = "trip",
+                 vessel = "vessel", covariates = "tactic",
+                 synonyms = c("Trichiurus lepturus" = "Lepidopus caudatus"))
+  x <- select_species(x, threshold = 0.99)
+  x <- add_targeting(x, n_clusters = 3)
+  tt <- tactic_table(x)
+  scab <- tt$FT[tt$dominant == "Lepidopus caudatus"]
+  xd <- select_tactics(x, drop = scab, n_clusters = 2)
+  expect_equal(nrow(xd$data), sum(x$data$FT != scab))
+  expect_equal(nlevels(xd$data$FT), 2)
+  expect_equal(nrow(xd$targeting$pca$scores), nrow(xd$data))
+  expect_false(scab %in% xd$targeting$previous$kept)
+  expect_match(utils::tail(xd$log$step, 2)[1], "select tactics")
+  # by species content: clusters where seabream and conger make up >= 50%
+  xs <- select_tactics(x, species = c("Pagellus bogaraveo", "Conger conger"),
+                       min_share = 0.5, n_clusters = 2)
+  expect_false(scab %in% xs$targeting$previous$kept)
+  xn <- select_tactics(x, keep = 1, retarget = FALSE)
+  expect_false("FT" %in% names(xn$data))
+  expect_null(xn$targeting)
+  expect_error(select_tactics(x), "keep")
+  expect_error(select_tactics(x, keep = 99), "No cluster")
+})
+
+test_that("vessel rules for the target species", {
+  lb <- make_logbook(n = 1500)
+  x <- cpue_data(lb$long, year = "year", species = "species", catch = "kg", id = "trip",
+                 vessel = "vessel")
+  vs <- vessel_summary(x, target = "Conger conger")
+  expect_equal(sum(vs$records), nrow(x$data))
+  expect_true(all(vs$share_target >= 0 & vs$share_target <= 1))
+  expect_true(all(vs$years_target <= vs$years))
+  xc <- select_vessels(x, min_years = 1, min_records = 1, target = "Conger conger",
+                       min_share_target = stats::median(vs$share_target))
+  kept <- attr(xc, "vessels")
+  expect_true(all(kept$share_target[kept$selected] >= stats::median(vs$share_target)))
+  expect_setequal(unique(xc$data$vessel), kept$vessel[kept$selected])
+  expect_error(select_vessels(x, min_share_target = 0.5), "target")
+  p <- plot_vessel_profile(x, groups = list(seabream = "Pagellus bogaraveo",
+                                            conger = "Conger conger"),
+                           by = stats::setNames(rep(c("a", "b"), length.out = nrow(vs)),
+                                                vs$vessel))
+  expect_s3_class(p, "ggplot")
+  expect_true(all(c("seabream", "conger", "other") %in% levels(p$data$group)))
+})

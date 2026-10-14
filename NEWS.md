@@ -1,5 +1,23 @@
 # cpueTargeting 0.4.0
 
+## Selection tools, predictive checks and logbook guides
+
+* `select_tactics()`: remove (or keep) fishing tactics by cluster number or
+  by species content (e.g. clusters with at least 50% demersal catch) and
+  recompute the PCA and clusters on the remaining operations.
+* `select_vessels()` gains rules on a target species: `target`,
+  `min_years_target`, `min_share_target`, `min_catch_target`; the vessel table
+  is attached as attribute `vessels`. New `vessel_summary()` and
+  `plot_vessel_profile()` (each vessel's catch by species or group).
+* `ppc_cpue()`: predictive check of the error distribution. Replicate data
+  sets are simulated from the fitted Tweedie or delta models (optionally with
+  parameter uncertainty) and compared with the data: share of zeros, upper
+  quantiles of positive CPUE and the distribution of log CPUE, overall and by
+  year (or any grouping).
+* New vignette *Setting up the logbook simulator: a user guide*; the logbook
+  vignette is now *Standardising a realistic logbook: blackspot seabream,
+  conger and dolphinfish*; the real-data guide covers the new tools.
+
 ## Logbook simulator: specialist loyalty and mixed trips
 
 * `simulate_logbook()`: specialist vessels are no longer locked to their

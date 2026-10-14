@@ -132,3 +132,27 @@ test_that("informative errors", {
   expect_error(fit_cpue(x, "A", vessel = TRUE), "vessel")
   expect_error(fit_cpue(x, "A", add_models = c(M = "s(month)")), "fyear")
 })
+
+test_that("ppc_cpue() compares observed and simulated distributions", {
+  skip_if_not_installed("mgcv")
+  fd <- make_fit_data(n = 1500)
+  x <- prepare(fd)
+  fit <- fit_cpue(x, "A", models = c("Base", "DPC"), vessel = TRUE)
+  pp <- ppc_cpue(fit, n_sim = 20)
+  expect_s3_class(pp, "cpue_ppc")
+  expect_true(all(c("zeros", "mean", "q90", "q99") %in% pp$summary$stat))
+  expect_equal(nrow(pp$summary), 2 * 10 * 4)
+  expect_true(all(pp$summary$lower <= pp$summary$upper, na.rm = TRUE))
+  expect_true(all(vapply(pp$plots, inherits, logical(1), "ggplot")))
+  # the Tweedie DPC model reproduces the overall share of zeros
+  z <- pp$overall[pp$overall$stat == "zeros" & pp$overall$model == "DPC", ]
+  expect_true(z$observed >= z$lower - 0.02 && z$observed <= z$upper + 0.02)
+  # other groupings, no parameter uncertainty, delta models
+  expect_equal(nlevels(ppc_cpue(fit, "DPC", n_sim = 5, by = "FT")$summary$group), 2)
+  expect_equal(nlevels(ppc_cpue(fit, "DPC", n_sim = 5, by = NULL,
+                                param_uncertainty = FALSE)$summary$group), 1)
+  fd2 <- fit_cpue(x, "A", models = "DPC", family = "delta_lognormal", vessel = TRUE)
+  expect_s3_class(ppc_cpue(fd2, n_sim = 5)$plots$zeros, "ggplot")
+  fo <- fit_cpue(x, "A", models = "DPC", family = "delta_gamma", offset = TRUE)
+  expect_true(all(is.finite(ppc_cpue(fo, n_sim = 5)$summary$median)))
+})

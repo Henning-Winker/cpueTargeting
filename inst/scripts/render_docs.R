@@ -8,7 +8,11 @@
 options(cpueTargeting.rdata = normalizePath(getOption("cpueTargeting.rdata", "rdata"),
                                             mustWork = TRUE))
 vignettes <- c(bathymetric = "vignettes/bathymetric-example.Rmd",
-               flat_vs_contrast = "vignettes/tuna-flat-vs-contrast.Rmd")
+               flat_vs_contrast = "vignettes/tuna-flat-vs-contrast.Rmd",
+               # these simulate their own data (no pre-run results needed)
+               real_data = "vignettes/real-data-guide.Rmd",
+               logbook_om = "vignettes/logbook-om-guide.Rmd",
+               logbook = "vignettes/logbook-example.Rmd")
 for (v in vignettes) {
   rmarkdown::render(v, output_dir = "docs", envir = new.env(),
                     output_options = list(self_contained = TRUE))

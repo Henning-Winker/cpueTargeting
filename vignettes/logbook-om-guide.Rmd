@@ -1,0 +1,359 @@
+---
+title: "Setting up the logbook simulator: a user guide"
+author: "Henning Winker"
+output:
+  rmarkdown::html_document:
+    toc: true
+    toc_float: true
+    theme: readable
+vignette: >
+  %\VignetteIndexEntry{Setting up the logbook simulator: a user guide}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
+                      fig.width = 8, fig.height = 4.5, dpi = 110,
+                      eval = requireNamespace("cluster", quietly = TRUE))
+library(cpueTargeting)
+library(ggplot2)
+```
+
+`simulate_logbook()` generates the kind of logbook an analyst receives from a
+mixed demersal-pelagic fishery, together with the truth that is never in a
+real logbook: where and with which tactic each trip fished, which vessel type
+made it, and how the stocks really changed. This guide walks through the
+simulator layer by layer, explains the settings that matter for targeting,
+and shows the basic mechanics: what the principal components (PCs) and
+clusters of the catch composition pick up when we know the truth.
+
+The standardisation of three species from this logbook is shown in
+*Standardising a realistic logbook: blackspot seabream, conger and
+dolphinfish*.
+
+| Layer | What it does | Main settings |
+|---|---|---|
+| Environment | shelf-to-slope depth, reef patches in sediment, SST gradient | `grid`, `shelf_depth`, `reef_share`, `reef_scale`, `sst_range` |
+| Species | demersal: depth x substrate; pelagic: SST, depth and season | `species` (one row per species) |
+| Tactics | gear catchability of each species | `tactics` (tactic x species) |
+| Fleet | vessel types, home tactics and loyalty, entry and exit | `vessel_types`, `home`, `loyalty`, `entry_share`, `exit_share` |
+| Behaviour | trips go where expected value is high | `price_periods`, `preference`, `closure` |
+| Dynamics | Schaefer production, movement, monthly removals | `r`, `B0`, `B_start`, `dispersal` |
+| Reporting | trip records, two-set trips, coarse positions, rounding, under-reporting, synonyms | `logbook` |
+
+# 1. Settings
+
+All settings are in one list. Change any element and pass the list to
+`simulate_logbook()`; `species`, `tactics`, `price`, `trips`, `closure`,
+`vessel_types`, `home` and `loyalty` are replaced as a whole, the others are
+merged with the defaults.
+
+```{r settings}
+s <- logbook_settings()
+names(s)
+knitr::kable(s$species[, c("species", "group", "habitat", "depth_mu", "reef",
+                           "sediment", "sst_mu", "season_amp", "price")],
+             row.names = FALSE)
+```
+
+```{r simulate}
+sim <- simulate_logbook(s, seed = 1)
+```
+
+# 2. Environment
+
+Depth increases offshore (to the right) with random bumps; reef patches are
+the highest values of a smooth random field; sea temperature decreases from
+north to south.
+
+```{r env, fig.height = 4}
+sim$Plots$env
+sim$Plots$sst
+```
+
+**Reef patches.** `reef_share` is the share of cells that are reef and
+`reef_scale` the size (correlation length, in cells) of the patches.
+
+* Lower `reef_share` or `reef_scale`: fewer or smaller, scattered patches.
+  When patches are smaller than the reporting blocks (`logbook$obs_res`,
+  5 x 5 cells), reef and sediment trips share the same reported position, so
+  a spatial term cannot separate them and only the catch composition can.
+* Higher values: larger, connected reef areas that a spatial term on the
+  reported positions can resolve.
+
+The default (`reef_scale = 2.5`) deliberately makes patches about the size
+of a reporting block or smaller.
+
+```{r reef-scale, fig.height = 3.6}
+reef_maps <- do.call(rbind, lapply(c(1, 2.5, 6), function(sc) {
+  e <- simulate_logbook(modifyList(s, list(reef_scale = sc, n_years = 4)),
+                        seed = 1, plots = FALSE)$env
+  data.frame(e, reef_scale = paste("reef_scale =", sc))
+}))
+ggplot(reef_maps, aes(x = x, y = y, fill = substrate)) +
+  geom_raster() + facet_wrap(~reef_scale) + coord_equal() +
+  geom_vline(xintercept = seq(0.5, 40.5, by = 5), colour = "white", linewidth = 0.2) +
+  geom_hline(yintercept = seq(0.5, 40.5, by = 5), colour = "white", linewidth = 0.2) +
+  scale_fill_manual(values = c(reef = "#7570b3", sediment = "#e6ab02")) +
+  labs(x = NULL, y = NULL, fill = NULL, subtitle = "white grid: 5 x 5 reporting blocks") +
+  theme_bw()
+```
+
+# 3. Species and habitats
+
+Demersal densities are the product of a depth preference (lognormal,
+`depth_mu`, `depth_cv`) and a substrate affinity (`reef`, `sediment`), so
+shallow reef, deep reef, shallow sediment and deep sediment arise as
+continuous gradients rather than sharp classes. Pelagic species follow sea
+temperature (`sst_mu`, `sst_sd`) and depth, and their availability changes
+over the year (`season_amp`, `season_peak`): dolphinfish and albacore are
+summer-autumn migrants.
+
+```{r density, fig.height = 4.5}
+sim$Plots$density
+```
+
+# 4. Tactics
+
+A tactic is a gear used in a particular way. Its catchability of each species
+(`tactics`) is the gear selectivity; where the gear is used decides which
+species are available. The reef handline catches reef species, the bottom
+longline sediment species, and pelagic trolling the pelagic species, with
+some overlap (conger is caught by both bottom gears; amberjack by reef
+handline and trolling).
+
+```{r tactics, fig.height = 2.8}
+q <- as.data.frame(as.table(s$tactics))
+names(q) <- c("tactic", "species", "catchability")
+ggplot(q, aes(x = species, y = tactic, fill = catchability)) +
+  geom_tile(colour = "white") +
+  geom_text(aes(label = catchability), size = 2.8) +
+  scale_fill_viridis_c(option = "rocket", direction = -1, trans = "sqrt") +
+  labs(x = NULL, y = NULL) + theme_bw() +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1, size = 7))
+```
+
+# 5. Fleet: specialists, mixed vessels and loyalty
+
+Three vessel types (`vessel_types`) fish with different flexibility:
+
+* **demersal specialists**: home tactics reef and sediment;
+* **pelagic specialists**: home tactic pelagic;
+* **mixed vessels**: no home preference.
+
+Each month, a share `loyalty` of a specialist's trips (default 0.8) is
+restricted to its home tactics; the remaining trips, and all trips of mixed
+vessels, choose among all tactics by expected value. Specialists therefore
+mostly stick to their gear but follow good opportunities, e.g. demersal
+boats trolling for dolphinfish in a good summer.
+
+```{r fleet}
+s$home
+s$loyalty
+tr <- sim$trips
+round(prop.table(table(type = tr$vessel_type, tactic = tr$tactic), 1), 2)
+tapply(tr$loyal, tr$vessel_type, mean)
+```
+
+Why it matters for standardisation: a specialist's targeting barely changes,
+so a vessel effect absorbs it. Mixed vessels (and the non-loyal trips of
+specialists) switch tactics *within* the same vessel as prices change, which
+is the targeting that the catch composition has to capture.
+
+* `loyalty = 1`: specialists never leave their home tactics.
+* `loyalty = 0` for all types: every vessel behaves as a mixed vessel, the
+  strongest targeting shifts.
+* `preference`: how strongly trips concentrate on the most valuable cells and
+  tactics (higher = more decisive skippers).
+
+# 6. Prices, closure and fleet changes
+
+Prices change in three periods: demersal species are expensive in 2000-2007,
+pelagic species boom in 2008-2015, then prices are neutral. From 2016 the
+bottom longline is banned deeper than 300 m and effort is cut by 20%. Some
+vessels enter later (and are more efficient, `creep`), others leave.
+
+```{r prices, fig.height = 3.5}
+sim$Plots$prices
+sim$Plots$tactics
+sim$Plots$effort
+```
+
+The result is that nominal CPUE (orange) departs from the true biomass
+(black) in different ways for each species:
+
+```{r cpue, fig.height = 5}
+sim$Plots$cpue
+```
+
+# 7. Reporting: from sets to a logbook
+
+The logbook records **trips**, not sets. A share `logbook$two_sets` of trips
+(default 0.3) makes a second set, and with probability
+`logbook$switch_tactic` (default 0.7) the second set uses another tactic.
+The catches of both sets are summed into one record at the position of the
+first set, so these trips mix two catch compositions, as in many real
+logbooks.
+
+```{r mixed}
+mixed <- !is.na(tr$tactic2) & tr$tactic2 != tr$tactic
+mean(mixed)                                  # share of trips that mix tactics
+round(tapply(mixed, tr$vessel_type, mean), 3)
+```
+
+Pelagic specialists make mixed trips only on their non-loyal trips. Further
+reporting settings:
+
+| Setting | Default | Effect |
+|---|---|---|
+| `obs_res` | 5 | positions reported as centres of 5 x 5 blocks |
+| `missing_position` | 0.02 | share of trips without position |
+| `round_to` | 0.5 | catches rounded to 0.5 kg |
+| `underreport` | small catches (< 2 kg) of cheap species (price <= 3) | dropped with probability 0.5 |
+| `synonyms`, `synonym_rate` | blackspot seabream | 10% recorded under its common name |
+
+```{r logbook}
+head(sim$logbook, 8)
+```
+
+# 8. Basic mechanics: what the PCs and clusters capture
+
+We now take the logbook through the first steps of the toolbox and compare
+the targeting covariates with the truth.
+
+```{r toolbox}
+x <- cpue_data(sim$logbook, year = "year", species = "species", catch = "kg",
+               effort = "hours", id = "trip", vessel = "vessel",
+               lon = "lon", lat = "lat", covariates = "month",
+               synonyms = c("Blackspot seabream" = "Pagellus bogaraveo"))
+x <- subset(x, !is.na(lon), note = "positions reported")
+x <- select_species(x, threshold = 0.95)
+x <- add_targeting(x)
+x$targeting$pca
+```
+
+Attach the truth of each trip (never available in real data):
+
+```{r truth}
+truth <- sim$trips[match(x$data$trip, sim$trips$trip), ]
+x$data$true_tactic <- truth$tactic
+x$data$habitat <- ifelse(truth$tactic == "Pelagic", "pelagic", truth$habitat)
+x$data$depth <- truth$depth
+x$data$mixed <- ifelse(!is.na(truth$tactic2) & truth$tactic2 != truth$tactic,
+                       "two tactics", "one tactic")
+x$data$X <- truth$X
+x$data$Y <- truth$Y
+```
+
+## PCs against tactic and habitat
+
+```{r pcs-tactic, fig.height = 5}
+plot_biplot(x, colour_by = "true_tactic")
+plot_biplot(x, pcs = c(2, 3), colour_by = "habitat")
+```
+
+Read the axes from the species arrows (loadings). In this fishery the first
+PC typically separates pelagic from demersal trips, and the next PCs reef
+from sediment and shallow from deep: the PCA recovers tactic and habitat from
+the catch alone, without being told either. Which PC carries which contrast
+can change between runs and settings, so always check the loadings.
+
+## PCs against depth and the true position
+
+```{r pcs-depth, fig.height = 3.8}
+demersal_trips <- x$data$true_tactic != "Pelagic"
+ggplot(x$data[demersal_trips, ], aes(x = depth, y = PC2, colour = true_tactic)) +
+  geom_point(alpha = 0.3, size = 0.7) + scale_x_log10() +
+  labs(x = "Depth of the first set (m, log scale)", colour = "True tactic",
+       title = "Demersal trips: PC2 against depth") + theme_bw()
+```
+
+If depth is carried by another PC in your run, replace `PC2` by that PC.
+
+Averaged by the **true** cell, the PC scores map the habitat at a finer
+scale than the reported positions; the reported 5 x 5 blocks blur it.
+
+```{r pcs-map, fig.height = 4}
+cell_pc <- aggregate(cbind(PC1, PC2) ~ X + Y, data = x$data, FUN = mean)
+pm <- rbind(data.frame(X = cell_pc$X, Y = cell_pc$Y, score = cell_pc$PC1, pc = "PC1"),
+            data.frame(X = cell_pc$X, Y = cell_pc$Y, score = cell_pc$PC2, pc = "PC2"))
+ggplot(pm, aes(x = X, y = Y, fill = score)) +
+  geom_raster() + facet_wrap(~pc) + coord_equal() +
+  scale_fill_gradient2(low = "#2166ac", mid = "grey95", high = "#b2182b") +
+  labs(x = "x (offshore ->)", y = "y", fill = "Mean score",
+       title = "Mean PC score by true cell") + theme_bw()
+plot_targeting(x, res = 0.5)$map_pc
+```
+
+## Mixed trips lie between the clusters
+
+```{r mixed-pcs, fig.height = 5}
+plot_biplot(x, colour_by = "mixed")
+```
+
+Trips that combine two tactics have intermediate compositions. PCs place them
+continuously; clusters have to assign each to one tactic.
+
+## Clusters against the true tactic
+
+```{r clusters}
+tactic_table(x)
+round(prop.table(table(cluster = x$data$FT, tactic = x$data$true_tactic), 1), 2)
+round(prop.table(table(cluster = x$data$FT, habitat = x$data$habitat), 1), 2)
+```
+
+Clusters describe the catch composition, which reflects both the gear and
+where it was used, so they rarely match tactics one to one: mixed trips,
+gear overlap and neighbouring habitats blur the link.
+
+## Targeting over time
+
+```{r time, fig.height = 4}
+pt <- plot_targeting(x, res = 0.5)
+pt$time
+pt$pcs_time
+sim$Plots$tactics
+```
+
+The clusters and PCs change in **steps** at the price changes (2008, 2016) and
+the closure (2016), as the true tactic shares do.
+
+## Vessel profiles against the true vessel type
+
+```{r vessels, fig.height = 4}
+groups <- split(sim$settings$species$species, sim$settings$species$group)
+type <- tapply(sim$trips$vessel_type, sprintf("V%02d", sim$trips$vessel),
+               function(z) z[1])
+plot_vessel_profile(x, groups = groups, by = type)
+```
+
+Specialists sit at the ends (almost all demersal or almost all pelagic
+catch), mixed vessels in between. With loyalty 0.8 the specialists are clear
+but not pure, so rules on the catch of the target species
+(`select_vessels()`) recover them only approximately.
+
+# Things to try
+
+* **Reef patches:** `reef_scale = 1` against `6`, and compare `Base+S` with
+  `DPC+S` in the standardisation: the gap shrinks as patches grow larger than
+  the reporting blocks.
+* **Loyalty:** `loyalty = c(demersal = 1, pelagic = 1, mixed = 0)` (strict
+  specialists) or all zero (every vessel mixed).
+* **Mixed trips:** `logbook = list(two_sets = 0)` (one set per trip) or
+  `switch_tactic = 1`; see how the clusters separate and how the PC biplot
+  changes.
+* **Reporting:** `obs_res = 1` (exact positions) against 10 (very coarse).
+* **Stock trends:** change `B_start` or `r` so that species trends diverge,
+  and check whether the PCs start absorbing them (compare `n_pc`).
+
+# References
+
+Winker, H., Kerwath, S.E. and Attwood, C.G. (2014) Proof of concept for a
+novel procedure to standardize multispecies catch and effort data. Fisheries
+Research 155: 149-159.
+
+Thorson, J.T., Fonner, R., Haltuch, M.A., Ono, K. and Winker, H. (2017)
+Accounting for spatiotemporal variation and fisher targeting when estimating
+abundance from multispecies fishery data. Canadian Journal of Fisheries and
+Aquatic Sciences 74: 1794-1807.
