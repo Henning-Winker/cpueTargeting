@@ -20,9 +20,14 @@
 #' * `price_periods`: years at which prices change and multipliers for
 #'   demersal and pelagic species in each period (default: demersal premium,
 #'   then a pelagic boom, then neutral prices).
-#' * Fleet: `vessel_types` (numbers of vessels by type), `allowed` (tactics
-#'   each type can use), vessel catchability CV, late entries with efficiency
-#'   creep (`entry_share`, `creep`), early exits (`exit_share`).
+#' * Fleet: `vessel_types` (numbers of vessels by type), `home` (home
+#'   tactics of each type), `loyalty` (share of a type's trips restricted to
+#'   its home tactics; the other trips choose among all tactics by expected
+#'   value), vessel catchability CV, late entries with efficiency creep
+#'   (`entry_share`, `creep`), early exits (`exit_share`). The default has
+#'   demersal and pelagic specialists with loyalty 0.8 and mixed vessels that
+#'   choose purely by expected value. (`allowed`, from earlier versions, is
+#'   still accepted and means `home` with loyalty 1.)
 #' * `trips`: trips per year (default: an increase, cut by 20% with the
 #'   closure); `preference`: how strongly effort concentrates on the most
 #'   valuable cells and tactics.
@@ -70,7 +75,7 @@ logbook_settings <- function() {
     depth_sd = 40, depth_scale = 4,
     reef_share = 0.25,           # share of cells with reef substrate
     reef_scale = 2.5,            # patch size of reefs (cells)
-    sst_range = c(17, 22),       # SST from north to south
+    sst_range = c(17, 22),       # SST in the north (top) and south (bottom): warm south
     sst_sd = 0.5, sst_scale = 8,
     species = species,
     tactics = tactics,
@@ -78,9 +83,10 @@ logbook_settings <- function() {
     price_periods = list(years = c(1, 9, 17), demersal = c(1.4, 0.7, 1),
                          pelagic = c(0.6, 1.6, 1)),
     price = NULL,                # optional years x species price matrix
-    vessel_types = c(demersal = 12, pelagic = 8, flexible = 20),
-    allowed = list(demersal = c("Reef", "Sediment"), pelagic = "Pelagic",
-                   flexible = c("Reef", "Sediment", "Pelagic")),
+    vessel_types = c(demersal = 12, pelagic = 8, mixed = 20),
+    home = list(demersal = c("Reef", "Sediment"), pelagic = "Pelagic",
+                mixed = c("Reef", "Sediment", "Pelagic")),
+    loyalty = c(demersal = 0.8, pelagic = 0.8, mixed = 0),  # share of trips on home tactics
     vessel_cv = 0.25,
     entry_share = 0.3,           # share of vessels entering after year 1
     creep = 0.02,                # efficiency gain per year of later entry
@@ -97,7 +103,8 @@ logbook_settings <- function() {
       origin = c(lon = 3, lat = 36), cell_size = 0.1,
       missing_position = 0.02,
       two_sets = 0.3,            # share of trips with a second set (reported as one trip)
-      switch_tactic = 0.2,       # probability that the second set uses another tactic
+      switch_tactic = 0.7,       # probability that the second set uses another tactic
+                                 # (with the default fleet ~18% of trips mix two tactics)
       kg_trip = 60,              # median total catch per trip (kg)
       round_to = 0.5,
       underreport = list(max_price = 3, below_kg = 2, prob = 0.5),
@@ -129,8 +136,9 @@ logbook_settings <- function() {
 #' **Fleet.** Each month, trips choose a tactic (`Reef`, `Sediment`,
 #' `Pelagic`) and a cell with probability proportional to
 #' `expected value ^ preference`, where expected value is the sum over species
-#' of price x catchability of the tactic x available biomass. Specialist
-#' vessels can use only some tactics. Prices change between periods, which
+#' of price x catchability of the tactic x available biomass. A share
+#' `loyalty` of a specialist's trips is restricted to its home tactics; its
+#' other trips, and all trips of mixed vessels, choose among all tactics. Prices change between periods, which
 #' shifts tactics; a closure bans a tactic from part of the area; vessels
 #' enter (more efficient) and leave.
 #'
@@ -147,7 +155,7 @@ logbook_settings <- function() {
 #' * `logbook`: one row per trip and recorded species (`trip`, `year`,
 #'   `month`, `vessel`, `hours`, `lon`, `lat`, `species`, `kg`), ready for
 #'   [cpue_data()];
-#' * `trips`: the truth per trip (vessel type, tactic of each set, number of
+#' * `trips`: the truth per trip (vessel type, whether the trip stayed on home tactics (`loyal`), tactic of each set, number of
 #'   sets, cell, depth, substrate, habitat);
 #' * `truth`: true total biomass by year and species (also scaled to mean 1);
 #' * `nominal`: nominal CPUE (kg/hour) by year and species from the logbook;
@@ -264,39 +272,46 @@ simulate_logbook <- function(settings = logbook_settings(), seed = NULL, plots =
       names(n_type) <- levels(act_types)
       month_sets <- list()
       for (ty in names(n_type)[n_type > 0]) {
-        allowed <- intersect(s$allowed[[ty]], tac_names)
-        w <- value[, allowed, drop = FALSE]^s$preference
-        if (sum(w) <= 0) next
-        alloc <- stats::rmultinom(1, n_type[[ty]], as.vector(w) / sum(w))[, 1]
-        idx <- rep.int(seq_along(alloc), alloc)
-        k <- length(idx)
-        cell <- (idx - 1) %% n_cells + 1
-        tac <- allowed[(idx - 1) %/% n_cells + 1]
-        pool <- active[act_types == ty]
-        vessel <- pool[sample.int(length(pool), k, replace = TRUE)]
-        trip <- trip_counter + seq_len(k)
-        trip_counter <- trip_counter + k
-        # second sets, reported with the first as one trip
-        two <- stats::runif(k) < s$logbook$two_sets
-        tac2 <- tac
-        if (length(allowed) > 1) {
-          sw <- two & stats::runif(k) < s$logbook$switch_tactic
-          tac2[sw] <- vapply(tac[sw], function(t) {
-            o <- setdiff(allowed, t)
-            o[sample.int(length(o), 1)]
-          }, character(1))
+        # loyal trips use the home tactics only, the others all tactics
+        n_loyal <- stats::rbinom(1, n_type[[ty]], s$loyalty[[ty]])
+        groups <- list(home = list(n = n_loyal, tac = intersect(s$home[[ty]], tac_names)),
+                       free = list(n = n_type[[ty]] - n_loyal, tac = tac_names))
+        for (g in names(groups)) {
+          allowed <- groups[[g]]$tac
+          if (groups[[g]]$n == 0 || !length(allowed)) next
+          w <- value[, allowed, drop = FALSE]^s$preference
+          if (sum(w) <= 0) next
+          alloc <- stats::rmultinom(1, groups[[g]]$n, as.vector(w) / sum(w))[, 1]
+          idx <- rep.int(seq_along(alloc), alloc)
+          k <- length(idx)
+          cell <- (idx - 1) %% n_cells + 1
+          tac <- allowed[(idx - 1) %/% n_cells + 1]
+          pool <- active[act_types == ty]
+          vessel <- pool[sample.int(length(pool), k, replace = TRUE)]
+          trip <- trip_counter + seq_len(k)
+          trip_counter <- trip_counter + k
+          # second sets, reported with the first as one trip
+          two <- stats::runif(k) < s$logbook$two_sets
+          tac2 <- tac
+          if (length(allowed) > 1) {
+            sw <- two & stats::runif(k) < s$logbook$switch_tactic
+            tac2[sw] <- vapply(tac[sw], function(t) {
+              o <- setdiff(allowed, t)
+              o[sample.int(length(o), 1)]
+            }, character(1))
+          }
+          cell2 <- cell
+          for (t in allowed) {
+            j <- which(two & tac2 == t)
+            wt <- w[, t]
+            if (length(j) && sum(wt) > 0) cell2[j] <- sample.int(n_cells, length(j), TRUE, prob = wt)
+          }
+          month_sets[[paste(ty, g)]] <- data.frame(
+            trip = c(trip, trip[two]), set = rep(1:2, c(k, sum(two))),
+            year = yr, month = m, vessel = c(vessel, vessel[two]),
+            vessel_type = ty, loyal = g == "home", tactic = c(tac, tac2[two]),
+            cell = c(cell, cell2[two]), stringsAsFactors = FALSE)
         }
-        cell2 <- cell
-        for (t in allowed) {
-          j <- which(two & tac2 == t)
-          wt <- w[, t]
-          if (length(j) && sum(wt) > 0) cell2[j] <- sample.int(n_cells, length(j), TRUE, prob = wt)
-        }
-        month_sets[[ty]] <- data.frame(
-          trip = c(trip, trip[two]), set = rep(1:2, c(k, sum(two))),
-          year = yr, month = m, vessel = c(vessel, vessel[two]),
-          vessel_type = ty, tactic = c(tac, tac2[two]), cell = c(cell, cell2[two]),
-          stringsAsFactors = FALSE)
       }
       if (!length(month_sets)) next
       ms <- do.call(rbind, month_sets)
@@ -326,7 +341,8 @@ simulate_logbook <- function(settings = logbook_settings(), seed = NULL, plots =
   shallow <- depth < 150
   trips <- data.frame(
     trip = first$trip, year = first$year + s$start_year - 1, month = first$month,
-    vessel = first$vessel, vessel_type = first$vessel_type, tactic = first$tactic,
+    vessel = first$vessel, vessel_type = first$vessel_type, loyal = first$loyal,
+    tactic = first$tactic,
     tactic2 = second$tactic[match(first$trip, second$trip)],
     n_sets = 1 + first$trip %in% second$trip, hours = trip_hours,
     X = x[first$cell], Y = y[first$cell], depth = depth[first$cell],
@@ -405,7 +421,17 @@ simulate_logbook <- function(settings = logbook_settings(), seed = NULL, plots =
 merge_logbook_settings <- function(settings) {
   if (!is.list(settings)) stop("`settings` must be a list.", call. = FALSE)
   def <- logbook_settings()
-  whole <- c("species", "tactics", "price", "trips", "closure", "vessel_types", "allowed")
+  whole <- c("species", "tactics", "price", "trips", "closure", "vessel_types", "home",
+             "loyalty")
+  # earlier versions: `allowed` = home tactics without leaving them
+  if (!is.null(settings$allowed) && is.null(settings$home)) {
+    settings$home <- settings$allowed
+    if (is.null(settings$loyalty)) {
+      settings$loyalty <- stats::setNames(rep(1, length(settings$allowed)),
+                                          names(settings$allowed))
+    }
+  }
+  settings$allowed <- NULL
   keep <- settings[intersect(names(settings), whole)]
   rest <- settings[setdiff(names(settings), whole)]
   s <- utils::modifyList(def, rest)
@@ -420,8 +446,12 @@ merge_logbook_settings <- function(settings) {
   if (!all(sp$species %in% colnames(s$tactics))) {
     stop("`tactics` needs one column per species.", call. = FALSE)
   }
-  if (!all(names(s$vessel_types) %in% names(s$allowed))) {
-    stop("`allowed` needs an entry for every vessel type.", call. = FALSE)
+  if (!all(names(s$vessel_types) %in% names(s$home))) {
+    stop("`home` needs an entry for every vessel type.", call. = FALSE)
+  }
+  if (!all(names(s$vessel_types) %in% names(s$loyalty)) ||
+      any(s$loyalty < 0 | s$loyalty > 1)) {
+    stop("`loyalty` needs a value between 0 and 1 for every vessel type.", call. = FALSE)
   }
   if (s$n_years < 4) stop("`n_years` must be at least 4.", call. = FALSE)
   s

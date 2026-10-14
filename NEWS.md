@@ -1,5 +1,35 @@
 # cpueTargeting 0.4.0
 
+## Selection tools, predictive checks and logbook guides
+
+* `select_tactics()`: remove (or keep) fishing tactics by cluster number or
+  by species content (e.g. clusters with at least 50% demersal catch) and
+  recompute the PCA and clusters on the remaining operations.
+* `select_vessels()` gains rules on a target species: `target`,
+  `min_years_target`, `min_share_target`, `min_catch_target`; the vessel table
+  is attached as attribute `vessels`. New `vessel_summary()` and
+  `plot_vessel_profile()` (each vessel's catch by species or group).
+* `ppc_cpue()`: predictive check of the error distribution. Replicate data
+  sets are simulated from the fitted Tweedie or delta models (optionally with
+  parameter uncertainty) and compared with the data: share of zeros, upper
+  quantiles of positive CPUE and the distribution of log CPUE, overall and by
+  year (or any grouping).
+* New vignette *Setting up the logbook simulator: a user guide*; the logbook
+  vignette is now *Standardising a realistic logbook: two worked examples*
+  (generic preparation, then blackspot seabream and dolphinfish); the real-data guide covers the new tools.
+
+## Logbook simulator: specialist loyalty and mixed trips
+
+* `simulate_logbook()`: specialist vessels are no longer locked to their
+  tactics. `home` (replacing `allowed`) gives each vessel type's home
+  tactics and `loyalty` the share of its trips that stay on them (default
+  0.8 for demersal and pelagic specialists; the "flexible" type is now
+  `mixed`, loyalty 0, choosing purely by expected value). The other trips
+  choose among all tactics by expected value. `sim$trips$loyal` records
+  which trips stayed home. Old settings with `allowed` still work (loyalty 1).
+* `logbook$switch_tactic` default raised from 0.2 to 0.7: with the default
+  fleet, about 18% of trips now combine two tactics in one logbook record.
+
 ## Toolbox for real data (steps 1-6)
 
 * `cpue_data()` brings long or wide logbook data into one row per operation
@@ -30,7 +60,7 @@
 * `simulate_logbook()`, `logbook_settings()`, `logbook_truth()`,
   `plot_logbook_om()`: a ten-species demersal-pelagic fishery with
   reef/sediment x shallow/deep habitats, seasonal pelagic migrants, discrete
-  tactic choice (Reef, Sediment, Pelagic), specialist and flexible vessels,
+  tactic choice (Reef, Sediment, Pelagic), specialist and mixed vessels,
   fleet turnover with efficiency creep, price periods and a closure, reported
   as a messy trip-level logbook. New vignette *A realistic logbook: reef,
   sediment and pelagic tactics*.

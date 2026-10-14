@@ -1,13 +1,14 @@
 ---
-title: "A realistic logbook: reef, sediment and pelagic tactics"
-author: "Henning Winker"
+title: "Standardising a realistic logbook: two worked examples"
+author: "Henning Winker<br><span style=\"font-size: 0.8em;\">FAO Fisheries and Aquaculture Division, Assessment and Management Team (NFIFM)<br><a href=\"mailto:henning.winker@fao.org\">henning.winker@fao.org</a></span>"
 output:
   rmarkdown::html_document:
     toc: true
+    toc_depth: 3
     toc_float: true
     theme: readable
 vignette: >
-  %\VignetteIndexEntry{A realistic logbook: reef, sediment and pelagic tactics}
+  %\VignetteIndexEntry{Standardising a realistic logbook: two worked examples}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -15,70 +16,75 @@ vignette: >
 ```{r setup, include = FALSE}
 knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
                       fig.width = 8, fig.height = 4.5, dpi = 110,
-                      eval = requireNamespace("cluster", quietly = TRUE))
+                      eval = requireNamespace("cluster", quietly = TRUE) &&
+                        requireNamespace("mgcv", quietly = TRUE))
 library(cpueTargeting)
 library(ggplot2)
 ```
 
-This example applies the whole toolbox to a simulated logbook that looks like
-real data: ten species, discrete fishing tactics, trips that combine sets,
-rounding, under-reporting, a species recorded under two names, missing
-positions, fleet turnover and a closure. Because the data are simulated, the
-true tactics and the true biomass trends are known, so we can check what each
-step recovers.
+This vignette takes a realistic multispecies logbook from the raw records to
+standardised abundance indices for two species. The logbook is simulated
+with `simulate_logbook()`, so it has the problems of real data (trips that
+combine two tactics, coarse and missing positions, rounding, under-reported
+bycatch, a species recorded under two names, fleet turnover, a closure), but
+the true tactics and the true biomass trends are known and every step can be
+checked.
 
-# The simulated fishery
+* **Part 1** prepares the logbook. These steps are the same for every
+  species: format the data, explore the fleet, choose the species set, look
+  at nominal CPUE and catch composition, and derive targeting covariates.
+* **Part 2** standardises **blackspot seabream**, a deep-reef demersal
+  species caught by the reef handline.
+* **Part 3** standardises **dolphinfish**, a seasonal pelagic migrant caught
+  by trolling.
 
-`simulate_logbook()` combines the spatial multispecies simulator with the
-habitat-based tactics of Winker et al. (2014).
+| Step | Question | Functions | Part |
+|---|---|---|---|
+| 1. Format | Which column is what? One row per operation? | `cpue_data()`, `subset()` | 1 |
+| 2. Fleet | Who fished when? Specialists or mixed vessels? | `plot_fleet()`, `vessel_summary()`, `plot_vessel_profile()`, `select_vessels()` | 1 |
+| 3. Species | Which species carry the targeting signal? | `species_curve()`, `plot_species_curve()`, `select_species()` | 1 |
+| 4. Nominal CPUE | What do the raw data say? | `plot_nominal()`, `plot_composition()`, `plot_cpue_map()` | 1 |
+| 5. Subsetting | Which trips could catch the species? | `select_tactics()`, `stephens_maccall()` | 2, 3 |
+| 6. Targeting covariates | How did fishing tactics change? | `add_targeting()`, `plot_oc()`, `plot_biplot()`, `tactic_table()`, `plot_targeting()` | 1, 2, 3 |
+| 7. Models | Base, spatial, Cluster, DPC, vessel effects, season | `fit_cpue()` | 2, 3 |
+| 8. Diagnostics | Which terms matter? Does the error distribution fit? | `cpue_diagnostics()`, `plot_index()`, `plot_step()`, `plot_influence()`, `plot_residuals()`, `ppc_cpue()`, `plot_effects()`, `plot_vessel_effects()` | 2, 3 |
+| 9. Index | The index for the assessment | `cpue_index()`, `export_index()` | 2, 3 |
 
-* **Habitats.** Depth increases offshore (shelf to slope) and the substrate is
-  patchy: reef patches within sediment. Demersal densities are depth
-  preference x substrate affinity, which gives four habitats as continuous
-  gradients: shallow reef, deep reef, shallow sediment and deep sediment.
-  Pelagic species follow sea temperature and distance offshore and migrate
-  seasonally through the area.
-* **Tactics.** Each trip chooses a tactic (`Reef` bottom handline,
-  `Sediment` bottom longline, or `Pelagic` troll) and a place to fish, by
-  expected value. Demersal specialist vessels cannot fish pelagic, pelagic
-  specialists only fish pelagic, the other vessels choose freely.
-* **Changes over time.** Demersal prices are high in 2000-2007, pelagic
-  prices boom in 2008-2015, then prices are neutral; from 2016 the sediment
-  gear is banned deeper than 300 m and effort is cut. Some vessels enter later
-  (and are more efficient), others leave.
+How the simulator works is described in *Setting up the logbook simulator: a
+user guide*; the general guidelines in *Analysing real catch and effort data:
+a step-by-step guide*.
+
+# The logbook
 
 ```{r simulate}
 sim <- simulate_logbook(seed = 1)
-knitr::kable(sim$settings$species[, c("species", "group", "habitat", "depth_mu",
-                                      "price")], row.names = FALSE)
+sp_tab <- sim$settings$species
+knitr::kable(sp_tab[, c("species", "group", "habitat", "depth_mu", "price")],
+             row.names = FALSE)
 ```
 
-```{r om-env, fig.height = 4}
-sim$Plots$env
-```
-
-```{r om-density, fig.height = 4.5}
-sim$Plots$density
-```
-
-```{r om-tactics, fig.height = 3.5}
-sim$Plots$tactics
-sim$Plots$effort
-```
-
-Nominal CPUE (orange) against the true biomass (black):
+Prices favour demersal species in 2000-2007 and pelagic species in
+2008-2015; from 2016 prices are neutral, the bottom longline is banned deeper
+than 300 m and effort is cut. Nominal CPUE (orange) departs from the true
+biomass (black) in different ways for each species:
 
 ```{r om-cpue, fig.height = 5}
 sim$Plots$cpue
 ```
 
-This is what an analyst receives (the tactic is not in the logbook):
+This is what an analyst receives; the tactic is not in the logbook:
 
 ```{r logbook}
-head(sim$logbook, 10)
+head(sim$logbook, 8)
 ```
 
-# Steps 1-4: format and explore
+# Part 1. Preparing the logbook
+
+## Step 1. Format the data
+
+`cpue_data()` turns the logbook (long format: one row per trip and species)
+into one row per operation with one column per species, merges species
+synonyms, and starts a processing log.
 
 ```{r format}
 x <- cpue_data(sim$logbook, year = "year", species = "species", catch = "kg",
@@ -89,22 +95,103 @@ x <- subset(x, !is.na(lon), note = "positions reported")
 x
 ```
 
+> **Guidelines**
+>
+> * Define the **operation**: the unit at which catch and effort are recorded
+>   (set, haul, day or trip). Here it is the trip, and about a fifth of the
+>   trips combine sets of two tactics; their catch composition is a mixture.
+> * Choose an **effort** measure that scales catch (here hours fished).
+> * Merge **synonyms** first (here blackspot seabream recorded under its common
+>   name in some trips); they change the species set.
+> * Every selection with `subset()` is written to the log (`x$log`).
+
+## Step 2. Explore the fleet
+
 ```{r fleet, fig.height = 5}
 fl <- plot_fleet(x)
+fl$records
 fl$vessels
 fl$vessel_years
 ```
 
+Vessels enter and leave over the years. Each vessel's catch profile shows how
+far the fleet is split into specialists:
+
+```{r vessel-profile, fig.height = 4}
+groups <- list(demersal = sp_tab$species[sp_tab$group == "demersal"],
+               pelagic = sp_tab$species[sp_tab$group == "pelagic"])
+plot_vessel_profile(x, groups = groups)
+head(vessel_summary(x), 8)
+```
+
+Since the data are simulated, we can label the vessels with their true type:
+
+```{r vessel-type, fig.height = 4}
+type <- tapply(sim$trips$vessel_type, sprintf("V%02d", sim$trips$vessel),
+               function(z) z[1])
+plot_vessel_profile(x, groups = groups, by = type)
+```
+
+> **Guidelines**
+>
+> * Strong **fleet turnover** confounds vessel efficiency with year; random
+>   vessel effects help if vessels overlap in time.
+> * **Specialists** (vessels at either end of the profile plot) target the
+>   same species throughout; their targeting is absorbed by a vessel effect.
+>   **Mixed vessels** switch tactics with prices; that is the targeting that
+>   the catch composition has to capture.
+> * An **indicator fleet** (`select_vessels()`) keeps vessels that fished
+>   consistently, optionally with rules on the target species
+>   (`min_years_target`, `min_share_target`). Compare the index with and
+>   without the selection.
+
+## Step 3. Choose the species set
+
 ```{r species}
 plot_species_curve(x, threshold = 0.95)
-x <- select_species(x, threshold = 0.95)
+targets <- c("Pagellus bogaraveo", "Coryphaena hippurus")
+x <- select_species(x, threshold = 0.95, keep = targets)
+x$species_labels
 ```
 
-```{r composition}
+```{r groups}
+# the species groups that are still in the data, for the selections below
+demersal <- intersect(groups$demersal, x$species_labels)
+pelagic <- intersect(groups$pelagic, x$species_labels)
+```
+
+> **Guidelines**
+>
+> * Rank species by **occurrence** (default) and check by weight.
+> * Always **keep the species of interest**, even if rare.
+> * Species characteristic of other tactics are valuable even if not
+>   abundant: they let the PCA separate the tactics.
+
+## Step 4. Nominal CPUE and catch composition
+
+```{r nominal, fig.height = 4}
+nom <- plot_nominal(x, targets)
+nom$index
+nom$positive
+nom$distribution
+```
+
+```{r composition, fig.height = 4.5}
 plot_composition(x)
+plot_cpue_map(x, res = 0.5, by_period = 8)
 ```
 
-# Step 6: targeting covariates
+Expect the catch composition to shift towards pelagic species in 2008-2015,
+at the same time as the prices: a first sign of targeting.
+
+> **Guidelines**
+>
+> * The **share of positive trips** and the **distribution of positive
+>   CPUE** guide the choice of error distribution (Tweedie or delta).
+> * Abrupt changes in composition at known changes in prices, regulations or
+>   gear point to targeting; gradual drifts may be abundance.
+
+## Step 6. Targeting covariates for the whole fleet
 
 ```{r targeting}
 x <- add_targeting(x)
@@ -112,86 +199,461 @@ x$targeting$pca
 plot_oc(x)
 ```
 
-```{r biplot, fig.height = 6}
+```{r targeting-plots, fig.height = 5}
 plot_biplot(x)
 tactic_table(x)
-```
-
-Here we can check the clusters against the true tactic of each trip (the
-tactic of its first set):
-
-```{r check-tactics}
-truth <- sim$trips[match(x$data$trip, sim$trips$trip), ]
-table(cluster = x$data$FT, tactic = truth$tactic)
-table(cluster = x$data$FT, habitat = truth$habitat)
-```
-
-Clusters describe the **catch composition**, which reflects both the gear
-(tactic) and where it was used (habitat). Trips with two sets, gear
-overlap and neighbouring habitats blur the link, so clusters rarely match
-tactics one to one; what matters for standardisation is whether the
-covariates capture the changes in where and how the fleet fishes.
-
-```{r targeting-plots, fig.height = 4.5}
 pt <- plot_targeting(x, res = 0.5)
 pt$time
 pt$pcs_time
 pt$map_tactic
 ```
 
-# Steps 7-9: standardise two species
+Check the clusters against the true tactic of each trip (not possible with
+real data):
 
-## Blackspot seabream (deep reef)
+```{r truth-tactics}
+truth <- sim$trips[match(x$data$trip, sim$trips$trip), ]
+round(prop.table(table(cluster = x$data$FT, true_tactic = truth$tactic), 1), 2)
+```
 
-Blackspot seabream lives on deep reefs and is caught mainly by the reef
-tactic, whose use changes with prices.
+Across the whole fleet, the first axis is typically dominated by the contrast
+between pelagic and demersal trips (check the loadings). For a demersal
+species that contrast is mostly irrelevant: what matters is the targeting
+*within* the demersal trips. The worked examples therefore start by selecting
+the relevant tactics and recomputing the PCA.
 
-```{r fit-sbr}
-fit_sbr <- fit_cpue(x, species = "Pagellus bogaraveo",
+> **Guidelines**
+>
+> * **Name the tactics** after their dominant species and check that they
+>   make sense to people who know the fishery.
+> * **Number of PCs**: Optimal Coordinates test, not AIC; the composition is
+>   not independent of the response, so AIC selects too many PCs.
+> * **Continuous or discrete?** PCs represent gradual changes and mixed trips;
+>   clusters assume distinct tactics.
+> * Run `add_targeting()` again **after every selection**; PCs and clusters
+>   depend on the operations included (`select_tactics()` does this).
+
+```{r helper}
+# relative indices of several fits against the true biomass
+compare_indices <- function(fits, true) {
+  idx <- do.call(rbind, lapply(names(fits), function(n) {
+    i <- cpue_index(fits[[n]]$fit, fits[[n]]$model)
+    data.frame(year = i$year, relative = i$relative, lower = i$lower,
+               upper = i$upper, index = n)
+  }))
+  true$true <- true$true / mean(true$true)
+  ggplot(idx, aes(x = year, y = relative, colour = index, fill = index)) +
+    geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.12, colour = NA) +
+    geom_line(linewidth = 0.8) +
+    geom_line(data = true, aes(x = year, y = true), inherit.aes = FALSE,
+              colour = "black", linewidth = 1.1) +
+    geom_hline(yintercept = 1, linetype = 3) +
+    labs(x = "Year", y = "Relative CPUE", colour = NULL, fill = NULL,
+         subtitle = "black: true biomass") + theme_bw()
+}
+```
+
+# Part 2. Worked example: blackspot seabream
+
+Blackspot seabream (*Pagellus bogaraveo*) lives on deep reefs and is caught
+mainly by the reef handline. Its price is high in 2000-2007; during the
+pelagic boom (2008-2015) much of the fleet trolls for pelagic species
+instead, and in 2016 the closure moves effort.
+
+```{r sbr-truth}
+true_sbr <- logbook_truth(sim, "Pagellus bogaraveo")
+```
+
+## Step 5. Remove the trips that could not catch seabream
+
+`select_tactics()` keeps the clusters whose catch is at least 50% demersal
+species and recomputes the PCA and clusters on the remaining trips.
+
+```{r sbr-select}
+xd <- select_tactics(x, species = demersal, min_share = 0.5)
+round(xd$targeting$previous$share, 2)    # demersal share of each previous cluster
+tail(xd$log, 3)
+```
+
+An alternative is the habitat-based selection of Stephens and MacCall
+(2004), which predicts the presence of seabream from the other species in each
+trip:
+
+```{r sbr-sm, fig.height = 4}
+sm <- stephens_maccall(x, target = "Pagellus bogaraveo")
+sm
+pl <- plot_stephens_maccall(sm)
+pl$coefficients
+pl$kept
+```
+
+> **Guidelines**
+>
+> * `select_tactics()`: select on a **group of species** (here all demersal
+>   species), not on the target alone. Clusters come from the catch
+>   composition; keeping only clusters rich in the target would select trips
+>   by their catch of the target, and part of its abundance signal with them.
+> * The removed clusters should be clearly different (here almost no
+>   demersal catch), not borderline.
+> * Stephens and MacCall: check the share kept by year (`pl$kept`); a trend
+>   means the selection itself follows the targeting.
+> * Compare the index with and without the selection (below).
+
+## Step 6. Targeting covariates of the demersal trips
+
+```{r sbr-targeting, fig.height = 5}
+plot_oc(xd)
+plot_biplot(xd)
+tactic_table(xd)
+pd <- plot_targeting(xd, res = 0.5)
+pd$time
+pd$pcs_time
+```
+
+The new PCs describe the targeting within the demersal fishery, e.g. reef
+against sediment species and shallow against deep (check the loadings).
+
+## Step 7. Fit the models
+
+Terms are added in a meaningful order: year only, then space, then the
+targeting covariates; all models have a random vessel effect.
+
+```{r sbr-fit}
+fit_sbr <- fit_cpue(xd, species = "Pagellus bogaraveo",
                     models = c("Base", "Base+S", "Cluster+S", "DPC+S"),
                     vessel = TRUE, spatial_k = 40, engine = "bam")
+fit_sbr
+```
+
+## Step 8. Diagnostics
+
+### Model comparison, indices and steps
+
+```{r sbr-diag}
 cpue_diagnostics(fit_sbr)
 ```
 
-```{r index-sbr, fig.height = 5}
-plot_index(fit_sbr, true = logbook_truth(sim, "Pagellus bogaraveo"))
+```{r sbr-index, fig.height = 5}
+plot_index(fit_sbr, true = true_sbr)
+```
+
+```{r sbr-step, fig.height = 8}
+plot_step(fit_sbr)
+```
+
+### Influence
+
+```{r sbr-influence}
 plot_influence(fit_sbr, "DPC+S")
 ```
 
-## Dolphinfish (seasonal pelagic migrant)
+The influence of the targeting term should change over time where
+targeting changed, i.e. around the start and end of the pelagic boom (2008,
+2016) and the closure (2016).
 
-Dolphinfish is caught by the pelagic tactic and is only present in summer, so
-month is added as a cyclic smoother.
+### Residuals
 
-```{r fit-dol}
-fit_dol <- fit_cpue(x, species = "Coryphaena hippurus",
-                    models = c("Base", "Covariates", "Cluster", "DPC"),
+```{r sbr-residuals, fig.height = 4}
+res <- plot_residuals(fit_sbr, "DPC+S", by = "FT")
+res$qq
+res$year
+res$by
+```
+
+### Predictive check of the error distribution
+
+Residuals check each trip against its own predicted distribution.
+`ppc_cpue()` asks whether the fitted Tweedie distribution reproduces the data
+**as a whole**: it simulates 50 replicate data sets from each model (with
+parameter uncertainty) and compares the share of zeros, the upper tail and the
+histogram of CPUE with the observed data.
+
+```{r sbr-ppc}
+pp_sbr <- ppc_cpue(fit_sbr, models = c("Base", "DPC+S"))
+pp_sbr
+```
+
+```{r sbr-ppc-plots, fig.height = 5}
+pp_sbr$plots$distribution
+pp_sbr$plots$zeros
+pp_sbr$plots$tails
+```
+
+> **Guidelines: reading a predictive check**
+>
+> * **Histogram** (bars: observed, zeros leftmost; points: predicted with 95%
+>   ranges): bars outside the ranges show where the error model fails, e.g.
+>   too many observed zeros next to too few small catches.
+> * **Zeros by year**: the year effect fixes the mean, not the zeros. A model
+>   without targeting covariates gives every trip in a year the same expected
+>   catch and misses the zeros in years when much of the fleet fished other
+>   habitats; a good targeting term brings them inside the envelope.
+> * **Upper quantiles**: observed below the envelope means the model's tail
+>   is too heavy, above too light.
+> * Pooled checks can hide errors that cancel across years; look at the
+>   by-year plots (or `by = "FT"`).
+
+### Effects and vessels
+
+```{r sbr-effects, fig.height = 4}
+eff <- plot_effects(fit_sbr, "DPC+S")
+eff$numeric
+eff$space
+plot_vessel_effects(fit_sbr, "DPC+S")
+```
+
+> **Guidelines**
+>
+> * A targeting term that matters shows **influence that changes over time**.
+> * Residuals should show **no trend by year** and no pattern by tactic.
+> * The error distribution should reproduce the **zeros and the upper tail
+>   by year**.
+> * Compare **DPC and Cluster**; if they disagree, look at the PCs over time
+>   and ask whether relative abundances may have diverged.
+
+### Sensitivity to the data selection
+
+```{r sbr-sensitivity, fig.height = 4}
+fit_sbr_all <- fit_cpue(x, species = "Pagellus bogaraveo", models = "DPC+S",
+                        vessel = TRUE, spatial_k = 40, engine = "bam")
+x_sm <- add_targeting(subset(x, sm$selected, note = "Stephens & MacCall, seabream"))
+fit_sbr_sm <- fit_cpue(x_sm, species = "Pagellus bogaraveo", models = "DPC+S",
+                       vessel = TRUE, spatial_k = 40, engine = "bam")
+compare_indices(list(`demersal tactics` = list(fit = fit_sbr, model = "DPC+S"),
+                     `Stephens & MacCall` = list(fit = fit_sbr_sm, model = "DPC+S"),
+                     `all trips` = list(fit = fit_sbr_all, model = "DPC+S")),
+                true_sbr)
+```
+
+## Step 9. The index
+
+```{r sbr-index-table}
+idx_sbr <- cpue_index(fit_sbr, "DPC+S")
+knitr::kable(idx_sbr, digits = 3)
+```
+
+```{r sbr-export, eval = FALSE}
+export_index(fit_sbr, "seabream_index_DPC.csv", model = "DPC+S")
+```
+
+# Part 3. Worked example: dolphinfish
+
+Dolphinfish (*Coryphaena hippurus*) is caught by trolling and is only present
+in summer and autumn. Its price booms in 2008-2015, when much of the fleet
+switches to pelagic fishing.
+
+```{r dol-truth}
+true_dol <- logbook_truth(sim, "Coryphaena hippurus")
+```
+
+## Step 5. Keep the pelagic trips
+
+```{r dol-select}
+xp <- select_tactics(x, species = pelagic, min_share = 0.5)
+round(xp$targeting$previous$share, 2)
+tail(xp$log, 3)
+```
+
+Outside its habitat (demersal trips) a zero says nothing about dolphinfish
+abundance, and the PCA of the remaining trips can now describe the targeting
+among pelagic species.
+
+## Step 6. Targeting covariates of the pelagic trips
+
+```{r dol-targeting, fig.height = 5}
+plot_oc(xp)
+plot_biplot(xp)
+tactic_table(xp)
+pp_t <- plot_targeting(xp, by = "month", res = 0.5)
+pp_t$time
+pp_t$by
+```
+
+The PCs should now separate offshore species (albacore, dolphinfish) from
+coastal ones (amberjack, mackerel); check the loadings.
+
+## Step 7. Fit the models
+
+Month enters as a cyclic smoother in every model except `Base`; the index is
+averaged over the observed months.
+
+```{r dol-fit}
+fit_dol <- fit_cpue(xp, species = "Coryphaena hippurus",
+                    models = c("Base", "Covariates", "Cluster+S", "DPC+S"),
                     terms = 's(month, bs = "cc", k = 6)',
                     knots = list(month = c(0.5, 12.5)),
-                    vessel = TRUE, engine = "bam")
+                    vessel = TRUE, spatial_k = 40, engine = "bam")
+fit_dol
+```
+
+## Step 8. Diagnostics
+
+### Model comparison, indices and steps
+
+```{r dol-diag}
 cpue_diagnostics(fit_dol)
 ```
 
-```{r index-dol, fig.height = 5}
-plot_index(fit_dol, true = logbook_truth(sim, "Coryphaena hippurus"))
-plot_effects(fit_dol, "DPC")$numeric
+```{r dol-index, fig.height = 5}
+plot_index(fit_dol, true = true_dol)
 ```
 
-```{r vessels-dol, fig.height = 4}
-plot_vessel_effects(fit_dol, "DPC")
+```{r dol-step, fig.height = 8}
+plot_step(fit_dol)
 ```
+
+### Influence and residuals
+
+```{r dol-influence}
+plot_influence(fit_dol, "DPC+S")
+```
+
+```{r dol-residuals, fig.height = 4}
+res_dol <- plot_residuals(fit_dol, "DPC+S", by = "month")
+res_dol$qq
+res_dol$year
+res_dol$by
+```
+
+### Predictive check by month and by year
+
+For a migrant the share of zeros changes strongly over the year. A model
+without the seasonal term predicts the same share of zeros in every month:
+
+```{r dol-ppc-month, fig.height = 4.5}
+pp_dol_m <- ppc_cpue(fit_dol, models = c("Base", "DPC+S"), by = "month")
+pp_dol_m$plots$zeros
+```
+
+```{r dol-ppc-year, fig.height = 5}
+pp_dol <- ppc_cpue(fit_dol, models = c("Base", "DPC+S"), by = "year")
+pp_dol
+pp_dol$plots$distribution
+pp_dol$plots$zeros
+pp_dol$plots$tails
+```
+
+### Error distribution: Tweedie or delta-lognormal?
+
+A delta model lets the probability of a catch and the catch rate of positive
+trips change separately, e.g. when the season shortens. AIC cannot compare
+a Tweedie with a delta model, but a predictive check can:
+
+```{r dol-delta, fig.height = 5}
+fit_dol_dl <- fit_cpue(xp, species = "Coryphaena hippurus", models = "DPC+S",
+                       family = "delta_lognormal",
+                       terms = 's(month, bs = "cc", k = 6)',
+                       knots = list(month = c(0.5, 12.5)),
+                       vessel = TRUE, spatial_k = 40, engine = "bam")
+pp_dl <- ppc_cpue(fit_dol_dl, by = "month")
+rbind(data.frame(family = "Tweedie",
+                 pp_dol_m$overall[pp_dol_m$overall$model == "DPC+S", ]),
+      data.frame(family = "delta-lognormal", pp_dl$overall))
+pp_dl$plots$distribution
+pp_dl$plots$zeros
+```
+
+### Effects and vessels
+
+```{r dol-effects, fig.height = 4}
+eff_dol <- plot_effects(fit_dol, "DPC+S")
+eff_dol$numeric
+plot_vessel_effects(fit_dol, "DPC+S")
+```
+
+### Sensitivity
+
+```{r dol-sensitivity, fig.height = 4}
+fit_dol_all <- fit_cpue(x, species = "Coryphaena hippurus", models = "DPC+S",
+                        terms = 's(month, bs = "cc", k = 6)',
+                        knots = list(month = c(0.5, 12.5)),
+                        vessel = TRUE, spatial_k = 40, engine = "bam")
+compare_indices(list(`Tweedie, pelagic tactics` = list(fit = fit_dol, model = "DPC+S"),
+                     `delta-lognormal, pelagic tactics` = list(fit = fit_dol_dl,
+                                                              model = "DPC+S"),
+                     `Tweedie, all trips` = list(fit = fit_dol_all, model = "DPC+S")),
+                true_dol)
+```
+
+> **Guidelines: seasonal species**
+>
+> * Include the season (cyclic smoother) in all models except `Base`, and
+>   check the zeros by month with `ppc_cpue(..., by = "month")`.
+> * Keep only trips that could catch the species; outside its season or
+>   habitat, zeros carry no information on abundance.
+> * Choose the error distribution with predictive checks and residuals, not
+>   AIC across families; report the other family as a sensitivity.
+> * Seasonal availability can shift between years with temperature; in real
+>   data a `month x year` interaction or a temperature covariate may be
+>   needed.
+
+## Step 9. The index
+
+```{r dol-index-table}
+idx_dol <- cpue_index(fit_dol, "DPC+S")
+knitr::kable(idx_dol, digits = 3)
+```
+
+# Processing logs
+
+Every selection step is recorded, so the final data of each index can be
+reported exactly.
+
+```{r logs}
+xd$log
+xp$log
+```
+
+# Reporting checklist
+
+| Item | Blackspot seabream | Dolphinfish |
+|---|---|---|
+| Operation and effort | trip; hours fished | trip; hours fished |
+| Data selection | positions reported; demersal tactics (`select_tactics`, >= 50% demersal catch) | positions reported; pelagic tactics (>= 50% pelagic catch) |
+| Species set | 95% of occurrences, target kept | 95% of occurrences, target kept |
+| Targeting | PCA of demersal trips, OC test, `n_pc + 1` clusters | PCA of pelagic trips, OC test, `n_pc + 1` clusters |
+| Models | Base, Base+S, Cluster+S, DPC+S; random vessel effect; Tweedie | Base, Covariates (month), Cluster+S, DPC+S; random vessel effect; Tweedie and delta-lognormal |
+| Diagnostics | model table, step, influence, residuals, predictive check (zeros by year) | as left, predictive check by month and year, family comparison |
+| Sensitivity | all trips; Stephens & MacCall | all trips; delta-lognormal |
+| Index | DPC+S with log SE and CV | DPC+S with log SE and CV |
 
 # Things to try
 
-* `logbook_settings()` lists every setting; change prices, the closure, the
-  share of two-set trips (`logbook$two_sets`), the reef share, or make all
-  vessels flexible to see how each affects the targeting covariates.
+* `logbook_settings()` lists every setting (see *Setting up the logbook
+  simulator*). Change the prices, the closure, the share of two-set trips
+  (`logbook$two_sets`) and how often they switch tactic
+  (`logbook$switch_tactic`), the reef patches (`reef_share`, `reef_scale`), or
+  the loyalty of specialists (`loyalty`), and see how each affects the
+  targeting covariates and the indices.
 * Compare `n_pc` and the number of clusters, and the species set
   (`select_species(..., pool_other = TRUE)`).
-* Fit a delta model (`family = "delta_lognormal"`) for species with many
-  zeros.
+* Define an indicator fleet with `select_vessels(..., target = ...)` and
+  compare the indices.
+* Give the species diverging trends (`B_start`, `r`) and check whether the
+  PCs start absorbing them.
 
 # References
+
+Bentley, N., Kendrick, T.H., Starr, P.J. and Breen, P.A. (2012) Influence
+plots and metrics: tools for better understanding fisheries
+catch-per-unit-effort standardizations. ICES Journal of Marine Science 69:
+84-88.
+
+Dunn, P.K. and Smyth, G.K. (1996) Randomized quantile residuals. Journal of
+Computational and Graphical Statistics 5: 236-244.
+
+Gelman, A., Meng, X.-L. and Stern, H. (1996) Posterior predictive assessment
+of model fitness via realized discrepancies. Statistica Sinica 6: 733-807.
+
+Hoyle, S.D., Langley, A.D. and Campbell, R.A. (2014) Recommended approaches
+for standardizing CPUE data from pelagic fisheries. WCPFC-SC10-2014/SA-IP-10.
+
+Stephens, A. and MacCall, A. (2004) A multispecies approach to subsetting
+logbook data for purposes of estimating CPUE. Fisheries Research 70: 299-310.
+
+Winker, H., Kerwath, S.E. and Attwood, C.G. (2013) Comparison of two
+approaches to standardize catch-per-unit-effort for targeting behaviour in a
+multispecies hand-line fishery. Fisheries Research 139: 118-131.
 
 Winker, H., Kerwath, S.E. and Attwood, C.G. (2014) Proof of concept for a
 novel procedure to standardize multispecies catch and effort data. Fisheries

@@ -2,9 +2,17 @@
 % Please edit documentation in R/explore.R
 \name{select_vessels}
 \alias{select_vessels}
-\title{Select core vessels}
+\title{Select core (indicator) vessels}
 \usage{
-select_vessels(x, min_years = 3, min_records = 10)
+select_vessels(
+  x,
+  min_years = 3,
+  min_records = 10,
+  target = NULL,
+  min_years_target = NULL,
+  min_share_target = NULL,
+  min_catch_target = NULL
+)
 }
 \arguments{
 \item{x}{A \code{cpue_data} object with a vessel column.}
@@ -12,12 +20,51 @@ select_vessels(x, min_years = 3, min_records = 10)
 \item{min_years}{Minimum number of qualifying years.}
 
 \item{min_records}{Minimum number of operations for a year to qualify.}
+
+\item{target}{Target species for the optional rules (column or original
+names; several species are combined).}
+
+\item{min_years_target}{Minimum number of years with catches of the target.}
+
+\item{min_share_target}{Minimum share of the vessel's operations catching
+the target.}
+
+\item{min_catch_target}{Minimum total catch of the target.}
 }
 \value{
-The subsetted \code{cpue_data} object.
+The subsetted \code{cpue_data} object; the vessel table is attached as
+attribute \code{vessels} (with a column \code{selected}).
 }
 \description{
-Keeps vessels that fished in at least \code{min_years} years with at least
-\code{min_records} operations in each of those years, a common way to define
-an indicator fleet with consistent reporting.
+Keeps vessels that meet a set of rules, a common way to define an
+indicator fleet with consistent reporting and a consistent interest in the
+target species (e.g. Hoyle et al. 2015):
+\itemize{
+\item activity: at least \code{min_years} years with at least \code{min_records}
+operations each;
+\item target species (optional): caught in at least \code{min_years_target} years,
+in at least a share \code{min_share_target} of the vessel's operations,
+and/or a total catch of at least \code{min_catch_target}.
+}
+}
+\details{
+Rules on the target species select vessels that fish its habitat
+regularly. They are applied to whole vessels, so the selection does not
+change with the vessel's targeting from trip to trip; combine them with
+\code{\link[=select_tactics]{select_tactics()}} or \code{\link[=stephens_maccall]{stephens_maccall()}} for trip-level selection.
+Check the selection with \code{\link[=vessel_summary]{vessel_summary()}} and \code{\link[=plot_vessel_profile]{plot_vessel_profile()}}.
+}
+\examples{
+\dontrun{
+vs <- vessel_summary(x, target = "Conger conger")
+x_core <- select_vessels(x, min_years = 5, min_records = 10,
+                         target = "Conger conger", min_years_target = 5,
+                         min_share_target = 0.3)
+attr(x_core, "vessels")
+}
+}
+\references{
+Hoyle, S.D., Langley, A.D. and Campbell, R.A. (2014)
+Recommended approaches for standardizing CPUE data from pelagic
+fisheries. WCPFC-SC10-2014/SA-IP-10.
 }

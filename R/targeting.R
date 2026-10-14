@@ -259,6 +259,107 @@ add_targeting <- function(x, n_pc = NULL, n_clusters = NULL,
   x
 }
 
+#' Keep or drop fishing tactics and recompute the targeting covariates
+#'
+#' An intermediate cleaning step: remove operations of fishing tactics
+#' (clusters) that are irrelevant for the species to be standardised, e.g.
+#' the pelagic tactic when analysing a demersal species, and then recompute
+#' the PCA and clusters on the remaining operations. Without the other
+#' tactics the PCA describes the variation that matters for the target (e.g.
+#' reef versus sediment, shallow versus deep) instead of spending its first
+#' axes on the contrast with the removed tactics.
+#'
+#' Clusters can be chosen by number (`keep`, `drop`) or by their species
+#' content: with `species` and `min_share`, clusters are kept if the given
+#' species make up at least `min_share` of their catch (by weight), e.g. all
+#' demersal species with `min_share = 0.5`.
+#'
+#' **Caution.** The clusters are derived from the catch composition, so this
+#' selection is based on the data being standardised. Select on groups of
+#' *other* species (or on the tactic that clearly does not catch the target)
+#' rather than on the target alone, and compare the index with and without
+#' the selection.
+#'
+#' @param x A `cpue_data` object after [add_targeting()].
+#' @param keep,drop Cluster numbers to keep or drop.
+#' @param species Species (column or original names) whose combined share of
+#'   a cluster's catch decides whether it is kept.
+#' @param min_share Minimum combined share of `species` (default 0.5).
+#' @param retarget Logical; rerun [add_targeting()] on the remaining
+#'   operations (default). If `FALSE`, the old PC scores and clusters are
+#'   removed.
+#' @param n_pc,n_clusters Passed to [add_targeting()] (default: the Optimal
+#'   Coordinates test is run again on the subset).
+#' @param pca_species Species used for the new PCA (default: all species of
+#'   `x`; species without catches in the subset are dropped automatically).
+#' @param ... Further arguments for [add_targeting()]; by default the
+#'   clustering method, `on` and `transform` of the previous call are reused.
+#' @return The subsetted `cpue_data` object with new targeting covariates.
+#'   `x$targeting$previous` holds the composition of the previous clusters
+#'   and which were kept.
+#' @seealso [tactic_table()], [select_vessels()], [stephens_maccall()]
+#' @export
+#' @examples
+#' \dontrun{
+#' tactic_table(x)                                   # which cluster is pelagic?
+#' xd <- select_tactics(x, drop = 3)                 # by number
+#' demersal <- c("Dentex dentex", "Pagellus bogaraveo", "Conger conger")
+#' xd <- select_tactics(x, species = demersal, min_share = 0.5)
+#' tactic_table(xd)
+#' }
+select_tactics <- function(x, keep = NULL, drop = NULL, species = NULL, min_share = 0.5,
+                           retarget = TRUE, n_pc = NULL, n_clusters = NULL,
+                           pca_species = x$species, ...) {
+  check_targeting(x)
+  levs <- levels(x$data$FT)
+  ft <- as.character(x$data$FT)
+  sel <- rep(TRUE, length(levs))
+  why <- character(0)
+  if (!is.null(keep)) {
+    sel <- sel & levs %in% as.character(keep)
+    why <- c(why, paste("keep", paste(keep, collapse = ", ")))
+  }
+  if (!is.null(drop)) {
+    sel <- sel & !levs %in% as.character(drop)
+    why <- c(why, paste("drop", paste(drop, collapse = ", ")))
+  }
+  share <- NULL
+  if (!is.null(species)) {
+    codes <- species_codes(x, species)
+    if (anyNA(codes)) {
+      stop("Species not found: ", paste(species[is.na(codes)], collapse = ", "), call. = FALSE)
+    }
+    m <- as.matrix(x$data[, x$species, drop = FALSE])
+    agg <- rowsum(m, ft)[levs, , drop = FALSE]
+    share <- rowSums(agg[, codes, drop = FALSE]) / rowSums(agg)
+    sel <- sel & share >= min_share
+    why <- c(why, sprintf("clusters with >= %.0f%% of catch from %d species",
+                          100 * min_share, length(codes)))
+  }
+  if (!length(why)) stop("Give `keep`, `drop` or `species`.", call. = FALSE)
+  if (!any(sel)) stop("No cluster is kept.", call. = FALSE)
+  kept <- levs[sel]
+  prev <- x$targeting
+  previous <- list(composition = prev$composition, kept = kept, share = share)
+  x$targeting <- NULL
+  x <- filter_ops(x, ft %in% kept, "select tactics",
+                  sprintf("clusters %s kept (%s)", paste(kept, collapse = ", "),
+                          paste(why, collapse = "; ")))
+  if (!retarget) {
+    old <- c(grep("^PC[0-9]+$", names(x$data), value = TRUE), "FT")
+    x$data <- x$data[, setdiff(names(x$data), old), drop = FALSE]
+    return(x)
+  }
+  args <- list(...)
+  for (a in c("method", "on", "transform")) {
+    if (is.null(args[[a]])) args[[a]] <- prev[[a]]
+  }
+  x <- do.call(add_targeting, c(list(x, n_pc = n_pc, n_clusters = n_clusters,
+                                     species = pca_species), args))
+  x$targeting$previous <- previous
+  x
+}
+
 #' Species composition of each fishing tactic
 #'
 #' @param x A `cpue_data` object after [add_targeting()].

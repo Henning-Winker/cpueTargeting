@@ -1,6 +1,6 @@
 ---
 title: "Tuna longline targeting: flat versus contrasting true trends"
-author: "Henning Winker"
+author: "Henning Winker<br><span style=\"font-size: 0.8em;\">FAO Fisheries and Aquaculture Division, Assessment and Management Team (NFIFM)<br><a href=\"mailto:henning.winker@fao.org\">henning.winker@fao.org</a></span>"
 output:
   rmarkdown::html_document:
     toc: true
