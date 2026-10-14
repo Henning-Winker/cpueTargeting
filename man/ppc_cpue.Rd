@@ -11,7 +11,8 @@ ppc_cpue(
   by = "year",
   param_uncertainty = TRUE,
   probs = c(0.9, 0.99),
-  bins = 40,
+  bins = 30,
+  scale = c("fourth_root", "log", "raw"),
   seed = 1
 )
 }
@@ -31,7 +32,11 @@ from their approximate posterior.}
 
 \item{probs}{Upper quantiles of positive CPUE to compare.}
 
-\item{bins}{Number of bins of the histogram of log10 positive CPUE.}
+\item{bins}{Number of bins of the histogram of positive CPUE (the zeros
+form an extra bin).}
+
+\item{scale}{Scale of the histogram: \code{"fourth_root"} (default), \code{"log"}
+(log10; zeros shown as a separate bar) or \code{"raw"}.}
 
 \item{seed}{Random seed.}
 }
@@ -63,7 +68,7 @@ approximate posterior predictive check; otherwise it is a plug-in
 effects are kept at their estimated values.
 
 Each replicate is treated as a complete data set: the summaries (share of
-zeros, mean, upper quantiles of positive CPUE, histogram of log CPUE) are
+zeros, mean, upper quantiles of positive CPUE, histogram of CPUE) are
 computed per replicate, and the spread across replicates gives the
 envelope (2.5-97.5\%) against which the observed value is judged. The
 \code{tail_prob} column is the share of replicates with a value at least as
@@ -79,10 +84,20 @@ below means too many.
 \item \code{tails}: observed upper quantiles below the envelope mean the
 distribution's tail is too heavy (e.g. a negative binomial or a
 lognormal with large variance); above means too light.
-\item \code{distribution}: the share of operations in each bin of log10 CPUE of
-positive catches; systematic departures show a wrong shape (e.g. the
-wrong Tweedie power).
+\item \code{distribution}: the observed histogram of CPUE, \strong{including the zeros}
+(bars; the zero bar is the leftmost) against the predictive distribution
+(points and 95\% ranges), as shares of all operations. Systematic
+departures show a wrong shape (e.g. the wrong Tweedie power) or a wrong
+balance between zeros and small catches.
 }
+
+\strong{Scale of the histogram.} Positive CPUE is strongly right-skewed and often
+spans several orders of magnitude: on the raw scale (\code{scale = "raw"})
+nearly all operations fall in the first bins and the tail is invisible. The
+fourth root (default) compresses the tail and keeps zero at its natural
+place next to the small catches; \code{scale = "log"} shows the shape of the
+positive catches best (a lognormal is symmetric there), with the zeros as a
+separate bar at the left. The axis is labelled in CPUE units.
 
 Pooled over all operations, errors in opposite directions can cancel, so
 the by-year summaries are usually more informative. Models without
