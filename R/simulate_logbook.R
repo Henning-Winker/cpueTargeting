@@ -97,7 +97,7 @@ logbook_settings <- function() {
       origin = c(lon = 3, lat = 36), cell_size = 0.1,
       missing_position = 0.02,
       two_sets = 0.3,            # share of trips with a second set (reported as one trip)
-      switch_tactic = 0.2,       # probability that the second set uses another tactic
+      switch_tactic = 0.7,       # probability that the second set uses another tactic (~21% mixed trips)
       kg_trip = 60,              # median total catch per trip (kg)
       round_to = 0.5,
       underreport = list(max_price = 3, below_kg = 2, prob = 0.5),
