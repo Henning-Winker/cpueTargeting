@@ -1,7 +1,8 @@
 # cpueTargeting
 
 `cpueTargeting` provides simulation tools for testing how CPUE standardisation
-copes with changes in fishing targeting. It contains three operating models:
+copes with changes in fishing targeting, and a toolbox for standardising
+real multispecies catch and effort data. It contains four operating models:
 
 1. `simulate_cluster()`: the multi-habitat cluster example of Winker et al. (2014).
 2. `simulate_bathymetric()`: the four-species model used for the
@@ -13,6 +14,16 @@ copes with changes in fishing targeting. It contains three operating models:
 3. `simulate_tuna()`: a longline tuna model that adds *how deep* they fish.
    Hook depth depends on hooks between floats (HBF), and habitat-based
    standardisation follows Bigelow et al. (2002).
+4. `simulate_logbook()`: a mixed demersal-pelagic fishery with discrete
+   tactics, specialist and mixed vessels, and a messy trip-level logbook
+   (see below).
+
+**Documentation:** all vignettes and the background document are on the
+[project page](https://henning-winker.github.io/cpueTargeting/) (links in
+[Documentation and worked examples](#documentation-and-worked-examples)).
+
+Author: Henning Winker, FAO Fisheries and Aquaculture Division, Assessment and
+Management Team (NFIFM), <henning.winker@fao.org>
 
 ## A realistic simulated logbook
 
@@ -27,9 +38,10 @@ gear from deep water, specialist vessels (80% of their trips on their home
 tactics) and mixed vessels enter and leave. The logbook reports trips (about
 a fifth combining sets of two tactics), coarse and sometimes missing
 positions, rounded catches, under-reported bycatch and a species under two
-names, but not the tactic. See the vignettes *Setting up the logbook
-simulator: a user guide* and *Standardising a realistic logbook: two worked
-examples* (blackspot seabream and dolphinfish).
+names, but not the tactic. See the vignettes
+[*Setting up the logbook simulator: a user guide*](https://henning-winker.github.io/cpueTargeting/logbook-om-guide.html)
+and [*Standardising a realistic logbook: two worked examples*](https://henning-winker.github.io/cpueTargeting/logbook-example.html)
+(blackspot seabream and dolphinfish).
 
 ```r
 sim <- simulate_logbook(seed = 1)
@@ -41,9 +53,11 @@ plot_index(fit, true = logbook_truth(sim, "Pagellus bogaraveo"))
 ## Toolbox for real data
 
 The same methods can be applied step by step to real logbook or observer
-data. The vignette *Analysing real catch and effort data: a step-by-step
-guide* (`vignettes/real-data-guide.Rmd`) walks through each step with
-guidelines for the decisions involved.
+data. The vignette [*Analysing real catch and effort data: a step-by-step
+guide*](https://henning-winker.github.io/cpueTargeting/real-data-guide.html) (`vignettes/real-data-guide.Rmd`)
+walks through each step with guidelines for the decisions involved, and the
+[logbook worked examples](https://henning-winker.github.io/cpueTargeting/logbook-example.html) apply all steps
+to two species.
 
 | Step | Functions |
 |---|---|
@@ -85,9 +99,9 @@ export_index(fit, "cpue_index.csv", model = "DPC")
 | [Background document](https://henning-winker.github.io/cpueTargeting/appendix.html) | Full description of both simulators, how the tuna model extends the spatial simulator, and the standardisation models (Base, spatial, Cluster, DPC, HBF) |
 | [Bathymetric example](https://henning-winker.github.io/cpueTargeting/bathymetric-example.html) | Targeting along a continuous depth gradient with the guideline settings: maps, CPUE distributions, indices, what the PCs and clusters capture, replicates |
 | [Tuna longline: flat vs contrasting trends](https://henning-winker.github.io/cpueTargeting/tuna-flat-vs-contrast.html) | Spatial and vertical (HBF) targeting with identical targeting but flat or diverging true trends: when the catch composition captures targeting and when it also absorbs abundance |
-| [Real-data guide](https://henning-winker.github.io/cpueTargeting/real-data-guide.html) | The toolbox step by step, from the raw logbook to the index, with guidelines for each decision |
 | [Logbook simulator: user guide](https://henning-winker.github.io/cpueTargeting/logbook-om-guide.html) | Settings and mechanics of `simulate_logbook()`: habitats, tactics, specialist loyalty, mixed trips, reporting; what PCs and clusters capture against the truth |
 | [Logbook standardisation](https://henning-winker.github.io/cpueTargeting/logbook-example.html) | From the raw logbook to the index: generic data preparation, then two worked examples (blackspot seabream, dolphinfish) with tactic selection, all diagnostics, predictive checks and sensitivity |
+| [Real-data guide](https://henning-winker.github.io/cpueTargeting/real-data-guide.html) | The toolbox step by step, from the raw logbook to the index, with guidelines for each decision |
 
 All pages are also linked from the [project page](https://henning-winker.github.io/cpueTargeting/).
 
@@ -187,8 +201,9 @@ By default the thermocline pattern is fixed over time. Setting
 between years, so the catchability of a given HBF changes from year to year;
 about 15 m and 10 m give a realistic ENSO-like range. The vignette *Targeting
 in a longline tuna fishery* walks through the settings and a fixed and a moving
-thermocline scenario step by step; the vignette *Tuna longline targeting: flat
-versus contrasting true trends* shows the main results.
+thermocline scenario step by step (`vignettes/tuna-targeting-scenarios.Rmd`);
+the vignette [*Tuna longline targeting: flat versus contrasting true
+trends*](https://henning-winker.github.io/cpueTargeting/tuna-flat-vs-contrast.html) shows the main results.
 
 Plots that illustrate each effect:
 
@@ -219,7 +234,7 @@ Longer runs live in `inst/scripts/` (run from the package folder):
 | `run_bathymetric.R` | bathymetric example with the guideline settings: single run (seed 123) and 20 replicates |
 | `run_tuna_flat.R` | tuna, flat true trends: single run and 20 replicates, fixed and moving thermocline |
 | `run_tuna_contrast.R` | tuna, contrasting true trends: as above |
-| `render_docs.R` | renders the vignettes to `docs/` from the pre-run results |
+| `render_docs.R` | renders the vignettes to `docs/` (the bathymetric and tuna vignettes from the pre-run results; the real-data and logbook vignettes simulate their own data) |
 
 Shared settings (prices, models, seeds, number of parallel workers) are in
 `talk_setup.R`. Each script first saves the single run (seed 123) used by the
@@ -227,9 +242,10 @@ vignettes and then runs the replicates; `options(cpueTargeting.reps = FALSE)`
 runs only the single runs. Results are saved to `rdata/` in the repository,
 which is ignored by git, so they are not pushed (`options(cpueTargeting.rdata
 = "...")` saves them elsewhere). Finished seeds are skipped, so runs can be
-resumed. The vignettes *Targeting along a continuous gradient: the
-bathymetric example* and *Tuna longline targeting: flat versus contrasting
-true trends* load these results (or compute them with the same code when
+resumed. The vignettes [*Targeting along a continuous gradient: the
+bathymetric example*](https://henning-winker.github.io/cpueTargeting/bathymetric-example.html) and [*Tuna
+longline targeting: flat versus contrasting true
+trends*](https://henning-winker.github.io/cpueTargeting/tuna-flat-vs-contrast.html) load these results (or compute them with the same code when
 `options(cpueTargeting.run_vignettes = TRUE)`); they are also on the [project page](https://henning-winker.github.io/cpueTargeting/).
 
 To change a scenario, edit the settings list:
