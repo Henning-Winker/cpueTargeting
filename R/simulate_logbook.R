@@ -75,7 +75,7 @@ logbook_settings <- function() {
     depth_sd = 40, depth_scale = 4,
     reef_share = 0.25,           # share of cells with reef substrate
     reef_scale = 2.5,            # patch size of reefs (cells)
-    sst_range = c(17, 22),       # SST from north to south
+    sst_range = c(17, 22),       # SST in the north (top) and south (bottom): warm south
     sst_sd = 0.5, sst_scale = 8,
     species = species,
     tactics = tactics,

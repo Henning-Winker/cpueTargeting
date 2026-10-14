@@ -63,8 +63,8 @@ sim <- simulate_logbook(s, seed = 1)
 # 2. Environment
 
 Depth increases offshore (to the right) with random bumps; reef patches are
-the highest values of a smooth random field; sea temperature decreases from
-north to south.
+the highest values of a smooth random field; sea temperature increases from
+north (top, cool) to south (bottom, warm), as in the Southern Hemisphere.
 
 ```{r env, fig.height = 4}
 sim$Plots$env
