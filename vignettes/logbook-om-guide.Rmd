@@ -29,8 +29,7 @@ and shows the basic mechanics: what the principal components (PCs) and
 clusters of the catch composition pick up when we know the truth.
 
 The standardisation of three species from this logbook is shown in
-*Standardising a realistic logbook: blackspot seabream, conger and
-dolphinfish*.
+*Standardising a realistic logbook: two worked examples*.
 
 | Layer | What it does | Main settings |
 |---|---|---|

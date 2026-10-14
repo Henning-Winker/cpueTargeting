@@ -28,8 +28,8 @@ tactics) and mixed vessels enter and leave. The logbook reports trips (about
 a fifth combining sets of two tactics), coarse and sometimes missing
 positions, rounded catches, under-reported bycatch and a species under two
 names, but not the tactic. See the vignettes *Setting up the logbook
-simulator: a user guide* and *Standardising a realistic logbook: blackspot
-seabream, conger and dolphinfish*.
+simulator: a user guide* and *Standardising a realistic logbook: two worked
+examples* (blackspot seabream and dolphinfish).
 
 ```r
 sim <- simulate_logbook(seed = 1)
@@ -87,7 +87,7 @@ export_index(fit, "cpue_index.csv", model = "DPC")
 | [Tuna longline: flat vs contrasting trends](https://henning-winker.github.io/cpueTargeting/tuna-flat-vs-contrast.html) | Spatial and vertical (HBF) targeting with identical targeting but flat or diverging true trends: when the catch composition captures targeting and when it also absorbs abundance |
 | [Real-data guide](https://henning-winker.github.io/cpueTargeting/real-data-guide.html) | The toolbox step by step, from the raw logbook to the index, with guidelines for each decision |
 | [Logbook simulator: user guide](https://henning-winker.github.io/cpueTargeting/logbook-om-guide.html) | Settings and mechanics of `simulate_logbook()`: habitats, tactics, specialist loyalty, mixed trips, reporting; what PCs and clusters capture against the truth |
-| [Logbook standardisation](https://henning-winker.github.io/cpueTargeting/logbook-example.html) | Blackspot seabream, conger and dolphinfish: tactic selection, indicator vessels, error distributions and predictive checks |
+| [Logbook standardisation](https://henning-winker.github.io/cpueTargeting/logbook-example.html) | From the raw logbook to the index: generic data preparation, then two worked examples (blackspot seabream, dolphinfish) with tactic selection, all diagnostics, predictive checks and sensitivity |
 
 All pages are also linked from the [project page](https://henning-winker.github.io/cpueTargeting/).
 

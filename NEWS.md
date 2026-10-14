@@ -15,8 +15,8 @@
   quantiles of positive CPUE and the distribution of log CPUE, overall and by
   year (or any grouping).
 * New vignette *Setting up the logbook simulator: a user guide*; the logbook
-  vignette is now *Standardising a realistic logbook: blackspot seabream,
-  conger and dolphinfish*; the real-data guide covers the new tools.
+  vignette is now *Standardising a realistic logbook: two worked examples*
+  (generic preparation, then blackspot seabream and dolphinfish); the real-data guide covers the new tools.
 
 ## Logbook simulator: specialist loyalty and mixed trips
 
