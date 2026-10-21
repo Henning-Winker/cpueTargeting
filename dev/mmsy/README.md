@@ -19,6 +19,7 @@ Run the scripts from the repository root, with cpueTargeting installed.
 | `scripts/06_optimise.R` | Constrained MMSY by lever set; demersal and pelagic caps with the mixed segment as a free agent; leakage |
 | `scripts/07_viability_closure.R` | Constrained MMSY with a segment viability floor and a closure of the shallow reef métier |
 | `scripts/08_fig_options.R` | Summary figure `figs/opt_options.png` |
+| `scripts/09_tune.R` | `ms_tune()`: daily costs that make 35/35/30% of active days an open-access equilibrium, for two status targets |
 | `R/plots.R`, `scripts/05_plots.R` | Figures of stock status, F, effort and yield, saved to `figs/`. Covers equilibrium against effort, Kobe plots of the status quo against the safeguarded optima, and projections from the status quo. Uses the balanced defaults |
 
 ## System
@@ -102,7 +103,38 @@ Run the scripts from the repository root, with cpueTargeting installed.
    * Blim → Bpa;
    * result: P(B < Blim) = 0, mean yield 581.
 
-## Specialist efficiency and the capacity-limited status quo (current defaults)
+## Tuning the fleet to an open-access equilibrium (current defaults)
+
+**Vessel heterogeneity.** Vessel efficiency within a segment is lognormal, with mean 1 and CV `vessel_cv` = 0.25, as in the random vessel effect of the logbook.
+
+* Each year a segment's days move towards capacity × the share of its vessels that break even (`phi` is the adjustment rate).
+* The active vessels' mean efficiency is the mean of that upper tail.
+
+This replaces identical vessels, under which the composition of an open-access fleet is a knife-edge. A tiny change in cost hands the whole fishery to one segment, because every vessel in a segment breaks even at the same stock level. With heterogeneity, effort falls off smoothly as profit falls, and profit at equilibrium is positive: the more efficient vessels earn more than the marginal one.
+
+**`ms_tune()`** solves the daily cost multipliers by segment (G unknowns) so that the open-access equilibrium hits G targets:
+
+* the shares of active days (G − 1 values);
+* one status target: median B/Bmsy, the weakest stock, or total days.
+
+It uses Newton steps with a forward-difference Jacobian. The base point and the G perturbed points run in one vectorised call, warm-started and averaged over 30 years, and the best iterate is kept. Each tuning takes about 45 s. Results with capacity 1,000 days per segment and γ = 1.5:
+
+| Status target | Daily costs (dem/pel/mix) | Active days (shares) | Open-access stocks |
+|---|---|---|---|
+| Median B/Bmsy = 0.9 | 1.00/1.69/1.31 | 370/364/311 (0.354/0.348/0.298) | median 0.90, Dentex lowest at 0.60 |
+| Weakest stock = 0.4 (default in `05_plots.R`) | 0.63/1.08/0.84 | 549/528/459 (0.358/0.344/0.299) | yield 1,745, profit 1,489; Dentex 0.40, Seriola 0.47, blackspot seabream 0.50 |
+
+**From the tuned status quo (weakest stock 0.4):**
+
+| Option | Days (dem/pel/mix) | Yield | Profit |
+|---|---|---|---|
+| Safeguarded MMSY, one cap (same point as MMEY) | 125/126/125 | 991 | 2,386 |
+| Safeguarded MMSY, segment caps each ≥ 20% | 132/380/136 | 1,521 | 2,735 |
+
+* **Dentex is again the choke stock, and effort caps barely reach it.** When days are cut, fishers spend the remaining days on the most valuable métier, the shallow reef. Dentex keeps an F/Fmsy of about 1.65 at Bpa even with three-quarters of the days removed. Segment caps recover much of the yield, and a métier measure (reef closure, partial or seasonal) is the obvious next test.
+* **The segment HCR must scale status-quo effort, not registered capacity.** Scaled to capacity, the rule never binds. Scaled to status-quo days, it cuts effort by about 40% with no loss of yield (about 1,720), and most stocks recover. Dentex stays at about 0.40.
+
+## Specialist efficiency and the capacity-limited status quo
 
 **Type efficiency.** Specialists fish more efficiently than generalists.
 

@@ -36,7 +36,7 @@ ms_system <- function(L, depth_cut = 300, preference = 0,
                       loyalty = c(demersal = 0.8, pelagic = 0.8, mixed = 0),
                       price = NULL, cost_share = 0.4, cost_mode = c("relative", "common"),
                       cost_ground = c(shallow = 1, deep = 1.5),
-                      eff_home = NULL, eff_away = NULL, cost_seg = NULL,
+                      eff_home = NULL, eff_away = NULL, cost_seg = NULL, vessel_cv = NULL,
                       season = TRUE) {
   s   <- L$settings
   sp  <- L$species
@@ -99,6 +99,7 @@ ms_system <- function(L, depth_cut = 300, preference = 0,
     metiers = met, Q = Q, avail = avail, month_w = month_w,
     segments = segments, home = home_mat, loyalty = loyalty[names(segments)], eff = eff,
     cost_seg = cost_seg[names(segments)],   # daily cost of a segment relative to the specialists
+    vessel_cv = vessel_cv %||% s$vessel_cv %||% 0.25,   # CV of vessel efficiency within a segment
     cost = setNames(cost, met$name), rev0 = setNames(rev0, met$name),
     S = ns, M = M, G = G), class = "ms_system")
 }
@@ -119,18 +120,22 @@ ms_system <- function(L, depth_cut = 300, preference = 0,
 #' "effective" (n x M effort weighted by efficiency, which drives F).
 #' @param value  n x M expected revenue per unit of effective effort
 #' @param cost   n x M cost per unit of nominal effort
+#' @param emult  n x G mean efficiency of the active vessels relative to the segment mean
 #' @param E_seg  n x G effort by segment
 #' @param open   n x M or length-M 0/1 (closures)
-allocate_effort <- function(sys, value, E_seg, gamma, open = 1, cost = 0, by_seg = TRUE) {
+allocate_effort <- function(sys, value, E_seg, gamma, open = 1, cost = 0, by_seg = TRUE, emult = NULL,
+                            cseg = NULL) {
   n <- nrow(value); M <- sys$M
   cost <- if (is.matrix(cost)) cost else matrix(cost, n, M, byrow = TRUE)
   op <- if (is.matrix(open)) open else matrix(open, n, M, byrow = TRUE)
   E_m <- matrix(0, n, M); E_eff <- E_m
   E_gm <- array(0, c(n, sys$G, M))
+  if (is.null(cseg)) cseg <- matrix(sys$cost_seg, n, sys$G, byrow = TRUE)
   all_set <- rep(1, M)
   for (g in seq_len(sys$G)) {
     effg <- matrix(sys$eff[g, ], n, M, byrow = TRUE)
-    util <- if (gamma == 0) matrix(1, n, M) else pmax(value * effg - cost * sys$cost_seg[g], 0)^gamma
+    if (!is.null(emult)) effg <- effg * emult[, g]     # mean efficiency of the active vessels
+    util <- if (gamma == 0) matrix(1, n, M) else pmax(value * effg - cost * cseg[, g], 0)^gamma
     util <- util * op
     for (part in c("home", "free")) {
       lam <- if (part == "home") sys$loyalty[g] else 1 - sys$loyalty[g]
@@ -169,12 +174,20 @@ allocate_effort <- function(sys, value, E_seg, gamma, open = 1, cost = 0, by_seg
 #' @param open    metier access (length M, or function(year) -> length M)
 #' @param hcr     optional function(state) -> n x G multiplier on caps
 #' @param B_init  n x S initial biomass (default K)
+#' @param E_init  initial effort by segment (vector of length G or n x G; default the caps)
+#' @param cost_seg daily cost by segment (length G or n x G), overrides sys$cost_seg
+#' @param capacity fleet days by segment (registered vessels x days); default the caps.
+#'   With vessel heterogeneity (sys$vessel_cv > 0) and phi > 0, the days used move
+#'   towards capacity x the share of vessels that break even (lognormal vessel
+#'   efficiency, mean 1), and the active vessels' mean efficiency is the mean of
+#'   that upper tail. phi is then the annual adjustment rate (0-1).
 #' @param proc_cv process error CV on growth; ncv year draws per row
 #' @param keep    "final" (equilibrium summaries) or "all" (trajectories)
 ms_simulate <- function(sys, caps, years = 100, gamma = 1.5,
                         behaviour = c("dynamic", "fixed"),
                         info = c("current", "lagged"),
-                        phi = 0.5, open = 1, hcr = NULL, B_init = NULL,
+                        phi = 0.5, open = 1, hcr = NULL, B_init = NULL, E_init = NULL, capacity = NULL,
+                        cost_seg = NULL,
                         proc_cv = 0, rho = 0, seed = NULL, keep = c("final", "all"),
                         avg_years = 10) {
   behaviour <- match.arg(behaviour); info <- match.arg(info); keep <- match.arg(keep)
@@ -184,8 +197,13 @@ ms_simulate <- function(sys, caps, years = 100, gamma = 1.5,
   price <- sys$price; Q <- sys$Q; tQ <- t(Q)
   cost_m <- matrix(sys$cost, n, M, byrow = TRUE)
   B <- B_init %||% K
-  E_seg <- caps
+  E_seg <- if (is.null(E_init)) caps else pmin(caps, matrix(E_init, n, G, byrow = is.null(dim(E_init))))
   open_fun <- if (is.function(open)) open else function(y) open
+  capacity <- if (is.null(capacity)) caps else matrix(capacity, n, G, byrow = is.null(dim(capacity)))
+  emult <- matrix(1, n, G)
+  cseg <- if (is.null(cost_seg)) matrix(sys$cost_seg, n, G, byrow = TRUE) else
+    matrix(cost_seg, n, G, byrow = is.null(dim(cost_seg)))
+  sv <- sys$vessel_cv; sdv <- if (sv > 0) sqrt(log(1 + sv^2)) else 0; muv <- -sdv^2 / 2
   w_fixed <- NULL
   if (behaviour == "fixed") {
     # shares frozen at the unfished allocation (per unit segment effort)
@@ -212,11 +230,11 @@ ms_simulate <- function(sys, caps, years = 100, gamma = 1.5,
       av <- matrix(sys$avail[mo, ], n, S, byrow = TRUE)
       Bav <- Bm * av
       if (behaviour == "fixed") {
-        E_m <- allocate_effort(sys, w_fixed, E_seg * sys$month_w[mo], gamma, op, cost = cost_m)
+        E_m <- allocate_effort(sys, w_fixed, E_seg * sys$month_w[mo], gamma, op, cost = cost_m, emult = emult, cseg = cseg)
       } else {
         exp_val <- if (info == "current") (Bav * matrix(price, n, S, byrow = TRUE)) %*% tQ
                    else cpue_last
-        E_m <- allocate_effort(sys, exp_val, E_seg * sys$month_w[mo], gamma, op, cost = cost_m)
+        E_m <- allocate_effort(sys, exp_val, E_seg * sys$month_w[mo], gamma, op, cost = cost_m, emult = emult, cseg = cseg)
       }
       E_eff <- attr(E_m, "effective")
       Fm <- (E_eff %*% Q) * av                     # n x S fishing mortality this month
@@ -234,7 +252,7 @@ ms_simulate <- function(sys, caps, years = 100, gamma = 1.5,
     cpue_last <- ifelse(Eeff_y > 0, rev_m / pmax(Eeff_y, 1e-12), cpue_last)   # per effective effort
     revenue <- as.vector(C_y %*% price)
     costs <- rowSums(matrix(sapply(seq_len(G), function(g)
-      rowSums(matrix(Eg_y[, g, ], n, M) * cost_m) * sys$cost_seg[g]), n, G))
+      rowSums(matrix(Eg_y[, g, ], n, M) * cost_m) * cseg[, g]), n, G))
     # growth on start-of-year biomass with process error
     if (sig > 0) {
       z <- matrix(rnorm(n * S), n, S)
@@ -247,16 +265,32 @@ ms_simulate <- function(sys, caps, years = 100, gamma = 1.5,
       Rk[keep_idx, ] <- revenue; Pk[keep_idx, ] <- revenue - costs; Esk[keep_idx, , ] <- E_seg
     }
     B <- pmax(B + r * B * (1 - B / K) * pe - C_y, 1e-6 * K)
-    # entry / exit of effort within the cap
-    # entry / exit below the cap, driven by each segment's own profit margin
+    # entry / exit below the cap
     if (phi > 0) {
-      rpe <- rev_m / pmax(Eeff_y, 1e-12)               # revenue per unit effective effort
-      rev_g <- sapply(seq_len(G), function(g)
-        rowSums(matrix(Eg_y[, g, ], n, M) * matrix(sys$eff[g, ], n, M, byrow = TRUE) * rpe))
-      cost_g <- sapply(seq_len(G), function(g) rowSums(matrix(Eg_y[, g, ], n, M) * cost_m) * sys$cost_seg[g])
-      rev_g <- matrix(rev_g, n, G); cost_g <- matrix(cost_g, n, G)
-      margin <- ifelse(rev_g > 0, (rev_g - cost_g) / rev_g, -1)
-      E_seg <- pmin(E_cap_y, pmax(E_seg, 1e-4 * E_cap_y) * exp(phi * margin))
+      opm <- matrix(if (is.null(dim(op))) rep_len(op, M) else op, n, M, byrow = is.null(dim(op)))
+      for (g in seq_len(G)) {
+        Egm <- matrix(Eg_y[, g, ], n, M); tot <- rowSums(Egm)
+        acc <- if (sys$loyalty[g] < 1) rep(TRUE, M) else sys$home[g, ] > 0
+        # revenue and cost per day of a vessel of mean efficiency: allocation-weighted
+        # when the segment fishes, otherwise its best open metier
+        val <- cpue_last * matrix(sys$eff[g, ], n, M, byrow = TRUE) * opm
+        cst <- cost_m * cseg[, g]
+        net <- val - cst; net[, !acc] <- -Inf
+        best <- max.col(net, ties.method = "first")
+        rev_day <- ifelse(tot > 0, rowSums(Egm * val) / pmax(tot, 1e-12), val[cbind(seq_len(n), best)])
+        cost_day <- ifelse(tot > 0, rowSums(Egm * cst) / pmax(tot, 1e-12), cst[cbind(seq_len(n), best)])
+        if (sdv > 0) {
+          # heterogeneous vessels: those with efficiency e > e* = cost / revenue break even
+          lest <- log(pmax(cost_day, 1e-12) / pmax(rev_day, 1e-12))
+          pg <- 1 - stats::pnorm((lest - muv) / sdv)
+          emult[, g] <- pmin(stats::pnorm((muv + sdv^2 - lest) / sdv) / pmax(pg, 1e-9), exp(3 * sdv))
+          target <- pmin(E_cap_y[, g], capacity[, g] * pg)
+          E_seg[, g] <- E_seg[, g] + min(phi, 1) * (target - E_seg[, g])
+        } else {
+          margin <- ifelse(rev_day > 0, (rev_day - cost_day) / rev_day, -1)
+          E_seg[, g] <- pmin(E_cap_y[, g], pmax(E_seg[, g], 1e-4 * E_cap_y[, g]) * exp(phi * margin))
+        }
+      }
     }
   }
   out <- list(B = Bk, C = Ck, F = Fk, E_metier = Ek, E_seg_metier = Egk, E_seg = Esk, revenue = Rk, profit = Pk,
@@ -365,9 +399,10 @@ ms_optimise <- function(sys, objective = c("yield", "revenue", "profit"),
 }
 
 #' Open-access (status quo) equilibrium: caps non-binding, effort set by profit
-ms_open_access <- function(sys, years = 500, cap = 1e4, ...) {
+ms_open_access <- function(sys, years = 500, cap = 1000, ...) {
   x <- ms_simulate(sys, matrix(rep_len(cap, sys$G), 1, sys$G), years = years, ...)
   s <- ms_summary(x)
+  s$E_seg <- NULL
   list(E_seg = setNames(colMeans(x$E_seg[, 1, , drop = FALSE][, 1, ]), names(sys$segments)),
        B = colMeans(x$B[, 1, ]), summary = s, BBmsy = attr(s, "BBmsy")[1, ], FFmsy = attr(s, "FFmsy")[1, ])
 }
@@ -375,3 +410,77 @@ ms_open_access <- function(sys, years = 500, cap = 1e4, ...) {
 #' Status quo: capacity-limited equilibrium. Each segment has `capacity` days
 #' (vector or scalar); profit decides how many are used (economic exit).
 ms_status_quo <- function(sys, capacity = 1000, ...) ms_open_access(sys, cap = capacity, ...)
+
+# -----------------------------------------------------------------
+# 6. Tuning: fleet composition as an open-access equilibrium
+# -----------------------------------------------------------------
+
+#' Tune daily costs so that a target fleet composition is an open-access equilibrium
+#'
+#' At open access each segment's active days are the share of its vessels
+#' that break even (heterogeneous vessel efficiency), so the composition of
+#' the active fleet is set by the daily costs. The G log cost multipliers are
+#' solved so that G residuals vanish: the shares of days of the first G - 1
+#' segments and one status target for the stocks,
+#'   r = (log share_g / target_g, g < G;  log status / target).
+#' Newton steps with a forward-difference Jacobian; the base point and the G
+#' perturbed points run in one vectorised call (warm-started).
+#'
+#' @param shares  target share of active days by segment (sums to 1)
+#' @param status  c(median = x): median B/Bmsy; c(min = x): the weakest stock;
+#'   c(E_total = x): total active days
+#' @param cap     fleet capacity (registered days) by segment
+#' @param ...     passed to ms_simulate() (gamma, ...)
+#' @return the tuned system (cost_seg replaced), with attributes "tuning"
+#'   (history), "status_quo" (the open-access equilibrium) and "converged"
+ms_tune <- function(sys, shares = c(demersal = 0.35, pelagic = 0.35, mixed = 0.30),
+                    status = c(median = 0.9), cap = 1000, max_iter = 25, tol = 0.02,
+                    h = 0.05, max_step = 0.5, years_first = 400, years = 250, avg_years = 30,
+                    verbose = TRUE, ...) {
+  G <- sys$G; seg <- names(sys$segments)
+  shares <- shares[seg] / sum(shares)
+  stat_fun <- switch(names(status),
+    median  = function(BB, E) apply(BB, 1, stats::median),
+    min     = function(BB, E) apply(BB, 1, min),
+    E_total = function(BB, E) rowSums(E),
+    stop("status must be named median, min or E_total"))
+  resid <- function(x) {
+    E <- apply(x$E_seg, c(2, 3), mean); BB <- attr(ms_summary(x), "BBmsy")
+    sh <- E / rowSums(E)
+    cbind(log(pmax(sh[, -G, drop = FALSE], 1e-4) / matrix(shares[-G], nrow(E), G - 1, byrow = TRUE)),
+          log(pmax(stat_fun(BB, E), 1e-4) / status))
+  }
+  lc <- log(sys$cost_seg); B0 <- NULL; E0 <- NULL; hist <- list(); conv <- FALSE
+  best <- list(err = Inf, lc = lc)
+  for (it in seq_len(max_iter)) {
+    LC <- rbind(lc, t(lc + diag(h, G)))                    # base + G perturbations
+    nr <- nrow(LC)
+    x <- ms_simulate(sys, matrix(cap, nr, G, byrow = TRUE), years = if (it == 1) years_first else years,
+                     cost_seg = exp(LC), capacity = matrix(cap, nr, G, byrow = TRUE),
+                     B_init = if (is.null(B0)) NULL else B0[rep(1, nr), , drop = FALSE],
+                     E_init = if (is.null(E0)) NULL else E0[rep(1, nr), , drop = FALSE],
+                     avg_years = avg_years, ...)
+    R <- resid(x); r0 <- R[1, ]
+    E <- apply(x$E_seg, c(2, 3), mean)
+    hist[[it]] <- data.frame(iter = it, t(setNames(round(exp(lc), 4), paste0("cost_", seg))),
+                             t(setNames(round(E[1, ] / sum(E[1, ]), 3), paste0("share_", seg))),
+                             status = round(exp(r0[G]) * status, 3), check.names = FALSE)
+    if (verbose) cat(sprintf("iter %2d | costs %s | shares %s | %s %.3f\n", it,
+                             paste(sprintf("%.3f", exp(lc)), collapse = "/"),
+                             paste(sprintf("%.3f", E[1, ] / sum(E[1, ])), collapse = "/"),
+                             names(status), exp(r0[G]) * status))
+    if (max(abs(r0)) < best$err) best <- list(err = max(abs(r0)), lc = lc)
+    if (max(abs(r0)) < tol) { conv <- TRUE; break }
+    J <- t((R[-1, , drop = FALSE] - matrix(r0, G, G, byrow = TRUE)) / h)   # d r / d log c
+    step <- tryCatch(-solve(J, r0), error = function(e) -0.3 * sign(r0))
+    if (max(abs(step)) > max_step) step <- step * max_step / max(abs(step))
+    lc <- lc + step
+    B0 <- matrix(apply(x$B[, 1, , drop = FALSE], 3, mean), 1); E0 <- matrix(pmax(E[1, ], 1), 1)
+  }
+  sys$cost_seg <- setNames(exp(best$lc), seg)                 # best iterate
+  attr(sys, "tuning") <- do.call(rbind, hist)
+  attr(sys, "max_error") <- best$err
+  attr(sys, "status_quo") <- ms_open_access(sys, cap = cap, avg_years = avg_years, ...)
+  attr(sys, "converged") <- conv
+  sys
+}
