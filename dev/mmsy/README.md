@@ -22,6 +22,7 @@ Run the scripts from the repository root, with cpueTargeting installed.
 | `scripts/11_feedback.R` | Feedback control from the tuned status quo: segment effort rule (trigger 0.8 Bmsy), choke-stock closure, change limits; `figs/fb_*.png` |
 | `scripts/12_tune_trigger.R` | `ms_tune_hcr()`: tunes the effort and closure triggers to the risk limit; `figs/tune_trigger*.png` |
 | `scripts/13_assessed_subset.R` | Management based on four assessed stocks |
+| `scripts/14_yield_curves.R` | Equilibrium yield over effort for four conceptual treatments; `figs/yield_curves.png` |
 | `scripts/09_tune.R` | `ms_tune()`: daily costs that make 35/35/30% of active days an open-access equilibrium, for two status targets |
 | `R/plots.R`, `scripts/05_plots.R` | Figures of stock status, F, effort and yield, saved to `figs/`. Covers equilibrium against effort, Kobe plots of the status quo against the safeguarded optima, and projections from the status quo. Uses the balanced defaults |
 
@@ -105,6 +106,23 @@ Run the scripts from the repository root, with cpueTargeting installed.
    * each segment responds to the most depleted species that makes up ≥ 5% of its unfished catch;
    * Blim → Bpa;
    * result: P(B < Blim) = 0, mean yield 581.
+
+## Equilibrium yield curves: conceptual treatments (`scripts/14_yield_curves.R`)
+
+Yield over total days at the status-quo segment mix (tuned system, deterministic). Caps are scaled from the status-quo days, and the days fished are those of the vessels that break even.
+
+| Treatment | MMSY: days, yield | Safeguarded (all ≥ Bpa): days, yield |
+|---|---|---|
+| Shared q (mse.SEA, analytic, calibrated to the status quo) | 1,157, 1,811 | the same (weakest 0.66) |
+| Métiers, profit-blind (γ = 0) | 790, 1,628 (3 stocks < Bpa) | 212, 566 |
+| Métiers, profit-seeking (γ = 1.5) | 1,993, 1,757 (2 stocks < Bpa) | 352, 945 |
+| Profit-seeking + shallow reef closed | 1,952, 1,725 | the same |
+
+For reference, the sum of single-species MSY is 1,884, and the status quo is 1,536 days with yield 1,745.
+
+* **Shared q gives a dome with a false sense of safety.** All stocks are above Bpa at MMSY, and beyond it all of them collapse together.
+* **Behaviour turns the dome into a plateau.** Fishers move away from depleted stocks, so yield is insensitive to effort over a wide range while the weak stocks erode underneath. Yield alone is a poor indicator.
+* **The gap between MMSY and the safeguarded yield measures the technical interaction.** A métier measure (here the reef closure) closes it.
 
 ## Feedback control (`hcr_effort()`, `scripts/11_feedback.R`, `scripts/12_tune_trigger.R`)
 
