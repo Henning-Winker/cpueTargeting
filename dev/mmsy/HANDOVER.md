@@ -272,7 +272,21 @@ Depth preferences can come from FishBase and the DoF trawl surveys.
 
 **Caveat.** Biomass is still one pool per stock, so local depletion of a ground is not modelled. Add sub-pools by ground with exchange if hyperstability or serial depletion of grounds matters.
 
-Métiers: five small-scale tactics, three trawl grounds, and one or two purse seine. Small-scale has loyalty 0 and switches between its five tactics by profit. Trawl has loyalty about 0.8 to its trawl grounds.
+**At least two purse-seine métiers (agreed 21 Oct).**
+
+| Purse-seine métier | Gear | Groups | Notes |
+|---|---|---|---|
+| Mackerel/scad purse seine | Thai purse seine, larger mesh | Indo-Pacific mackerel, scads, Spanish mackerel (part), hairtail and pomfret by-catch | The mackerel spawning closure acts here (upper southern Gulf, 1 Feb–15 May) |
+| Small-pelagic/anchovy purse seine | Light-luring anchovy purse seine, small mesh | Anchovy, sardines, juvenile scads and mackerel, squid by-catch | Fish-sauce value chain (GoTFish); juvenile by-catch links the two métiers |
+
+**Add two groups that the mse.SEA file lacks:**
+
+* **Anchovy (*Stolephorus*):** r about 1.2 (indicative). K from the 2016 Gulf limit of 172,607 t read as MSY, giving K ≈ 4 × 172,607 / 1.2 ≈ 575 kt.
+* **Sardines (*Sardinella*):** overexploited (FAO). r about 1.0, with K to be set from catch history.
+
+Optionally, squid light luring can be its own métier (light-luring purse seine and falling nets) or by-catch of the anchovy métier.
+
+Métiers: five small-scale tactics, three trawl grounds, and two (optionally three) purse-seine métiers. Small-scale has loyalty 0 and switches between its five tactics by profit. Trawl has loyalty about 0.8 to its trawl grounds.
 
 **Effort composition (vessel-days)**
 
