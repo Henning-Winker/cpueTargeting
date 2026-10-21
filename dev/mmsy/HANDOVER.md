@@ -225,6 +225,48 @@ First mapping of the 18 groups to segments. Main gear first; a second segment is
 * Specialists: trawl and purse seine, loyalty about 0.8 on their home métiers.
 * Open option: restrict small-scale to the coastal métiers (demarcation zone) and exclude trawl from them (the 3 km inshore trawl ban), or let it reach all grounds. **Anchovy is missing from the file**, although it is a major purse-seine fishery (2016 Gulf limit 172,607 t). Add it as a purse-seine group if the preset should cover the fish-sauce value chain that GoTFish targets.
 
+### Zoning and small-scale tactics (agreed 21 Oct: stay close to the Gulf of Thailand zoning)
+
+**Zoning**
+
+* **Coastal sea zone.** It is reserved for artisanal fishing (< 10 GT, or no vessel). Commercial vessels (≥ 10 GT; trawl, purse seine) may not fish there.
+* **Zone width.** The 2015 Ordinance set it at 3 nm, or 3–12 nm in some places. Since 2022 a Ministerial Regulation fixes it by coordinates for 23 coastal provinces ([SEAFDEC country profile](https://www.seafdec.org/fisheries-country-profile-thailand/); [Thai embassy summary](https://copenhagen.thaiembassy.org/en/content/63866-highlights-of-thailand%E2%80%99s-new-fisheries-legislation)).
+* **Model: two grounds.**
+  * **Coastal:** small-scale only.
+  * **Offshore:** trawl and purse seine.
+
+  The segments compete only through the shared stocks. That is the realistic Gulf situation: juveniles and coastal stocks are taken inshore, adults offshore.
+
+**Métiers**
+
+| Ground | Segment | Métier (tactic) | Main groups |
+|---|---|---|---|
+| Coastal | Small-scale | Crab gillnet and collapsible trap | Swimming crab |
+| Coastal | Small-scale | Shrimp trammel and gillnet | Shrimp (+ juvenile by-catch) |
+| Coastal | Small-scale | Pelagic gillnets (encircling, drift) | Indo-Pacific mackerel, Spanish mackerel, scads |
+| Coastal | Small-scale | Hook and line, fish traps | Grouper, snapper, catfish, croakers |
+| Coastal | Small-scale | Cephalopod traps and jigs | Squid, cuttlefish |
+| Offshore | Trawl | Otter-board and pair trawl | Demersal groups, rays and sharks, cephalopods, shrimp |
+| Offshore | Purse seine | Mackerel/scad purse seine | Scads, mackerels, hairtail, pomfret |
+| Offshore | Purse seine | Light-luring purse seine | Squid (+ anchovy, if added) |
+
+Five small-scale tactics, one trawl, two purse seine. Small-scale has loyalty 0 and switches between its five tactics by profit.
+
+**Effort composition (vessel-days)**
+
+* In 2023 there were 45,799 artisanal vessels (84%; 40,814 of them under 5 GT) and 8,893 commercial vessels ([SEAFDEC](https://www.seafdec.org/fisheries-country-profile-thailand/)).
+* Small-scale vessels make short daily trips, so they dominate the days. A first target for `ms_tune()` (shares of vessel-days):
+
+  | Segment | Share of days |
+  |---|---|
+  | Trawl | about 12% |
+  | Purse seine | about 6% |
+  | Small-scale | about 82% |
+
+  The trawl/purse-seine split assumes about 60/30% of commercial vessels, with about 200 and 150 days per year.
+* **Small-scale efficiency per day is far below the specialists',** around 0.05–0.1 of a trawler day. Calibrate it to the catch share by segment from the DoF statistics. The sources disagree: FAO 2009 says commercial vessels take about 90% of the catch in Thai waters, while DoF 2023 reports 79% small-scale. Check which applies to the Gulf.
+* **Daily cost of small-scale:** low; `ms_tune()` solves it.
+
 ### Earlier proposal (r, K split and prices are indicative, superseded by the table above for r, K and depletion)
 
 **Stocks**
