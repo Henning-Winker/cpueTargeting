@@ -6,3 +6,4 @@
 .Rproj.user/
 vignettes/*.html
 rdata/
+dev/mmsy/output/

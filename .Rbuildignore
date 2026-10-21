@@ -2,3 +2,4 @@
 ^\.gitignore$
 ^rdata$
 ^\.github$
+^dev$
