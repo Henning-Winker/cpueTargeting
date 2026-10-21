@@ -184,6 +184,12 @@ allocate_effort <- function(sys, value, E_seg, gamma, open = 1, cost = 0, by_seg
 #' @param proc_r_power the process CV of species i is proc_cv * (r_i / median r)^power:
 #'   more productive species are more variable (0 = same CV for all)
 #' @param proc_rho_sp correlation of the process error across species (shared environment)
+#' @param proc_sd log-scale process SD by species (length S), overrides proc_cv and
+#'   proc_r_power; e.g. proc_sd_from_r(sys$r) (0.05 for sharks, 0.4 for anchovy)
+#' @param proc_dep_power,proc_dep_ref,proc_sd_max depletion-dependent process error:
+#'   sd_i,t = sd_i * ((B_i,t / K_i) / proc_dep_ref)^(-proc_dep_power), capped at
+#'   proc_sd_max; sd_i applies at B/K = proc_dep_ref (Bmsy). proc_dep_power > 0:
+#'   stocks become more volatile at low abundance; < 0: less volatile
 #' @param impl_cv,impl_bias implementation error on the effort caps by segment:
 #'   realised cap = cap * exp(bias + N(-s^2/2, s^2)), s from impl_cv
 #' @param crn     common random numbers: rows i and i + crn share the same process
@@ -203,6 +209,7 @@ ms_simulate <- function(sys, caps, years = 100, gamma = 1.5,
                         phi = 0.5, open = 1, hcr = NULL, hcr_lag = 2, B_init = NULL, E_init = NULL, capacity = NULL,
                         cost_seg = NULL,
                         proc_cv = 0, rho = 0, proc_r_power = 1, proc_rho_sp = 0,
+                        proc_sd = NULL, proc_dep_power = 0, proc_dep_ref = 0.5, proc_sd_max = 1,
                         impl_cv = 0, impl_bias = 0,
                         seed = NULL, crn = NULL, keep = c("final", "all"),
                         avg_years = 10) {
@@ -230,9 +237,12 @@ ms_simulate <- function(sys, caps, years = 100, gamma = 1.5,
   }
   cpue_last <- (B * matrix(price, n, S, byrow = TRUE)) %*% tQ   # value per effort, last year
   eps <- 0
-  cv_i <- proc_cv * (sys$r / stats::median(sys$r))^proc_r_power
-  sig_i <- matrix(sqrt(log(1 + cv_i^2)), n, S, byrow = TRUE)          # by species
-  sig <- proc_cv
+  if (is.null(proc_sd)) {
+    cv_i <- proc_cv * (sys$r / stats::median(sys$r))^proc_r_power
+    proc_sd <- sqrt(log(1 + cv_i^2))
+  }
+  sig_i <- matrix(proc_sd, n, S, byrow = TRUE)                       # by species, at proc_dep_ref
+  sig <- max(proc_sd)
   sig_impl <- if (impl_cv > 0) sqrt(log(1 + impl_cv^2)) else 0
 
   nkeep <- if (keep == "all") years else min(avg_years, years)
@@ -296,7 +306,9 @@ ms_simulate <- function(sys, caps, years = 100, gamma = 1.5,
       if (proc_rho_sp > 0) z <- sqrt(1 - proc_rho_sp) * z + sqrt(proc_rho_sp) * stats::rnorm(nd)
       z <- z[idx, , drop = FALSE]
       eps <- if (y == 1 || rho == 0) z else rho * eps + sqrt(1 - rho^2) * z
-      pe <- exp(sig_i * eps - sig_i^2 / 2)
+      sd_t <- if (proc_dep_power != 0)
+        pmin(sig_i * ((B / K) / proc_dep_ref)^(-proc_dep_power), proc_sd_max) else sig_i
+      pe <- exp(sd_t * eps - sd_t^2 / 2)
     } else pe <- 1
     keep_idx <- if (keep == "all") y else y - (years - nkeep)
     if (keep_idx >= 1) {
@@ -682,4 +694,14 @@ ms_tune_hcr <- function(sys, triggers = seq(0.5, 1.2, by = 0.05), close = NULL,
   ok <- tab[[names(risk)]] <= risk
   best <- if (any(ok)) tab[ok, ][which.max(tab[ok, objective]), ] else NULL
   list(table = tab, best = best, risk = risk, objective = objective)
+}
+
+#' Process SD by productivity: a power law in r through two anchors
+#'
+#' sd(r) = sd1 * (r / r1)^p with p = log(sd2 / sd1) / log(r2 / r1).
+#' Default anchors: sharks (r = 0.057, sd = 0.05) and anchovy (r = 1.2, sd = 0.4),
+#' giving sd = 0.355 * r^0.68.
+proc_sd_from_r <- function(r, r1 = 0.057, sd1 = 0.05, r2 = 1.2, sd2 = 0.4) {
+  p <- log(sd2 / sd1) / log(r2 / r1)
+  sd1 * (r / r1)^p
 }

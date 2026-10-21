@@ -171,6 +171,25 @@ For reference, the sum of single-species MSY is 1,884, and the status quo is 1,5
 * **The closure decouples the choke species.** With separate triggers, the effort rule can be lenient (0.6), while the reef is partly closed until Dentex is well above Bmsy. A permanent full closure is close behind (1,572).
 * **Yield is about 4% below no control, with profit up 47% and the risk limit met.** With one shared trigger, yield is lower and profit higher.
 
+### Process error by productivity and depletion
+
+**Setting it up.**
+
+* **By productivity:** `proc_sd_from_r(r)` is a power law in r through two anchors, sharks (r 0.057, SD 0.05) and anchovy (r 1.2, SD 0.4): sd = 0.355 · r^0.68. Atlantic stocks then range from 0.11 (SBR) to 0.30 (DOL, VMA) at Bmsy; Gulf of Thailand shrimp (r 1.44) gets 0.45.
+* **By depletion:** `ms_simulate(proc_sd =, proc_dep_power = ψ, proc_dep_ref = 0.5, proc_sd_max = 1)` makes the SD depend on depletion: sd_i,t = sd_i · ((B/K) / 0.5)^(−ψ). With ψ > 0, stocks become more volatile at low abundance (ψ = 0.5 doubles the SD at B/K = 0.125). With ψ < 0 they become less volatile.
+
+**First check** (Atlantic tuned system, 2-year lag, 200 simulations, years 31–50, no re-tuning):
+
+| Run | Yield | P(any < Blim) | Worst P(B < Bpa) | Median weakest B/Bmsy |
+|---|---|---|---|---|
+| No control, SD by r | 1,596 | 0.32 | 0.77 (DEC) | 0.30 |
+| No control, SD by r + depletion (ψ 0.5) | 1,360 | 0.89 | 0.70 (SBR) | 0.00 |
+| Effort 0.6 + closure 3, SD by r | 1,425 | 0.04 | 0.14 (SBR) | 0.52 |
+| Effort 0.6 + closure 3, SD by r + depletion | 1,284 | 0.21 | 0.19 (SBR) | 0.45 |
+
+* **Volatility at low abundance acts like stochastic depensation.** The lognormal error has mean 1 but median exp(−σ²/2), so the median drift grows as σ grows when a stock is depleted. Without control, some stock is fished out in most simulations.
+* **The triggers tuned under constant process error no longer meet the risk limit.** Re-tune them (`ms_tune_hcr()` passes `proc_sd`, `proc_dep_power` through `...`).
+
 ### Assessments of species complexes (`scripts/17_complexes.R`)
 
 Catch and CPUE are often pooled across taxa (e.g. "reef fish"), and the complex is assessed as one unit. `hcr_effort(complexes = list(name = stocks), complex_index = "biomass" | "cpue")` makes the rule see:
