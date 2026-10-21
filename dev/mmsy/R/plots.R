@@ -64,7 +64,9 @@ eq_long <- function(scans, sys) {
 # effort at which the first species falls below Bpa (the constrained limit)
 eq_limits <- function(scans, Bpa = 0.5) {
   do.call(rbind, lapply(names(scans), function(nm) {
-    s <- scans[[nm]]; ok <- which(s$n_below_Bpa == 0 & s$E > 0)
+    # highest effort before the safeguard is first broken (feasible region from E = 0)
+    s <- scans[[nm]]; s <- s[order(s$E), ]; bad <- which(s$n_below_Bpa > 0 & s$E > 0)
+    ok <- if (length(bad)) seq_len(bad[1] - 1) else seq_len(nrow(s)); ok <- ok[s$E[ok] > 0]
     i <- ok[which.max(s$yield[ok])]
     data.frame(scenario = nm, E = s$E[i], yield = s$yield[i], profit = s$profit[i])
   }))

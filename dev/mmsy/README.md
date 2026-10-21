@@ -19,7 +19,7 @@ Run the scripts from the repository root, with cpueTargeting installed.
 | `scripts/06_optimise.R` | Constrained MMSY by lever set; demersal and pelagic caps with the mixed segment as a free agent; leakage |
 | `scripts/07_viability_closure.R` | Constrained MMSY with a segment viability floor and a closure of the shallow reef métier |
 | `scripts/08_fig_options.R` | Summary figure `figs/opt_options.png` |
-| `R/plots.R`, `scripts/05_plots.R` | Figures of stock status, F, effort and yield, saved to `figs/` (equilibrium against effort, Kobe plots at the constrained optima, projections) |
+| `R/plots.R`, `scripts/05_plots.R` | Figures of stock status, F, effort and yield, saved to `figs/`. Covers equilibrium against effort, Kobe plots of the status quo against the safeguarded optima, and projections from the status quo. Uses the balanced defaults |
 
 ## System
 
@@ -102,7 +102,51 @@ Run the scripts from the repository root, with cpueTargeting installed.
    * Blim → Bpa;
    * result: P(B < Blim) = 0, mean yield 581.
 
-## Safeguarded MMSY: optimisation results
+## Balanced reference system (current defaults)
+
+The first version was unbalanced in two ways:
+
+* **Cheap fishing.** With a common cost level, the reef paid long after Dentex was gone.
+* **One choke stock.** Dentex choked every option. Low-value métiers stopped paying long before high-value ones, so stocks were either collapsed or unfished.
+
+The defaults now give a plausible unmanaged state: the **open-access equilibrium** (`ms_open_access()`), in which caps don't bind and effort enters and leaves with each segment's profit. Three settings achieve this:
+
+* **Relative costs.** `cost_mode = "relative"`, `cost_share = 0.4`: each métier's cost per unit of effort is 40% of its own unfished revenue rate (with availability). Every métier then breaks even at the same relative revenue loss.
+* **Seriola troll catchability 0.4 instead of 0.8** (`ms_settings()`). With 0.8, Seriola is a large by-catch in both reef and troll métiers but the main revenue in neither, and it collapses under open access.
+* **Economic exit on by default** (`phi = 0.5`).
+
+**Status quo (open access).**
+
+* Effort 848/1,425/1,161 (demersal/pelagic/mixed), yield 1,803, profit about 0.
+* Median B/Bmsy 0.90.
+* Several stocks below Bmsy: Dentex 0.80, albacore 0.60.
+* One choke stock: Seriola 0.35, between Blim and Bpa.
+
+**Safeguarded optima (every stock ≥ Bpa, γ = 1.5).**
+
+| Option | Effort | Yield | Profit |
+|---|---|---|---|
+| Status quo, open access | 848/1,425/1,161 | 1,803 | about 0 |
+| Safeguarded MMSY, one cap | 565 per segment | 1,846 | 1,054 |
+| Safeguarded MMSY, segment caps each ≥ 20% | 767/429/680 | 1,855 | 1,036 |
+| MMEY, one cap | 183 per segment | 1,369 | 2,358 |
+| Demersal + pelagic caps, mixed free at 30% of open-access effort | — | 1,874 | 897 |
+
+* The one-cap safeguarded MMSY halves effort, restores Seriola to Bpa and turns profit positive.
+* The optimum is flat, so a viability floor costs almost nothing.
+* With caps unrestricted, the optimiser still drifts towards closing a segment, but for a gain of only about 3%.
+* Behaviour now helps. Along an equal-split scan, the highest effort that keeps every stock ≥ Bpa is:
+  * about 1,740 for a profit-seeking fleet;
+  * about 190 when allocation is profit-blind;
+  * about 80 when allocation is frozen.
+
+  Fishers leave depleted métiers.
+
+**A segment HCR depends on who answers for a stock.** If a segment answers only for stocks that are ≥ 5% of its own catch, nobody answers for Seriola (a small share of every segment's catch). The demersal segment is closed, the mixed segment moves in, and Seriola stays at 0.33. With responsibility defined by catchability (any usable métier has ≥ 20% of the stock's highest q), Seriola recovers to about 0.42. A ramp between Blim and Bpa still settles inside the ramp, so the trigger should sit above Bpa.
+
+Results under "Safeguarded MMSY: optimisation results" below come from the first, unbalanced defaults (`cost_mode = "common"`, `cost_share = 0.3`, Seriola troll 0.8, `phi = 0` unless stated).
+
+## Safeguarded MMSY: optimisation results (initial, unbalanced system)
 
 `ms_optimise()` maximises equilibrium yield, revenue or profit over effort caps, subject to every stock staying at or above Bpa. Two more constraints are optional:
 

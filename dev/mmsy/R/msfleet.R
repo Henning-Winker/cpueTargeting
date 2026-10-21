@@ -34,7 +34,7 @@ ms_system <- function(L, depth_cut = 300, preference = 0,
                                   pelagic  = c("Pelagic_shallow", "Pelagic_deep"),
                                   mixed    = NULL),
                       loyalty = c(demersal = 0.8, pelagic = 0.8, mixed = 0),
-                      price = NULL, cost_share = 0.3,
+                      price = NULL, cost_share = 0.4, cost_mode = c("relative", "common"),
                       cost_ground = c(shallow = 1, deep = 1.5),
                       season = TRUE) {
   s   <- L$settings
@@ -76,8 +76,13 @@ ms_system <- function(L, depth_cut = 300, preference = 0,
   for (g in names(segments)) home_mat[g, home[[g]] %||% met$name] <- 1
 
   # costs per unit effort: cost_share of mean unfished revenue rate, by ground
-  rev0 <- as.vector(Q %*% (price * sp$B0))
-  cost <- cost_share * mean(rev0) * cost_ground[met$ground]
+  # cost_mode "common":   cost_share x mean unfished revenue rate, x ground factor
+  #           "relative": cost_share x the metier's own unfished revenue rate, so every
+  #                       metier breaks even at the same relative revenue loss
+  cost_mode <- match.arg(cost_mode)
+  rev0 <- as.vector(Q %*% (price * sp$B0 * colMeans(avail)))
+  cost <- if (cost_mode == "common") cost_share * mean(rev0) * cost_ground[met$ground]
+          else cost_share * rev0
 
   structure(list(
     species = sp$species, group = sp$group, r = sp$r, K = sp$B0, price = price,
@@ -153,7 +158,7 @@ allocate_effort <- function(sys, profit, E_seg, gamma, open = 1, w0 = NULL, by_s
 ms_simulate <- function(sys, caps, years = 100, gamma = 1.5,
                         behaviour = c("dynamic", "fixed"),
                         info = c("current", "lagged"),
-                        phi = 0, open = 1, hcr = NULL, B_init = NULL,
+                        phi = 0.5, open = 1, hcr = NULL, B_init = NULL,
                         proc_cv = 0, rho = 0, seed = NULL, keep = c("final", "all"),
                         avg_years = 10) {
   behaviour <- match.arg(behaviour); info <- match.arg(info); keep <- match.arg(keep)
@@ -233,7 +238,7 @@ ms_simulate <- function(sys, caps, years = 100, gamma = 1.5,
       cost_g <- sapply(seq_len(G), function(g) rowSums(matrix(Eg_y[, g, ], n, M) * cost_m))
       rev_g <- matrix(rev_g, n, G); cost_g <- matrix(cost_g, n, G)
       margin <- ifelse(rev_g > 0, (rev_g - cost_g) / rev_g, -1)
-      E_seg <- pmin(E_cap_y, pmax(E_seg, 0.01 * E_cap_y) * exp(phi * margin))
+      E_seg <- pmin(E_cap_y, pmax(E_seg, 1e-4 * E_cap_y) * exp(phi * margin))
     }
   }
   out <- list(B = Bk, C = Ck, F = Fk, E_metier = Ek, E_seg_metier = Egk, E_seg = Esk, revenue = Rk, profit = Pk,
@@ -339,4 +344,12 @@ ms_optimise <- function(sys, objective = c("yield", "revenue", "profit"),
   best$feasible <- TRUE; best$objective <- objective
   best$history <- do.call(rbind, hist)
   best
+}
+
+#' Open-access (status quo) equilibrium: caps non-binding, effort set by profit
+ms_open_access <- function(sys, years = 500, cap = 1e4, ...) {
+  x <- ms_simulate(sys, matrix(cap, 1, sys$G), years = years, ...)
+  s <- ms_summary(x)
+  list(E_seg = setNames(colMeans(x$E_seg[, 1, , drop = FALSE][, 1, ]), names(sys$segments)),
+       B = colMeans(x$B[, 1, ]), summary = s, BBmsy = attr(s, "BBmsy")[1, ], FFmsy = attr(s, "FFmsy")[1, ])
 }

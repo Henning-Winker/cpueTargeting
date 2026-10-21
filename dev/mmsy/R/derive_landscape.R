@@ -2,7 +2,15 @@
 for (f in c("merge_logbook_settings", "simulate_grf", "habitat_density",
            "dispersal_kernels", "movement_operator", "logbook_settings"))
   assign(f, get(f, asNamespace("cpueTargeting")))
-derive_landscape <- function(settings = logbook_settings(), seed = 1, depth_cut = 300, coastal_cut = 150) {
+#' Logbook settings balanced for the fleet system: Seriola troll catchability
+#' 0.8 -> 0.4 (with 0.8 the reef + troll by-catch collapses it under open access)
+ms_settings <- function() {
+  st <- logbook_settings()
+  st$tactics["Pelagic", "Seriola dumerili"] <- 0.4
+  st
+}
+
+derive_landscape <- function(settings = ms_settings(), seed = 1, depth_cut = 300, coastal_cut = 150) {
   s <- merge_logbook_settings(settings); set.seed(seed)
   sp <- s$species; ns <- nrow(sp)
   nx <- s$grid[1]; ny <- s$grid[2]; n_cells <- nx*ny
