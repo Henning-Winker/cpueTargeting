@@ -16,6 +16,7 @@ Run the scripts from the repository root, with cpueTargeting installed.
 | `scripts/02_segment_grid.R`, `02b_report_grid.R` | 3D grid of segment caps (9,261 scenarios) and constrained optima |
 | `scripts/03_checks.R` | Validation checks, sensitivity to γ, and a higher Dentex price |
 | `scripts/04_hcr_demo.R` | Stochastic run with a segment-specific hockey-stick HCR |
+| `R/plots.R`, `scripts/05_plots.R` | Figures of stock status, F, effort and yield, saved to `figs/` (equilibrium against effort, Kobe plots at the constrained optima, projections) |
 
 ## System
 

@@ -172,7 +172,7 @@ ms_simulate <- function(sys, caps, years = 100, gamma = 1.5,
   sig <- if (proc_cv > 0) sqrt(log(1 + proc_cv^2)) else 0
 
   nkeep <- if (keep == "all") years else min(avg_years, years)
-  Bk <- array(NA_real_, c(nkeep, n, S)); Ck <- Bk
+  Bk <- array(NA_real_, c(nkeep, n, S)); Ck <- Bk; Fk <- Bk
   Ek <- array(NA_real_, c(nkeep, n, M)); Rk <- matrix(NA_real_, nkeep, n); Pk <- Rk
   Esk <- array(NA_real_, c(nkeep, n, G))
 
@@ -183,7 +183,7 @@ ms_simulate <- function(sys, caps, years = 100, gamma = 1.5,
     } else E_cap_y <- caps
     E_seg <- pmin(E_seg, E_cap_y); if (phi == 0) E_seg <- E_cap_y
     Bm <- B
-    C_y <- matrix(0, n, S); Em_y <- matrix(0, n, M); rev_m <- matrix(0, n, M)
+    C_y <- matrix(0, n, S); F_y <- C_y; Em_y <- matrix(0, n, M); rev_m <- matrix(0, n, M)
     for (mo in 1:12) {
       av <- matrix(sys$avail[mo, ], n, S, byrow = TRUE)
       Bav <- Bm * av
@@ -204,7 +204,7 @@ ms_simulate <- function(sys, caps, years = 100, gamma = 1.5,
         rev_m[, m] <- rev_m[, m] + rowSums((Cm * Fim / Fs) %*% diag(price, S))
       }
       Bm <- Bm - Cm
-      C_y <- C_y + Cm; Em_y <- Em_y + E_m
+      C_y <- C_y + Cm; F_y <- F_y + Fm; Em_y <- Em_y + E_m
     }
     cpue_last <- ifelse(Em_y > 0, rev_m / pmax(Em_y, 1e-12), cpue_last)
     revenue <- as.vector(C_y %*% price)
@@ -217,7 +217,7 @@ ms_simulate <- function(sys, caps, years = 100, gamma = 1.5,
     } else pe <- 1
     keep_idx <- if (keep == "all") y else y - (years - nkeep)
     if (keep_idx >= 1) {
-      Bk[keep_idx, , ] <- B; Ck[keep_idx, , ] <- C_y; Ek[keep_idx, , ] <- Em_y
+      Bk[keep_idx, , ] <- B; Ck[keep_idx, , ] <- C_y; Fk[keep_idx, , ] <- F_y; Ek[keep_idx, , ] <- Em_y
       Rk[keep_idx, ] <- revenue; Pk[keep_idx, ] <- revenue - costs; Esk[keep_idx, , ] <- E_seg
     }
     B <- pmax(B + r * B * (1 - B / K) * pe - C_y, 1e-6 * K)
@@ -227,7 +227,7 @@ ms_simulate <- function(sys, caps, years = 100, gamma = 1.5,
       E_seg <- pmin(E_cap_y, E_seg * exp(phi * margin))
     }
   }
-  out <- list(B = Bk, C = Ck, E_metier = Ek, E_seg = Esk, revenue = Rk, profit = Pk,
+  out <- list(B = Bk, C = Ck, F = Fk, E_metier = Ek, E_seg = Esk, revenue = Rk, profit = Pk,
               caps = caps, sys = sys,
               settings = list(gamma = gamma, behaviour = behaviour, info = info, phi = phi,
                               years = years, proc_cv = proc_cv))
@@ -248,8 +248,10 @@ ms_summary <- function(x, Bpa = 0.5, Blim = 0.25) {
     E_total = rowSums(apply(x$E_seg, c(2, 3), mean)),
     min_BBmsy = apply(BBmsy, 1, min),
     worst = sys$species[apply(BBmsy, 1, which.min)],
+    max_FFmsy = apply(sweep(apply(x$F, c(2, 3), mean), 2, sys$r / 2, "/"), 1, max),
     n_below_Bpa = rowSums(BBmsy < Bpa), n_below_Blim = rowSums(BBmsy < Blim),
     check.names = FALSE) -> out
-  attr(out, "BBmsy") <- BBmsy; attr(out, "catch") <- Cbar
+  FFmsy <- sweep(apply(x$F, c(2, 3), mean), 2, sys$r / 2, "/"); colnames(FFmsy) <- sys$species
+  attr(out, "BBmsy") <- BBmsy; attr(out, "FFmsy") <- FFmsy; attr(out, "catch") <- Cbar
   out
 }
