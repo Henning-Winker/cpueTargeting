@@ -19,6 +19,7 @@ Run the scripts from the repository root, with cpueTargeting installed.
 | `scripts/06_optimise.R` | Constrained MMSY by lever set; demersal and pelagic caps with the mixed segment as a free agent; leakage |
 | `scripts/07_viability_closure.R` | Constrained MMSY with a segment viability floor and a closure of the shallow reef métier |
 | `scripts/08_fig_options.R` | Summary figure `figs/opt_options.png` |
+| `scripts/11_feedback.R` | Feedback control from the tuned status quo: segment effort rule (trigger 0.8 Bmsy), choke-stock closure, change limits; `figs/fb_*.png` |
 | `scripts/09_tune.R` | `ms_tune()`: daily costs that make 35/35/30% of active days an open-access equilibrium, for two status targets |
 | `R/plots.R`, `scripts/05_plots.R` | Figures of stock status, F, effort and yield, saved to `figs/`. Covers equilibrium against effort, Kobe plots of the status quo against the safeguarded optima, and projections from the status quo. Uses the balanced defaults |
 
@@ -102,6 +103,31 @@ Run the scripts from the repository root, with cpueTargeting installed.
    * each segment responds to the most depleted species that makes up ≥ 5% of its unfished catch;
    * Blim → Bpa;
    * result: P(B < Blim) = 0, mean yield 581.
+
+## Feedback control (`hcr_effort()`, `scripts/11_feedback.R`)
+
+**The rule.** Each year the assessed B/Bmsy is the true value times a lognormal assessment error (CV 0.2).
+
+* Each segment's days are a fraction of its status-quo days. The fraction ramps from 0 at Blim (0.25 Bmsy) to 1 at the trigger (0.8 Bmsy) of the most depleted stock the segment can catch substantially (catchability ≥ 20% of the stock's highest).
+* **Optional closure.** A choke stock in `close` is protected by a closure instead. The open share (area or season) of the métiers that drive it (catchability ≥ 50% of its highest; for Dentex, the shallow reef) follows the same ramp, and the stock is left out of the effort rule.
+* **Optional change limit.** `max_change` limits each segment's annual change.
+* **Engine.** A rule may return `list(mult, open)`. A partly closed métier fishes only its open share, and its value per day scales with that share.
+
+**Results.** 200 simulations, 50 years, process error CV 0.2 (AR1 0.3), from the tuned status quo (yield 1,745, profit 1,489). Performance is over years 31–50.
+
+| Run | Yield | Profit | Days | P(any stock < Bpa) | Median weakest B/Bmsy | Effort variability |
+|---|---|---|---|---|---|---|
+| No control (open access) | 1,738 | 1,481 | 1,516 | 1.00 | 0.40 | 0.03 |
+| Effort rule, trigger 0.8 Bmsy | 1,613 | 2,677 | 763 | 0.70 | 0.48 | 0.12 |
+| Effort rule + Dentex reef closure | 1,694 | 2,516 | 915 | 0.02 | 0.60 | 0.12 |
+| Effort rule, ±20% per year | 1,629 | 2,643 | 786 | 0.83 | 0.46 | 0.05 |
+| Effort rule + closure, ±20% per year | 1,709 | 2,472 | 946 | 0.03 | 0.59 | 0.05 |
+| Effort rule + closure, no assessment error | 1,743 | 2,320 | 1,060 | 0.00 | 0.58 | 0.02 |
+
+* **The effort rule alone halves the days and lifts profit by 80%, but Dentex stays at about Bpa (median 0.48).** The remaining days go to the reef.
+* **Adding the reef closure solves the choke.** Dentex reaches 0.66 B/Bmsy, the risk of any stock below Bpa drops to 2%, yield is within 3% of the status quo, and profit is up 70%. With the closure the effort rule needs fewer cuts (915 days against 763).
+* **The ±20% limit halves effort variability at almost no cost.** It also softens the first years, when the rule otherwise cuts hard because nearly every stock starts below 0.8 Bmsy.
+* **Assessment error (CV 0.2) costs about 50 t of yield** and a little risk.
 
 ## Tuning the fleet to an open-access equilibrium (current defaults)
 

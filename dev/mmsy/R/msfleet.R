@@ -220,9 +220,17 @@ ms_simulate <- function(sys, caps, years = 100, gamma = 1.5,
 
   for (y in seq_len(years)) {
     op <- open_fun(y)
+    opm <- matrix(if (is.null(dim(op))) rep_len(op, M) else op, n, M, byrow = is.null(dim(op)))
+    E_cap_y <- caps
     if (!is.null(hcr)) {
-      E_cap_y <- caps * hcr(list(B = B, K = K, year = y, sys = sys))
-    } else E_cap_y <- caps
+      # a rule returns multipliers on the caps (n x G), or list(mult, open) where
+      # open (n x M, 0-1) is the share of each metier's ground/season left open
+      ctl <- hcr(list(B = B, K = K, year = y, sys = sys))
+      if (is.list(ctl)) {
+        if (!is.null(ctl$mult)) E_cap_y <- caps * ctl$mult
+        if (!is.null(ctl$open)) opm <- opm * ctl$open
+      } else E_cap_y <- caps * ctl
+    }
     E_seg <- pmin(E_seg, E_cap_y); if (phi == 0) E_seg <- E_cap_y
     Bm <- B
     C_y <- matrix(0, n, S); F_y <- C_y; Em_y <- matrix(0, n, M); rev_m <- matrix(0, n, M); Eg_y <- array(0, c(n, G, M)); Eeff_y <- Em_y
@@ -230,13 +238,15 @@ ms_simulate <- function(sys, caps, years = 100, gamma = 1.5,
       av <- matrix(sys$avail[mo, ], n, S, byrow = TRUE)
       Bav <- Bm * av
       if (behaviour == "fixed") {
-        E_m <- allocate_effort(sys, w_fixed, E_seg * sys$month_w[mo], gamma, op, cost = cost_m, emult = emult, cseg = cseg)
+        E_m <- allocate_effort(sys, w_fixed * opm, E_seg * sys$month_w[mo], gamma, opm > 0, cost = cost_m, emult = emult, cseg = cseg)
       } else {
         exp_val <- if (info == "current") (Bav * matrix(price, n, S, byrow = TRUE)) %*% tQ
                    else cpue_last
-        E_m <- allocate_effort(sys, exp_val, E_seg * sys$month_w[mo], gamma, op, cost = cost_m, emult = emult, cseg = cseg)
+        # a partly closed metier fishes only its open share: value per day scales with it
+        E_m <- allocate_effort(sys, exp_val * (if (info == "current") opm else 1), E_seg * sys$month_w[mo],
+                               gamma, opm > 0, cost = cost_m, emult = emult, cseg = cseg)
       }
-      E_eff <- attr(E_m, "effective")
+      E_eff <- attr(E_m, "effective") * opm         # effective effort on the open share
       Fm <- (E_eff %*% Q) * av                     # n x S fishing mortality this month
       Cm <- Bm * (1 - exp(-Fm))
       # catch by metier (proportional split of each species' catch by F share)
@@ -267,13 +277,12 @@ ms_simulate <- function(sys, caps, years = 100, gamma = 1.5,
     B <- pmax(B + r * B * (1 - B / K) * pe - C_y, 1e-6 * K)
     # entry / exit below the cap
     if (phi > 0) {
-      opm <- matrix(if (is.null(dim(op))) rep_len(op, M) else op, n, M, byrow = is.null(dim(op)))
       for (g in seq_len(G)) {
         Egm <- matrix(Eg_y[, g, ], n, M); tot <- rowSums(Egm)
         acc <- if (sys$loyalty[g] < 1) rep(TRUE, M) else sys$home[g, ] > 0
         # revenue and cost per day of a vessel of mean efficiency: allocation-weighted
         # when the segment fishes, otherwise its best open metier
-        val <- cpue_last * matrix(sys$eff[g, ], n, M, byrow = TRUE) * opm
+        val <- cpue_last * matrix(sys$eff[g, ], n, M, byrow = TRUE) * (opm > 0)   # realised: already net of closure
         cst <- cost_m * cseg[, g]
         net <- val - cst; net[, !acc] <- -Inf
         best <- max.col(net, ties.method = "first")
@@ -483,4 +492,78 @@ ms_tune <- function(sys, shares = c(demersal = 0.35, pelagic = 0.35, mixed = 0.3
   attr(sys, "status_quo") <- ms_open_access(sys, cap = cap, avg_years = avg_years, ...)
   attr(sys, "converged") <- conv
   sys
+}
+
+# -----------------------------------------------------------------
+# 7. Feedback control rules
+# -----------------------------------------------------------------
+
+#' Segment effort rule with an optional choke-stock closure
+#'
+#' Each year the assessed B/Bmsy of every stock is the true value times a
+#' lognormal assessment error (CV `assess_cv`, AR(1) `assess_rho`). Each
+#' segment's days are a fraction of its reference days (the caps passed to
+#' ms_simulate(), e.g. the status-quo days): the fraction ramps from 0 at
+#' Blim to 1 at Btrig (both relative to Bmsy) of the most depleted stock the
+#' segment can catch substantially (any usable metier has >= `own_q` of the
+#' stock's highest catchability).
+#'
+#' Stocks in `close` are protected by a closure instead: the open share of
+#' the metiers that drive them (catchability >= `close_q` of the stock's
+#' highest) follows the same ramp, and they are left out of the effort rule.
+#' `max_change` limits the annual change of each segment's fraction.
+#'
+#' Create a new rule for every simulation run (it keeps the last fraction and
+#' the assessment error between years).
+hcr_effort <- function(sys, Btrig = 0.8, Blim = 0.25, assess_cv = 0.2, assess_rho = 0,
+                       own_q = 0.2, close = NULL, close_q = 0.5, max_change = Inf) {
+  S <- sys$S; G <- sys$G; M <- sys$M
+  qmax <- apply(sys$Q, 2, max)
+  own <- sapply(seq_len(G), function(g) {
+    acc <- if (sys$loyalty[g] > 0) sys$home[g, ] > 0 else rep(TRUE, M)
+    apply(sys$Q[acc, , drop = FALSE], 2, max) >= own_q * qmax })     # S x G
+  ic <- match(close, sys$species)
+  if (length(ic)) own[ic, ] <- FALSE
+  drive <- sys$Q >= close_q * matrix(qmax, M, S, byrow = TRUE)          # M x S
+  sig <- if (assess_cv > 0) sqrt(log(1 + assess_cv^2)) else 0
+  ramp <- function(d) pmin(1, pmax(0, (d - Blim) / (Btrig - Blim)))
+  prev <- NULL; eps <- NULL
+  rule <- function(st) {
+    n <- nrow(st$B)
+    if (st$year == 1) { prev <<- NULL; eps <<- NULL }
+    z <- matrix(stats::rnorm(n * S), n, S)
+    eps <<- if (is.null(eps) || assess_rho == 0) z else assess_rho * eps + sqrt(1 - assess_rho^2) * z
+    bb <- st$B / (st$K / 2) * exp(sig * eps - sig^2 / 2)              # assessed B/Bmsy
+    mult <- matrix(sapply(seq_len(G), function(g)
+      if (any(own[, g])) ramp(apply(bb[, own[, g], drop = FALSE], 1, min)) else rep(1, n)), n, G)
+    if (is.finite(max_change) && !is.null(prev))
+      mult <- pmin(pmax(mult, prev * (1 - max_change)), prev * (1 + max_change))
+    prev <<- mult
+    if (!length(ic)) return(mult)
+    opm <- matrix(1, n, M)
+    for (i in ic) for (m in which(drive[, i])) opm[, m] <- pmin(opm[, m], ramp(bb[, i]))
+    list(mult = mult, open = opm)
+  }
+  attr(rule, "own") <- own; attr(rule, "drive") <- drive
+  rule
+}
+
+#' Performance of projection runs (named list of ms_sim with keep = "all")
+ms_performance <- function(runs, years = NULL, Bpa = 0.5, Blim = 0.25) {
+  do.call(rbind, lapply(names(runs), function(nm) {
+    x <- runs[[nm]]; sys <- x$sys; ny <- dim(x$B)[1]
+    yr <- years %||% seq(max(1, ny - 19), ny)
+    bb <- sweep(x$B[yr, , , drop = FALSE], 3, sys$K / 2, "/")
+    Ey <- apply(x$E_seg[yr, , , drop = FALSE], 1:2, sum)                # years x sims
+    aav <- colMeans(abs(diff(Ey)) / pmax(Ey[-nrow(Ey), , drop = FALSE], 1e-9))
+    data.frame(run = nm,
+      yield = round(mean(apply(x$C[yr, , , drop = FALSE], 1:2, sum))),
+      profit = round(mean(x$profit[yr, ])),
+      days = round(mean(Ey)),
+      P_any_below_Blim = round(mean(apply(bb < Blim, 1:2, any)), 3),
+      P_any_below_Bpa = round(mean(apply(bb < Bpa, 1:2, any)), 3),
+      worst_P_below_Bpa = round(max(apply(bb < Bpa, 3, mean)), 3),
+      median_min_BBmsy = round(stats::median(apply(bb, 1:2, min)), 2),
+      AAV_effort = round(stats::median(aav), 3))
+  }))
 }
