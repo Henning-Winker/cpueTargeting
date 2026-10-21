@@ -195,6 +195,18 @@ The grid computations run in about 10–60 s, so use `shiny::ExtendedTask` or a 
 * **Fleet.** In 2022, 9,608 commercial vessels (≥ 10 GT) took 21% of the catch and 50,639 small-scale vessels took 79% (national, [DoF 2023](https://infofish.org/v4/media/attachments/2023/10/19/tha---fao-workshop-fisheries-support-measures-oct-2023---thai-dof-final--9-oct-66.pdf)). Since 2015, about 80% of effort has been controlled through vessel numbers and monitoring ([ESL](https://www.esl.co.jp/products/menu/thailand_2ndworkshop/(0)%20Fisheries%20regime%20shift%20(q)%20(GOT).pdf)).
 * **Mackerel closure.** In the upper southern Gulf, trawl and purse seine with mesh < 4.7 cm are banned from 1 Feb to 15 May (since 1984; the area was negotiated down to about 50,000 km²) ([FAO](https://www.fao.org/fishery/docs/DOCUMENT/fcp/en/FI_CP_TH.pdf); [Saikliang](https://www.ais.unwater.org/aisresources/projectdoc/rpt/885/IWLEARN/Saikliang-fisheries-refugias.html)).
 
+### Species groups from the mse.SEA input (`extdata/got_species_mseSEA.csv`)
+
+The uploaded `GOT_full.csv` has 18 species groups with K, r, 2024 depletion (B/K), q and a group label. These replace the indicative r and K of the table below as the starting point.
+
+* **Status.** 13 of 18 groups are below Bpa (B/Bmsy < 0.5), and 4 are below Blim: bigeyes 0.06, croakers 0.12, threadfin bream 0.14, Indo-Pacific mackerel 0.16.
+* **Slow stocks (r ≈ 0.05–0.06).** Snapper, catfish, croakers, rays and sharks are the choke candidates.
+* **Yield.** The sum of MSY is 475 kt; equilibrium yield at the 2024 depletions is 184 kt.
+* **Shrimp looks anomalous.** Depletion 0.97 (nearly unfished), r 1.44, and MSY 197 kt, which is 42% of the total. This conflicts with FAO's "overexploited". Check the assessment.
+* **The group labels mix habitat and gear.** Rays, sharks, lizardfish, threadfin bream, bigeyes, hairtail and pomfret are labelled "Pelagic". For segments and métiers, regroup them by gear (trawl / purse seine / small-scale).
+* **The q values are placeholders,** and the shared-q model can't reproduce the depletions. Fitting one shared effort to them (E ≈ 617) gives 0 for snapper, catfish and croakers, but 0.97–0.99 for bigeyes, Indo-Pacific mackerel and squid. The 2024 pattern needs group-specific fishing mortality, F_i = r_i (1 − d_i) at equilibrium.
+* **Conditioning in the new system.** Tune catchability scalers by stock (or by métier × group) together with the segment costs, so that the status quo reproduces the 2024 depletions. This extends `ms_tune()` from one status target to a depletion vector. The bigeyes and croakers depletions (0.03–0.06) are probably not equilibrium states, so condition on the trend, or start the projection from the 2024 state.
+
 ### Proposed system (r, K split and prices are indicative, to be refined)
 
 **Stocks**
