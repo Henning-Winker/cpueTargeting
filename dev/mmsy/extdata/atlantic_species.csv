@@ -1,0 +1,11 @@
+"species","code","group","r","K","price","season_amp","season_peak"
+"Dentex dentex","DEC","demersal",0.25,500,12,0,1
+"Pagellus erythrinus","PAC","demersal",0.35,900,8,0,1
+"Pagellus bogaraveo","SBR","demersal",0.18,800,15,0,1
+"Merluccius merluccius","HKE","demersal",0.3,2500,5,0,1
+"Conger conger","COE","demersal",0.3,600,3,0,1
+"Phycis blennoides","GFB","demersal",0.3,700,2,0,1
+"Thunnus alalunga","ALB","pelagic",0.4,3000,6,0.7,9
+"Coryphaena hippurus","DOL","pelagic",0.8,1500,7,0.9,9
+"Seriola dumerili","AMB","pelagic",0.35,600,9,0.4,8
+"Scomber colias","VMA","pelagic",0.8,4000,2,0.3,5

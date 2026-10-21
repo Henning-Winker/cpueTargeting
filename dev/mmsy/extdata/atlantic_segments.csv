@@ -1,0 +1,4 @@
+"segment","share_target","loyalty","efficiency","cost_multiplier","vessel_cv","home"
+"demersal",0.35,0.8,1,0.634,0.25,"Reef_shallow;Sediment_shallow;Reef_deep;Sediment_deep"
+"pelagic",0.35,0.8,1,1.0774,0.25,"Pelagic_shallow;Pelagic_deep"
+"mixed",0.3,0,0.75,0.8434,0.25,"Reef_shallow;Sediment_shallow;Pelagic_shallow;Reef_deep;Sediment_deep;Pelagic_deep"
