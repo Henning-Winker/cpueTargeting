@@ -286,7 +286,57 @@ Depth preferences can come from FishBase and the DoF trawl surveys.
 
 Optionally, squid light luring can be its own métier (light-luring purse seine and falling nets) or by-catch of the anchovy métier.
 
-Métiers: five small-scale tactics, three trawl grounds, and two (optionally three) purse-seine métiers. Small-scale has loyalty 0 and switches between its five tactics by profit. Trawl has loyalty about 0.8 to its trawl grounds.
+Métiers: five small-scale tactics, three trawl grounds, and two (optionally three) purse-seine métiers.
+
+### Overlap matrix: groups × métiers (first draft, expert judgement; verify with DoF catch by gear)
+
+● main catch, ○ by-catch. This is the template for the catchability matrix: ● ≈ 1, ○ ≈ 0.1–0.3 times the selectivity, then scaled by the depth/substrate overlap.
+
+**Métier codes**
+
+| Code | Métier |
+|---|---|
+| SS1 | Small-scale crab gillnet / trap |
+| SS2 | Small-scale shrimp trammel |
+| SS3 | Small-scale pelagic gillnet |
+| SS4 | Small-scale hook and fish trap |
+| SS5 | Small-scale cephalopod trap / jig |
+| TR1 | Trawl, inner shelf |
+| TR2 | Trawl, mid shelf |
+| TR3 | Trawl, outer shelf |
+| PS1 | Mackerel/scad purse seine |
+| PS2 | Anchovy / small-pelagic light purse seine |
+
+| Group | SS1 | SS2 | SS3 | SS4 | SS5 | TR1 | TR2 | TR3 | PS1 | PS2 | Segments |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| Squid | | | | | ● | | ● | | | ● | **3** |
+| Indo-Pacific mackerel | | | ● | | | | ○ | | ● | ○ juv. | **3** |
+| Scads / horse mackerels | | | ○ | | | | ○ | ○ | ● | ○ juv. | **3** |
+| Shrimp | | ● | | | | ● | | | | | 2 |
+| Cuttlefish | | | | | ● | ● | ○ | | | | 2 |
+| Swimming crab | ● | | | | | ○ | | | | | 2 |
+| Rays | ○ | | | ○ | | ● | ● | | | | 2 |
+| Sharks | | | ○ | ○ | | | ● | ● | | | 2 |
+| Croakers | | ○ | | ○ | | ● | | | | | 2 |
+| Catfish | | ○ | | ○ | | ● | | | | | 2 |
+| Snapper | | | | ● | | | ○ | ○ | | | 2 |
+| Grouper | | | | ● | | | ○ | | | | 2 |
+| Spanish mackerel | | | ● | | | | | ○ | ○ | | 3 |
+| Pomfret | | | ● | | | | | ○ | ○ | | 3 |
+| Hairtail | | | ○ | | | | | ● | ○ | | 3 |
+| Sardines | | | ○ | | | | | | ○ | ● | 2 |
+| Anchovy | | | | | | ○ juv. | | | | ● | 2 |
+| Threadfin bream | | | | | | ○ | ● | ○ | | | 1 |
+| Lizardfish | | | | | | | ● | ● | | | 1 |
+| Bigeyes | | | | | | | ○ | ● | | | 1 |
+
+**Key overlaps**
+
+* **Squid** is the clearest three-way shared stock: trawl (mid shelf), light luring (purse seine and falling nets), and small-scale traps and jigs.
+* **Scads/horse mackerels and Indo-Pacific mackerel** are shared by the purse seine, the trawl (pair trawl on the mid and outer shelf catches pelagics), and small-scale gillnets. The anchovy métier also takes their juveniles.
+* **Shrimp, crab, croakers, catfish, cuttlefish** are shared between the inner-shelf trawl and the coastal small-scale gears. Juveniles are caught inshore and adults offshore.
+* **Rays and sharks** are trawl by-catch, plus small-scale gillnets and hooks. They are the low-r choke group.
+* **Trawl-only stocks** are threadfin bream, lizardfish and bigeyes. They are controlled by trawl effort alone, which makes them a useful contrast. Small-scale has loyalty 0 and switches between its five tactics by profit. Trawl has loyalty about 0.8 to its trawl grounds.
 
 **Effort composition (vessel-days)**
 
