@@ -217,7 +217,13 @@ First mapping of the 18 groups to segments. Main gear first; a second segment is
 | Purse seine (incl. light luring) | Scads, Indo-Pacific mackerel, Spanish mackerel ("S mack"), squid (light luring) | Hairtail, pomfret |
 | Small-scale (gillnet, trap, push net, hook) | Swimming crab, shrimp, Indo-Pacific mackerel (encircling gillnet), Spanish mackerel (gillnet), grouper, snapper, cuttlefish and squid (traps, jigs) | Catfish, croakers, rays |
 
-The small-scale segment is the free agent: most vessels, low efficiency and cost per day, and coastal métiers. **Anchovy is missing from the file**, although it is a major purse-seine fishery (2016 Gulf limit 172,607 t). Add it as a purse-seine group if the preset should cover the fish-sauce value chain that GoTFish targets.
+**Small-scale = the generalist (agreed 21 Oct).** This is the same role as the `mixed` segment in the Atlantic example.
+
+* Loyalty 0: it switches freely between pelagic and demersal métiers by profit.
+* Lower efficiency than the trawl and purse-seine specialists (`eff` < 1; start at 0.75 as in the Atlantic example, or lower).
+* Lower daily cost (`cost_seg`, tuned by `ms_tune()`), so it stays viable where the specialists break even.
+* Specialists: trawl and purse seine, loyalty about 0.8 on their home métiers.
+* Open option: restrict small-scale to the coastal métiers (demarcation zone) and exclude trawl from them (the 3 km inshore trawl ban), or let it reach all grounds. **Anchovy is missing from the file**, although it is a major purse-seine fishery (2016 Gulf limit 172,607 t). Add it as a purse-seine group if the preset should cover the fish-sauce value chain that GoTFish targets.
 
 ### Earlier proposal (r, K split and prices are indicative, superseded by the table above for r, K and depletion)
 
