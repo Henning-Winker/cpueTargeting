@@ -207,7 +207,19 @@ The uploaded `GOT_full.csv` has 18 species groups with K, r, 2024 depletion (B/K
 * **The q values are placeholders,** and the shared-q model can't reproduce the depletions. Fitting one shared effort to them (E ≈ 617) gives 0 for snapper, catfish and croakers, but 0.97–0.99 for bigeyes, Indo-Pacific mackerel and squid. The 2024 pattern needs group-specific fishing mortality, F_i = r_i (1 − d_i) at equilibrium.
 * **Conditioning in the new system.** Tune catchability scalers by stock (or by métier × group) together with the segment costs, so that the status quo reproduces the 2024 depletions. This extends `ms_tune()` from one status target to a depletion vector. The bigeyes and croakers depletions (0.03–0.06) are probably not equilibrium states, so condition on the trend, or start the projection from the 2024 state.
 
-### Proposed system (r, K split and prices are indicative, to be refined)
+### Segments: trawl, purse seine, small-scale (agreed 21 Oct)
+
+First mapping of the 18 groups to segments. Main gear first; a second segment is a smaller share. This sets the home métiers and a first catchability pattern, to be refined with catch by gear from the DoF statistics.
+
+| Segment | Main groups | By-catch / shared |
+|---|---|---|
+| Trawl (otter-board, pair) | Threadfin bream, lizardfish, bigeyes, croakers, catfish, rays, sharks, hairtail, cuttlefish, squid, shrimp | Snapper, grouper, pomfret, scads |
+| Purse seine (incl. light luring) | Scads, Indo-Pacific mackerel, Spanish mackerel ("S mack"), squid (light luring) | Hairtail, pomfret |
+| Small-scale (gillnet, trap, push net, hook) | Swimming crab, shrimp, Indo-Pacific mackerel (encircling gillnet), Spanish mackerel (gillnet), grouper, snapper, cuttlefish and squid (traps, jigs) | Catfish, croakers, rays |
+
+The small-scale segment is the free agent: most vessels, low efficiency and cost per day, and coastal métiers. **Anchovy is missing from the file**, although it is a major purse-seine fishery (2016 Gulf limit 172,607 t). Add it as a purse-seine group if the preset should cover the fish-sauce value chain that GoTFish targets.
+
+### Earlier proposal (r, K split and prices are indicative, superseded by the table above for r, K and depletion)
 
 **Stocks**
 
