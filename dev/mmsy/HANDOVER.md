@@ -250,7 +250,29 @@ First mapping of the 18 groups to segments. Main gear first; a second segment is
 | Offshore | Purse seine | Mackerel/scad purse seine | Scads, mackerels, hairtail, pomfret |
 | Offshore | Purse seine | Light-luring purse seine | Squid (+ anchovy, if added) |
 
-Five small-scale tactics, one trawl, two purse seine. Small-scale has loyalty 0 and switches between its five tactics by profit.
+**The offshore trawl is split by ground (agreed 21 Oct).** Within the offshore zone, species still have depth preferences and patchy distributions. With one trawl métier the catch mix would be fixed and trawlers could not target. So the trawl gets three grounds, chosen by profit like the tactics in the Atlantic example:
+
+| Trawl métier | Depth (indicative) | Substrate | Groups |
+|---|---|---|---|
+| Trawl inner shelf | ~15–30 m, beyond the coastal zone | Mud | Shrimp, croakers, catfish, rays, cuttlefish |
+| Trawl mid shelf | ~30–50 m | Mud and sand | Threadfin bream, lizardfish, squid, rays, sharks |
+| Trawl outer shelf | ~50–80 m (the Gulf is about 85 m at most) | Sand | Bigeyes, lizardfish, hairtail, pomfret, sharks |
+
+Grouper and snapper sit on hard-ground patches that trawlers avoid. They are mainly caught by small-scale hook and trap.
+
+**How to get the catchabilities.** Do it as in the Atlantic example, with a light Gulf of Thailand landscape:
+
+* a depth gradient from the coast to the central Gulf, mud/sand/hard-ground patches, and the coastal zone as a band;
+* a depth preference (lognormal) and substrate affinity for each group;
+* the same `derive_landscape()`/`ms_system()` logic then gives q by ground × gear.
+
+Depth preferences can come from FishBase and the DoF trawl surveys.
+
+**Pelagic grounds.** Optionally split the purse seine into upper/central versus lower Gulf. Then the mackerel spawning closure (upper southern Gulf, 1 Feb–15 May) can act on one ground and season instead of the whole fishery.
+
+**Caveat.** Biomass is still one pool per stock, so local depletion of a ground is not modelled. Add sub-pools by ground with exchange if hyperstability or serial depletion of grounds matters.
+
+Métiers: five small-scale tactics, three trawl grounds, and one or two purse seine. Small-scale has loyalty 0 and switches between its five tactics by profit. Trawl has loyalty about 0.8 to its trawl grounds.
 
 **Effort composition (vessel-days)**
 
