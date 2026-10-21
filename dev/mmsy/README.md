@@ -20,6 +20,8 @@ Run the scripts from the repository root, with cpueTargeting installed.
 | `scripts/07_viability_closure.R` | Constrained MMSY with a segment viability floor and a closure of the shallow reef métier |
 | `scripts/08_fig_options.R` | Summary figure `figs/opt_options.png` |
 | `scripts/11_feedback.R` | Feedback control from the tuned status quo: segment effort rule (trigger 0.8 Bmsy), choke-stock closure, change limits; `figs/fb_*.png` |
+| `scripts/12_tune_trigger.R` | `ms_tune_hcr()`: tunes the effort and closure triggers to the risk limit; `figs/tune_trigger*.png` |
+| `scripts/13_assessed_subset.R` | Management based on four assessed stocks |
 | `scripts/09_tune.R` | `ms_tune()`: daily costs that make 35/35/30% of active days an open-access equilibrium, for two status targets |
 | `R/plots.R`, `scripts/05_plots.R` | Figures of stock status, F, effort and yield, saved to `figs/`. Covers equilibrium against effort, Kobe plots of the status quo against the safeguarded optima, and projections from the status quo. Uses the balanced defaults |
 
@@ -148,6 +150,25 @@ Run the scripts from the repository root, with cpueTargeting installed.
 
 * **The closure decouples the choke species.** With separate triggers, the effort rule can be lenient (0.6), while the reef is partly closed until Dentex is well above Bmsy. A permanent full closure is close behind (1,572).
 * **Yield is about 4% below no control, with profit up 47% and the risk limit met.** With one shared trigger, yield is lower and profit higher.
+
+### Management based on four assessed stocks (`scripts/13_assessed_subset.R`)
+
+Assessing every stock is often not feasible. `hcr_effort(assessed = ...)` lets the rule see only the assessed stocks; a closure needs its stock to be assessed.
+
+* Tuning uses the risk to the assessed stocks only (`risk = c(worst_P_assessed = 0.05)`), which is all a manager could check.
+* Performance reports the risk to all stocks.
+* All set-ups use the 2-year lag and tuned triggers.
+
+| Set-up | Tuned triggers | Yield | Profit | Days | Risk, assessed stocks | Risk, all stocks |
+|---|---|---|---|---|---|---|
+| All 10 assessed, effort + Dentex closure | effort 0.6, closure 3 | 1,603 | 2,206 | 1,022 | 0.044 | 0.044 (SBR) |
+| 4 main commercial (HKE, SBR, DOL, VMA), effort only | 0.8 | 1,592 | 2,362 | 891 | 0.047 | **0.81 (DEC)** |
+| 4 including the choke stock (DEC, SBR, HKE, VMA), effort + Dentex closure | effort 0.7, closure 3 | 1,615 | 2,195 | 1,016 | 0.028 | 0.028 (SBR) |
+| 4 main + permanent shallow-reef closure (no Dentex data) | 0.6 | 1,609 | 2,117 | 1,086 | 0.047 | 0.072 (PAC) |
+
+* **Assessing the main commercial stocks hides the choke.** The rule looks compliant but leaves Dentex below Bpa 81% of the time.
+* **Four stocks are enough if the choke stock is among them.** With the closure, every stock is protected and yield is as high as with all ten assessed (1,615 against 1,603).
+* **A permanent reef closure protects Dentex without data.** Common pandora (PAC), unassessed, then sits just above the limit (7.2%).
 
 ## Tuning the fleet to an open-access equilibrium (current defaults)
 

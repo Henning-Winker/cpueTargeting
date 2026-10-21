@@ -545,16 +545,23 @@ ms_tune <- function(sys, shares = c(demersal = 0.35, pelagic = 0.35, mixed = 0.3
 #' `Btrig` (effort rule) and `Btrig_close` (closure) may be vectors with one
 #' value per row of the simulation, so a grid of triggers runs in one call.
 #'
+#' `assessed`: names of the stocks with an assessment (default all). The rule
+#' sees only these; a stock in `close` must be assessed.
+#'
 #' Create a new rule for every simulation run (it keeps the last fraction and
 #' the assessment error between years).
 hcr_effort <- function(sys, Btrig = 0.8, Blim = 0.25, assess_cv = 0.2, assess_rho = 0,
                        own_q = 0.2, close = NULL, close_q = 0.5, max_change = Inf,
-                       Btrig_close = Btrig) {
+                       Btrig_close = Btrig, assessed = NULL) {
   S <- sys$S; G <- sys$G; M <- sys$M
   qmax <- apply(sys$Q, 2, max)
   own <- sapply(seq_len(G), function(g) {
     acc <- if (sys$loyalty[g] > 0) sys$home[g, ] > 0 else rep(TRUE, M)
     apply(sys$Q[acc, , drop = FALSE], 2, max) >= own_q * qmax })     # S x G
+  if (!is.null(assessed)) {
+    if (!all(close %in% assessed)) stop("a stock in `close` must be assessed")
+    own[!sys$species %in% assessed, ] <- FALSE
+  }
   ic <- match(close, sys$species)
   if (length(ic)) own[ic, ] <- FALSE
   drive <- sys$Q >= close_q * matrix(qmax, M, S, byrow = TRUE)          # M x S
@@ -584,7 +591,7 @@ hcr_effort <- function(sys, Btrig = 0.8, Blim = 0.25, assess_cv = 0.2, assess_rh
 }
 
 #' Performance of projection runs (named list of ms_sim with keep = "all")
-perf_rows <- function(x, rows = NULL, years = NULL, Bpa = 0.5, Blim = 0.25) {
+perf_rows <- function(x, rows = NULL, years = NULL, Bpa = 0.5, Blim = 0.25, assessed = NULL) {
   sys <- x$sys; ny <- dim(x$B)[1]; rows <- rows %||% seq_len(dim(x$B)[2])
   yr <- years %||% seq(max(1, ny - 19), ny)
   bb <- sweep(x$B[yr, rows, , drop = FALSE], 3, sys$K / 2, "/")
@@ -599,6 +606,7 @@ perf_rows <- function(x, rows = NULL, years = NULL, Bpa = 0.5, Blim = 0.25) {
     P_any_below_Bpa = round(mean(apply(bb < Bpa, 1:2, any)), 3),
     worst_P_below_Bpa = round(max(pst), 3),
     worst_stock = sys$species[which.max(pst)],
+    worst_P_assessed = round(max(pst[if (is.null(assessed)) seq_along(pst) else sys$species %in% assessed]), 3),
     median_min_BBmsy = round(stats::median(apply(bb, 1:2, min)), 2),
     AAV_effort = round(stats::median(aav), 3))
 }
@@ -619,6 +627,8 @@ ms_performance <- function(runs, years = NULL, Bpa = 0.5, Blim = 0.25) {
 #' @param close_triggers closure triggers; NULL = same as the effort trigger
 #' @param risk           named limit on a perf_rows() column, e.g.
 #'   c(worst_P_below_Bpa = 0.05) (every stock below Bpa at most 5% of the time)
+#'   or c(worst_P_assessed = 0.05) (only the assessed stocks)
+#' @param assessed       stocks with an assessment (default all)
 #' @param objective      perf_rows() column to maximise ("yield" or "profit")
 #' @param E_ref          reference days by segment (the caps the rule scales)
 #' @param ...            passed to ms_simulate() (gamma, capacity, proc_cv, ...)
@@ -626,17 +636,18 @@ ms_tune_hcr <- function(sys, triggers = seq(0.5, 1.2, by = 0.05), close = NULL,
                         close_triggers = NULL, risk = c(worst_P_below_Bpa = 0.05),
                         objective = "yield", E_ref, B_init, E_init = E_ref,
                         nsim = 200, years = 50, eval_years = 31:50, seed = 1,
-                        Blim = 0.25, assess_cv = 0.2, max_change = Inf, ...) {
+                        Blim = 0.25, assess_cv = 0.2, max_change = Inf, assessed = NULL, ...) {
   grid <- if (is.null(close) || is.null(close_triggers)) data.frame(Btrig = triggers, Btrig_close = triggers)
           else expand.grid(Btrig = triggers, Btrig_close = close_triggers)
   k <- nrow(grid); n <- k * nsim
   rep_rows <- function(v, m) matrix(v, n, m, byrow = TRUE)
   rule <- hcr_effort(sys, Btrig = rep(grid$Btrig, each = nsim), Btrig_close = rep(grid$Btrig_close, each = nsim),
-                     Blim = Blim, close = close, assess_cv = assess_cv, max_change = max_change)
+                     Blim = Blim, close = close, assess_cv = assess_cv, max_change = max_change,
+                     assessed = assessed)
   x <- ms_simulate(sys, rep_rows(E_ref, sys$G), years, B_init = rep_rows(B_init, sys$S),
                    E_init = rep_rows(E_init, sys$G), hcr = rule, crn = nsim, seed = seed, keep = "all", ...)
   tab <- cbind(grid, do.call(rbind, lapply(seq_len(k), function(j)
-    perf_rows(x, rows = (j - 1) * nsim + seq_len(nsim), years = eval_years))))
+    perf_rows(x, rows = (j - 1) * nsim + seq_len(nsim), years = eval_years, assessed = assessed))))
   if (is.null(close)) tab$Btrig_close <- NULL
   ok <- tab[[names(risk)]] <= risk
   best <- if (any(ok)) tab[ok, ][which.max(tab[ok, objective]), ] else NULL
