@@ -134,6 +134,21 @@ It uses Newton steps with a forward-difference Jacobian. The base point and the 
 * **Dentex is again the choke stock, and effort caps barely reach it.** When days are cut, fishers spend the remaining days on the most valuable métier, the shallow reef. Dentex keeps an F/Fmsy of about 1.65 at Bpa even with three-quarters of the days removed. Segment caps recover much of the yield, and a métier measure (reef closure, partial or seasonal) is the obvious next test.
 * **The segment HCR must scale status-quo effort, not registered capacity.** Scaled to capacity, the rule never binds. Scaled to status-quo days, it cuts effort by about 40% with no loss of yield (about 1,720), and most stocks recover. Dentex stays at about 0.40.
 
+### What makes Dentex a choke stock (`scripts/10_reef_scenarios.R`)
+
+Each variant is retuned to the same targets (35/35/30% of days, weakest stock 0.4 at open access).
+
+| Scenario | Safeguarded MMSY, one cap: days, yield, profit | Segment caps ≥ 20%: yield | Binding stock |
+|---|---|---|---|
+| Baseline | 125/126/125, 991, 2,386 | 1,521 | DEC |
+| Dentex reef selectivity 1.0 → 0.6 | 364/424/397, 1,729, 2,089 | 1,793 | SBR / AMB |
+| Reef fish 20% cheaper | 138/138/137, 1,056, 2,522 | 1,593 | DEC |
+| Both | 370/454/418, 1,743, 1,804 | 1,797 | SBR / AMB |
+
+* **Catchability decides the choke; value hardly matters.** With a lower Dentex catchability, one global cap keeps all stocks at or above Bpa with about 25% fewer days than the status quo and no loss of yield. Lower reef prices change little.
+* **Dentex chokes with very little effort.** The shallow reef takes only 3–10% of all days. Its catchability relative to its growth rate is what makes it the choke stock.
+* **Catchability (habitat breadth) and price belong on the uncertainty axes**, not among the settings to tune away.
+
 ## Specialist efficiency and the capacity-limited status quo
 
 **Type efficiency.** Specialists fish more efficiently than generalists.
