@@ -186,7 +186,15 @@ allocate_effort <- function(sys, value, E_seg, gamma, open = 1, cost = 0, by_seg
 #' @param proc_rho_sp correlation of the process error across species (shared environment)
 #' @param proc_sd log-scale process SD by species (length S), overrides proc_cv and
 #'   proc_r_power; e.g. proc_sd_from_r(sys$r) (0.05 for sharks, 0.4 for anchovy)
-#' @param proc_dep_power,proc_dep_ref,proc_sd_max depletion-dependent process error:
+#' @param proc_dep depletion-dependent process error: "jabba" = JABBA proc.dyn
+#'   (jabba2jags.R): sd_t = sd_i * relsig(B/Bmsy), relsig(x) = raw(x) / raw(1),
+#'   raw(x) = a + (1 - a) / (1 + (x / c)^d), empirical ICES a = 0.128, c = 0.223,
+#'   d = 1.326 (`proc_dep_pars`); relsig = 1 at Bmsy, ~1.5 at 0.5 Bmsy, -> 4.3 at 0.
+#'   "power": see proc_dep_power. Capped at proc_sd_max.
+#' @param proc_center "mean": exp(sd eps - sd^2/2) (mean-unbiased, the median drifts
+#'   down as sd grows: stochastic depensation); "median": exp(sd eps), as in
+#'   JABBA's dlnorm(Pmean, iPV) process equation
+#' @param proc_dep_power,proc_dep_ref,proc_sd_max power form (proc_dep = "power"):
 #'   sd_i,t = sd_i * ((B_i,t / K_i) / proc_dep_ref)^(-proc_dep_power), capped at
 #'   proc_sd_max; sd_i applies at B/K = proc_dep_ref (Bmsy). proc_dep_power > 0:
 #'   stocks become more volatile at low abundance; < 0: less volatile
@@ -209,11 +217,17 @@ ms_simulate <- function(sys, caps, years = 100, gamma = 1.5,
                         phi = 0.5, open = 1, hcr = NULL, hcr_lag = 2, B_init = NULL, E_init = NULL, capacity = NULL,
                         cost_seg = NULL,
                         proc_cv = 0, rho = 0, proc_r_power = 1, proc_rho_sp = 0,
-                        proc_sd = NULL, proc_dep_power = 0, proc_dep_ref = 0.5, proc_sd_max = 1,
+                        proc_sd = NULL, proc_dep = c("none", "jabba", "power"),
+                        proc_dep_pars = c(a = 0.128, c = 0.223, d = 1.326),
+                        proc_dep_power = 0, proc_dep_ref = 0.5, proc_sd_max = 1,
+                        proc_center = c("mean", "median"),
                         impl_cv = 0, impl_bias = 0,
                         seed = NULL, crn = NULL, keep = c("final", "all"),
                         avg_years = 10) {
   behaviour <- match.arg(behaviour); info <- match.arg(info); keep <- match.arg(keep)
+  proc_dep <- match.arg(proc_dep); proc_center <- match.arg(proc_center)
+  if (proc_dep == "none" && proc_dep_power != 0) proc_dep <- "power"
+  raw_pe <- function(x) proc_dep_pars[["a"]] + (1 - proc_dep_pars[["a"]]) / (1 + (x / proc_dep_pars[["c"]])^proc_dep_pars[["d"]])
   if (!is.null(seed)) set.seed(seed)
   caps <- as.matrix(caps); n <- nrow(caps); S <- sys$S; M <- sys$M; G <- sys$G
   K <- matrix(sys$K, n, S, byrow = TRUE); r <- matrix(sys$r, n, S, byrow = TRUE)
@@ -306,9 +320,11 @@ ms_simulate <- function(sys, caps, years = 100, gamma = 1.5,
       if (proc_rho_sp > 0) z <- sqrt(1 - proc_rho_sp) * z + sqrt(proc_rho_sp) * stats::rnorm(nd)
       z <- z[idx, , drop = FALSE]
       eps <- if (y == 1 || rho == 0) z else rho * eps + sqrt(1 - rho^2) * z
-      sd_t <- if (proc_dep_power != 0)
-        pmin(sig_i * ((B / K) / proc_dep_ref)^(-proc_dep_power), proc_sd_max) else sig_i
-      pe <- exp(sd_t * eps - sd_t^2 / 2)
+      sd_t <- switch(proc_dep,
+        none  = sig_i,
+        power = pmin(sig_i * ((B / K) / proc_dep_ref)^(-proc_dep_power), proc_sd_max),
+        jabba = pmin(sig_i * raw_pe(2 * B / K) / raw_pe(1), proc_sd_max))
+      pe <- if (proc_center == "mean") exp(sd_t * eps - sd_t^2 / 2) else exp(sd_t * eps)
     } else pe <- 1
     keep_idx <- if (keep == "all") y else y - (years - nkeep)
     if (keep_idx >= 1) {
@@ -704,4 +720,10 @@ ms_tune_hcr <- function(sys, triggers = seq(0.5, 1.2, by = 0.05), close = NULL,
 proc_sd_from_r <- function(r, r1 = 0.057, sd1 = 0.05, r2 = 1.2, sd2 = 0.4) {
   p <- log(sd2 / sd1) / log(r2 / r1)
   sd1 * (r / r1)^p
+}
+
+#' JABBA proc.dyn relative process SD (relsig = 1 at Bmsy)
+relsig_jabba <- function(BBmsy, a = 0.128, c = 0.223, d = 1.326) {
+  raw <- function(x) a + (1 - a) / (1 + (x / c)^d)
+  raw(BBmsy) / raw(1)
 }

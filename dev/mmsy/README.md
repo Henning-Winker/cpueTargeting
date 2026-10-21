@@ -190,6 +190,32 @@ For reference, the sum of single-species MSY is 1,884, and the status quo is 1,5
 * **Volatility at low abundance acts like stochastic depensation.** The lognormal error has mean 1 but median exp(−σ²/2), so the median drift grows as σ grows when a stock is depleted. Without control, some stock is fished out in most simulations.
 * **The triggers tuned under constant process error no longer meet the risk limit.** Re-tune them (`ms_tune_hcr()` passes `proc_sd`, `proc_dep_power` through `...`).
 
+### JABBA `proc.dyn` (dynamic process error)
+
+`ms_simulate(proc_dep = "jabba")` reproduces JABBA's `proc.dyn` (`jabba2jags.R`, commit c62db86):
+
+* sd_t = sd_i · relsig(B/Bmsy), with relsig(x) = raw(x) / raw(1) and raw(x) = a + (1 − a) / (1 + (x/c)^d);
+* empirical ICES parameters a = 0.128, c = 0.223, d = 1.326;
+* relsig = 4.29 at B/Bmsy 0, 2.28 at 0.25, 1.51 at 0.5, 1 at 1, and 0.74 at 2 (`relsig_jabba()`).
+
+`proc_center = "median"` centres the error as JABBA's `dlnorm(Pmean, iPV)`: exp(σε), no bias correction. The default `"mean"` uses exp(σε − σ²/2).
+
+**Comparison.** SD by r (`proc_sd_from_r()`), 200 simulations, years 31–50, 2-year lag. The rule is effort 0.6 / closure 3, not re-tuned.
+
+| Run | Yield | P(any < Blim) | Worst P(B < Bpa) | Median weakest B/Bmsy |
+|---|---|---|---|---|
+| No control, constant SD, mean-centred | 1,596 | 0.32 | 0.77 | 0.30 |
+| No control, proc.dyn, mean-centred | 1,291 | 0.95 | 0.72 | 0.00 |
+| No control, proc.dyn, median-centred (as JABBA) | 1,687 | 0.73 | 0.65 | 0.14 |
+| Rule, constant SD, mean-centred | 1,425 | 0.04 | 0.14 | 0.52 |
+| Rule, proc.dyn, mean-centred | 1,209 | 0.31 | 0.19 | 0.41 |
+| Rule, proc.dyn, median-centred | 1,518 | 0.09 | 0.19 | 0.51 |
+
+* **Centring matters as much as the dynamic SD.**
+  * Mean-centred, a larger σ at low B adds a downward median drift (stochastic depensation).
+  * Median-centred, the mean multiplier exp(σ²/2) > 1 grows with σ: higher yield, a softer collapse, but still more volatile.
+* **An operating model conditioned on JABBA estimates should use `"median"`,** because r and K are then estimated under the same convention.
+
 ### Assessments of species complexes (`scripts/17_complexes.R`)
 
 Catch and CPUE are often pooled across taxa (e.g. "reef fish"), and the complex is assessed as one unit. `hcr_effort(complexes = list(name = stocks), complex_index = "biomass" | "cpue")` makes the rule see:

@@ -417,7 +417,7 @@ The low-r groups (snapper, catfish, croakers, rays, sharks) inside a demersal co
 ### Process error (paper in preparation; implemented 21 Oct)
 
 * **By productivity:** `proc_sd_from_r()`, anchored at about 0.05 for sharks and 0.4 for anchovy (power law in r).
-* **By depletion:** `proc_dep_power` ψ, with sd_t = sd · ((B/K)/0.5)^(−ψ). Stocks become volatile at low abundance; the direction is set by the sign of ψ, to match the paper.
+* **By depletion:** `proc_dep = "jabba"` reproduces JABBA `proc.dyn` (relsig: a 0.128, c 0.223, d 1.326; 1.51 at 0.5 Bmsy, 4.29 at 0), with `proc_center = "median"` as in JABBA's dlnorm. A power form (`proc_dep_power` ψ, sd_t = sd · ((B/K)/0.5)^(−ψ)) is also available. Stocks become volatile at low abundance; the direction is set by the sign of ψ, to match the paper.
 * **Why it matters for the Gulf of Thailand.** Many groups are deeply depleted (B/K 0.03–0.15), so this makes rebuilding risky (stochastic depensation through the −σ²/2 median drift). The slow, low-SD groups (sharks, rays) respond slowly but steadily, while the fast pelagics (anchovy, mackerel) respond volatilely.
 
 ### Engine changes needed for the Gulf of Thailand
