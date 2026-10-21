@@ -173,6 +173,9 @@ allocate_effort <- function(sys, value, E_seg, gamma, open = 1, cost = 0, by_seg
 #'   margin_g = segment profit / segment revenue; 0 = effort always at the cap
 #' @param open    metier access (length M, or function(year) -> length M)
 #' @param hcr     optional function(state) -> n x G multiplier on caps
+#' @param hcr_lag years between the data a rule sees and the year its advice applies
+#'   (default 2: data of year y - 2, assessed in y - 1, advice for y). Before the
+#'   projection the data years are taken to be the initial state.
 #' @param B_init  n x S initial biomass (default K)
 #' @param E_init  initial effort by segment (vector of length G or n x G; default the caps)
 #' @param proc_cv process error CV at the median r (JABBA form: the whole
@@ -197,7 +200,7 @@ allocate_effort <- function(sys, value, E_seg, gamma, open = 1, cost = 0, by_seg
 ms_simulate <- function(sys, caps, years = 100, gamma = 1.5,
                         behaviour = c("dynamic", "fixed"),
                         info = c("current", "lagged"),
-                        phi = 0.5, open = 1, hcr = NULL, B_init = NULL, E_init = NULL, capacity = NULL,
+                        phi = 0.5, open = 1, hcr = NULL, hcr_lag = 2, B_init = NULL, E_init = NULL, capacity = NULL,
                         cost_seg = NULL,
                         proc_cv = 0, rho = 0, proc_r_power = 1, proc_rho_sp = 0,
                         impl_cv = 0, impl_bias = 0,
@@ -212,6 +215,7 @@ ms_simulate <- function(sys, caps, years = 100, gamma = 1.5,
   B <- B_init %||% K
   E_seg <- if (is.null(E_init)) caps else pmin(caps, matrix(E_init, n, G, byrow = is.null(dim(E_init))))
   open_fun <- if (is.function(open)) open else function(y) open
+  Bbuf <- replicate(hcr_lag + 1, B, simplify = FALSE)      # start-of-year biomass, most recent first
   capacity <- if (is.null(capacity)) caps else matrix(capacity, n, G, byrow = is.null(dim(capacity)))
   emult <- matrix(1, n, G)
   idx <- if (is.null(crn)) seq_len(n) else (seq_len(n) - 1) %% crn + 1
@@ -243,7 +247,8 @@ ms_simulate <- function(sys, caps, years = 100, gamma = 1.5,
     if (!is.null(hcr)) {
       # a rule returns multipliers on the caps (n x G), or list(mult, open) where
       # open (n x M, 0-1) is the share of each metier's ground/season left open
-      ctl <- hcr(list(B = B, K = K, year = y, sys = sys, idx = idx, nd = nd))
+      Bbuf <- c(list(B), Bbuf)[seq_len(hcr_lag + 1)]
+      ctl <- hcr(list(B = Bbuf[[hcr_lag + 1]], K = K, year = y, sys = sys, idx = idx, nd = nd, lag = hcr_lag))
       if (is.list(ctl)) {
         if (!is.null(ctl$mult)) E_cap_y <- caps * ctl$mult
         if (!is.null(ctl$open)) opm <- opm * ctl$open
