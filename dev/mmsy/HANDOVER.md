@@ -398,11 +398,27 @@ Métiers: five small-scale tactics, three trawl grounds, and two (optionally thr
 * **Assessments are by aggregated group** (demersal, pelagic, anchovy), so depletion within a group can hide.
 * **The closure is seasonal** (the mackerel spawning closure), not spatial.
 
+### Species complexes (agreed 21 Oct; already implemented)
+
+In the region (and elsewhere), assessments are often done on complexes, with catch and CPUE pooled across taxa (e.g. reef fish, "demersal fish", "pelagic fish", which are the three Thai DoF assessment groups).
+
+`hcr_effort(complexes = ..., complex_index = "biomass" | "cpue")` makes the rule see pooled indices.
+
+In the Atlantic example, a rule tuned on the complexes looked safe (1–3% risk) but left Seriola below Bpa 18% of the time, or Dentex 96% without a closure (`scripts/17_complexes.R`).
+
+For the Gulf of Thailand, compare three assessment designs:
+
+* single groups (the 18–20 groups of the mse.SEA file);
+* complexes by DoF group (demersal / pelagic / anchovy);
+* complexes by fleet assignment.
+
+The low-r groups (snapper, catfish, croakers, rays, sharks) inside a demersal complex are the obvious hidden-depletion case.
+
 ### Engine changes needed for the Gulf of Thailand
 
 1. **`ms_system()` from tables** (also needed for the package).
 2. **Seasonal closures:** `open` as a months × métiers matrix, or a function of (year, month). It is yearly only now.
-3. **Group-aggregated assessments in `hcr_effort()`:** B̂ of a group = Σ B over its stocks against Σ Bmsy, with an option to tune on the group risk and report stock risk.
+3. ~~Group-aggregated assessments~~: done (`complexes`, `complex_index`); tune on the complex risk and report the stock risk.
 4. **Four segments:** the engine is generic in G and M, so this just needs tests.
 5. Optional: a **juvenile/trash-fish link** (growth overfishing of commercial demersals through the trawl and push-net take of juveniles) as a simple loss term. This should be a later refinement.
 

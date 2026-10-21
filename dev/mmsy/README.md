@@ -24,6 +24,7 @@ Run the scripts from the repository root, with cpueTargeting installed.
 | `scripts/13_assessed_subset.R` | Management based on four assessed stocks |
 | `scripts/14_yield_curves.R` | Equilibrium yield over effort for four conceptual treatments; `figs/yield_curves.png` |
 | `scripts/16_assignment.R` | Responsibility by catchability against nominal assignment of stocks to fleets (`hcr_effort(assign =)`) |
+| `scripts/17_complexes.R` | Assessments of species complexes (pooled taxa) against single stocks (`hcr_effort(complexes =)`) |
 | `scripts/09_tune.R` | `ms_tune()`: daily costs that make 35/35/30% of active days an open-access equilibrium, for two status targets |
 | `R/plots.R`, `scripts/05_plots.R` | Figures of stock status, F, effort and yield, saved to `figs/`. Covers equilibrium against effort, Kobe plots of the status quo against the safeguarded optima, and projections from the status quo. Uses the balanced defaults |
 
@@ -169,6 +170,28 @@ For reference, the sum of single-species MSY is 1,884, and the status quo is 1,5
 
 * **The closure decouples the choke species.** With separate triggers, the effort rule can be lenient (0.6), while the reef is partly closed until Dentex is well above Bmsy. A permanent full closure is close behind (1,572).
 * **Yield is about 4% below no control, with profit up 47% and the risk limit met.** With one shared trigger, yield is lower and profit higher.
+
+### Assessments of species complexes (`scripts/17_complexes.R`)
+
+Catch and CPUE are often pooled across taxa (e.g. "reef fish"), and the complex is assessed as one unit. `hcr_effort(complexes = list(name = stocks), complex_index = "biomass" | "cpue")` makes the rule see:
+
+* pooled B/Bmsy (Σ B / Σ Bmsy, as a production model fitted to pooled catch and biomass), or
+* a pooled catch rate (taxa weighted by catchability).
+
+`close`, `assign` and `assessed` then refer to units (complexes or stocks).
+
+**Set-up.** The complexes are reef fish (DEC, SBR, COE, AMB), shelf demersals (PAC, HKE, GFB) and large pelagics (ALB, DOL); chub mackerel is assessed alone. Triggers are tuned on the risk a manager can see (each complex ≥ Bpa 95% of the time), and the true stock risk is then reported. 2-year lag, 100 simulations per grid point.
+
+| Assessment | Tuned triggers (effort / closure) | Yield | Profit | Days | Risk seen (complexes) | True worst stock P(B < Bpa) |
+|---|---|---|---|---|---|---|
+| Single stocks (reference) | 0.6 / 3 | 1,603 | 2,206 | 1,022 | 0.044 | 0.044 (SBR) |
+| Complexes, pooled biomass, closure on reef fish | 0.4 / 2 | 1,694 | 1,777 | 1,375 | 0.010 | **0.18 (AMB)** |
+| Complexes, pooled CPUE, closure on reef fish | 0.4 / 2 | 1,694 | 1,781 | 1,375 | 0.011 | **0.19 (AMB)** |
+| Complexes, pooled biomass, no closure | 0.5 / — | 1,641 | 1,828 | 1,216 | 0.034 | **0.96 (DEC)** |
+
+* **Pooling hides the weak members.** The rule looks safe on the complexes (1–3% risk), so tuning makes it lenient: 35% more days, and lower profit. Seriola is then below Bpa 18% of the time, and without the closure Dentex is below Bpa 96% of the time.
+* **A complex-triggered closure** still protects Dentex in part, but not Seriola. Seriola is spread across the reef and troll métiers.
+* **The pooled CPUE index behaves like pooled biomass here.** The catchabilities of the reef taxa are similar, so weighting by catchability makes little difference.
 
 ### Nominal assignment of stocks to fleets (`scripts/16_assignment.R`)
 

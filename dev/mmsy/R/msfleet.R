@@ -550,6 +550,13 @@ ms_tune <- function(sys, shares = c(demersal = 0.35, pelagic = 0.35, mixed = 0.3
 #' one fleet although others catch it). It replaces the catchability-based
 #' responsibility; segments without stocks are not constrained by the rule.
 #'
+#' `complexes`: named list of stock complexes assessed as one unit (pooled
+#' taxa, e.g. reef fish), the remaining stocks are single units. The complex
+#' index is pooled B/Bmsy (`complex_index = "biomass"`: sum B / sum Bmsy, as a
+#' production model fitted to pooled catch and biomass) or a pooled catch rate
+#' (`"cpue"`: taxa weighted by their catchability). `close`, `assign` and
+#' `assessed` then refer to unit names (complexes or stocks).
+#'
 #' `assessed`: names of the stocks with an assessment (default all). The rule
 #' sees only these; a stock in `close` must be assessed.
 #'
@@ -557,23 +564,35 @@ ms_tune <- function(sys, shares = c(demersal = 0.35, pelagic = 0.35, mixed = 0.3
 #' the assessment error between years).
 hcr_effort <- function(sys, Btrig = 0.8, Blim = 0.25, assess_cv = 0.2, assess_rho = 0,
                        own_q = 0.2, close = NULL, close_q = 0.5, max_change = Inf,
-                       Btrig_close = Btrig, assessed = NULL, assign = NULL) {
-  S <- sys$S; G <- sys$G; M <- sys$M
+                       Btrig_close = Btrig, assessed = NULL, assign = NULL,
+                       complexes = NULL, complex_index = c("biomass", "cpue")) {
+  complex_index <- match.arg(complex_index)
+  S <- sys$S; G <- sys$G; M <- sys$M; seg <- names(sys$segments)
   qmax <- apply(sys$Q, 2, max)
-  own <- sapply(seq_len(G), function(g) {
+  # assessment units: complexes (pooled taxa) and the remaining single stocks
+  units <- c(complexes, as.list(setNames(setdiff(sys$species, unlist(complexes)),
+                                         setdiff(sys$species, unlist(complexes)))))
+  U <- length(units); un <- names(units)
+  w <- if (complex_index == "cpue") qmax else rep(1, S)       # cpue: pooled catch rates weight taxa by catchability
+  W <- sapply(units, function(m) w * (sys$species %in% m))     # S x U membership weights
+  own_sp <- sapply(seq_len(G), function(g) {
     acc <- if (sys$loyalty[g] > 0) sys$home[g, ] > 0 else rep(TRUE, M)
-    apply(sys$Q[acc, , drop = FALSE], 2, max) >= own_q * qmax })     # S x G
-  if (!is.null(assign)) {
+    apply(sys$Q[acc, , drop = FALSE], 2, max) >= own_q * qmax })   # S x G
+  own <- (t(W > 0) %*% own_sp) > 0                                 # U x G: a segment answers for a unit
+  if (!is.null(assign)) {                                          # if it catches any member
     own[] <- FALSE
-    for (g in names(assign)) own[sys$species %in% assign[[g]], match(g, names(sys$segments))] <- TRUE
+    for (g in names(assign)) own[un %in% assign[[g]], match(g, seg)] <- TRUE
   }
   if (!is.null(assessed)) {
-    if (!all(close %in% assessed)) stop("a stock in `close` must be assessed")
-    own[!sys$species %in% assessed, ] <- FALSE
+    if (!all(close %in% assessed)) stop("a unit in `close` must be assessed")
+    own[!un %in% assessed, ] <- FALSE
   }
-  ic <- match(close, sys$species)
+  ic <- match(close, un)
+  if (anyNA(ic)) stop("`close` must name stocks or complexes")
   if (length(ic)) own[ic, ] <- FALSE
-  drive <- sys$Q >= close_q * matrix(qmax, M, S, byrow = TRUE)          # M x S
+  drive_sp <- sys$Q >= close_q * matrix(qmax, M, S, byrow = TRUE)  # M x S
+  drive <- (drive_sp %*% (W > 0)) > 0                              # M x U
+  Bmsy_w <- colSums(W * sys$K / 2)
   sig <- if (assess_cv > 0) sqrt(log(1 + assess_cv^2)) else 0
   ramp <- function(d, bt) pmin(1, pmax(0, (d - Blim) / (bt - Blim)))
   prev <- NULL; eps <- NULL
@@ -581,10 +600,11 @@ hcr_effort <- function(sys, Btrig = 0.8, Blim = 0.25, assess_cv = 0.2, assess_rh
     n <- nrow(st$B)
     if (st$year == 1) { prev <<- NULL; eps <<- NULL }
     nd <- st$nd %||% n; idx <- st$idx %||% seq_len(n)
-    z <- matrix(stats::rnorm(nd * S), nd, S)[idx, , drop = FALSE]
+    z <- matrix(stats::rnorm(nd * U), nd, U)[idx, , drop = FALSE]
     bt <- rep_len(Btrig, n); btc <- rep_len(Btrig_close, n)
     eps <<- if (is.null(eps) || assess_rho == 0) z else assess_rho * eps + sqrt(1 - assess_rho^2) * z
-    bb <- st$B / (st$K / 2) * exp(sig * eps - sig^2 / 2)              # assessed B/Bmsy
+    true_u <- (st$B %*% W) / matrix(Bmsy_w, n, U, byrow = TRUE)   # pooled B/Bmsy by unit
+    bb <- true_u * exp(sig * eps - sig^2 / 2)                       # assessed
     mult <- matrix(sapply(seq_len(G), function(g)
       if (any(own[, g])) ramp(apply(bb[, own[, g], drop = FALSE], 1, min), bt) else rep(1, n)), n, G)
     if (is.finite(max_change) && !is.null(prev))
@@ -592,10 +612,10 @@ hcr_effort <- function(sys, Btrig = 0.8, Blim = 0.25, assess_cv = 0.2, assess_rh
     prev <<- mult
     if (!length(ic)) return(mult)
     opm <- matrix(1, n, M)
-    for (i in ic) for (m in which(drive[, i])) opm[, m] <- pmin(opm[, m], ramp(bb[, i], btc))
+    for (u in ic) for (m in which(drive[, u])) opm[, m] <- pmin(opm[, m], ramp(bb[, u], btc))
     list(mult = mult, open = opm)
   }
-  attr(rule, "own") <- own; attr(rule, "drive") <- drive
+  attr(rule, "own") <- own; attr(rule, "drive") <- drive; attr(rule, "units") <- units
   rule
 }
 
@@ -645,14 +665,15 @@ ms_tune_hcr <- function(sys, triggers = seq(0.5, 1.2, by = 0.05), close = NULL,
                         close_triggers = NULL, risk = c(worst_P_below_Bpa = 0.05),
                         objective = "yield", E_ref, B_init, E_init = E_ref,
                         nsim = 200, years = 50, eval_years = 31:50, seed = 1,
-                        Blim = 0.25, assess_cv = 0.2, max_change = Inf, assessed = NULL, ...) {
+                        Blim = 0.25, assess_cv = 0.2, max_change = Inf, assessed = NULL,
+                        assign = NULL, complexes = NULL, complex_index = "biomass", ...) {
   grid <- if (is.null(close) || is.null(close_triggers)) data.frame(Btrig = triggers, Btrig_close = triggers)
           else expand.grid(Btrig = triggers, Btrig_close = close_triggers)
   k <- nrow(grid); n <- k * nsim
   rep_rows <- function(v, m) matrix(v, n, m, byrow = TRUE)
   rule <- hcr_effort(sys, Btrig = rep(grid$Btrig, each = nsim), Btrig_close = rep(grid$Btrig_close, each = nsim),
                      Blim = Blim, close = close, assess_cv = assess_cv, max_change = max_change,
-                     assessed = assessed)
+                     assessed = assessed, assign = assign, complexes = complexes, complex_index = complex_index)
   x <- ms_simulate(sys, rep_rows(E_ref, sys$G), years, B_init = rep_rows(B_init, sys$S),
                    E_init = rep_rows(E_init, sys$G), hcr = rule, crn = nsim, seed = seed, keep = "all", ...)
   tab <- cbind(grid, do.call(rbind, lapply(seq_len(k), function(j)
