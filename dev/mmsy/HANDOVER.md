@@ -430,6 +430,13 @@ The low-r groups (snapper, catfish, croakers, rays, sharks) inside a demersal co
 
 ## 7. Open points
 
+* **Effort dynamics à la SSCOM** ([Thorson, Minto, Minte-Vera, Kleisner & Longo 2013, CJFAS 70: 1829–1844](https://doi.org/10.1139/cjfas-2013-0280)).
+  * Fishing mortality follows predictable "effort dynamics" that respond to stock status relative to an open-access (bionomic) depletion; the state-space catch-only model builds on this. The form as recalled is F_t+1 = F_t (D_t / x)^δ e^ε, with D = B/B0, x the open-access depletion, δ the response rate and ε the F process error (verify against the paper).
+  * The simulator's effort supply is a multi-fleet, cost-based version of the same idea: x emerges from the segment costs (`ms_tune()`), δ corresponds to `phi` with vessel heterogeneity, and ε to `effort_cv`.
+  * Options:
+    1. add `effort_model = "sscom"` as a simpler alternative for unregulated fleets, with x_g and δ_g by segment and D taken as the revenue-weighted depletion of each segment's catch;
+    2. use SSCOM-style effort dynamics in an assessment emulator for catch-only assessments (link to CMSY / JABBA catch-only priors).
+
 * **CPUE indices as the rule's signal:** nominal CPUE carries targeting bias; standardised CPUE from the cpueTargeting toolbox could be used instead. Ideally the logbook simulator would serve as the observation model.
 * **Robustness set:** Dentex catchability, γ, `vessel_cv`, effort creep (q rising over time), implementation bias, and price shocks.
 * **Partial or seasonal reef closure** instead of a ramp on the open share.
