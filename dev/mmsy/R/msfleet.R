@@ -175,6 +175,17 @@ allocate_effort <- function(sys, value, E_seg, gamma, open = 1, cost = 0, by_seg
 #' @param hcr     optional function(state) -> n x G multiplier on caps
 #' @param B_init  n x S initial biomass (default K)
 #' @param E_init  initial effort by segment (vector of length G or n x G; default the caps)
+#' @param proc_cv process error CV at the median r (JABBA form: the whole
+#'   process equation is multiplied by exp(eta), eta ~ N(-sigma^2/2, sigma^2))
+#' @param rho     AR(1) autocorrelation of the process error in time
+#' @param proc_r_power the process CV of species i is proc_cv * (r_i / median r)^power:
+#'   more productive species are more variable (0 = same CV for all)
+#' @param proc_rho_sp correlation of the process error across species (shared environment)
+#' @param impl_cv,impl_bias implementation error on the effort caps by segment:
+#'   realised cap = cap * exp(bias + N(-s^2/2, s^2)), s from impl_cv
+#' @param crn     common random numbers: rows i and i + crn share the same process
+#'   (and rule) error draws, e.g. crn = nsim when the rows are nsim simulations
+#'   repeated for each of several control settings
 #' @param cost_seg daily cost by segment (length G or n x G), overrides sys$cost_seg
 #' @param capacity fleet days by segment (registered vessels x days); default the caps.
 #'   With vessel heterogeneity (sys$vessel_cv > 0) and phi > 0, the days used move
@@ -188,7 +199,9 @@ ms_simulate <- function(sys, caps, years = 100, gamma = 1.5,
                         info = c("current", "lagged"),
                         phi = 0.5, open = 1, hcr = NULL, B_init = NULL, E_init = NULL, capacity = NULL,
                         cost_seg = NULL,
-                        proc_cv = 0, rho = 0, seed = NULL, keep = c("final", "all"),
+                        proc_cv = 0, rho = 0, proc_r_power = 1, proc_rho_sp = 0,
+                        impl_cv = 0, impl_bias = 0,
+                        seed = NULL, crn = NULL, keep = c("final", "all"),
                         avg_years = 10) {
   behaviour <- match.arg(behaviour); info <- match.arg(info); keep <- match.arg(keep)
   if (!is.null(seed)) set.seed(seed)
@@ -201,6 +214,8 @@ ms_simulate <- function(sys, caps, years = 100, gamma = 1.5,
   open_fun <- if (is.function(open)) open else function(y) open
   capacity <- if (is.null(capacity)) caps else matrix(capacity, n, G, byrow = is.null(dim(capacity)))
   emult <- matrix(1, n, G)
+  idx <- if (is.null(crn)) seq_len(n) else (seq_len(n) - 1) %% crn + 1
+  nd <- if (is.null(crn)) n else crn
   cseg <- if (is.null(cost_seg)) matrix(sys$cost_seg, n, G, byrow = TRUE) else
     matrix(cost_seg, n, G, byrow = is.null(dim(cost_seg)))
   sv <- sys$vessel_cv; sdv <- if (sv > 0) sqrt(log(1 + sv^2)) else 0; muv <- -sdv^2 / 2
@@ -211,7 +226,10 @@ ms_simulate <- function(sys, caps, years = 100, gamma = 1.5,
   }
   cpue_last <- (B * matrix(price, n, S, byrow = TRUE)) %*% tQ   # value per effort, last year
   eps <- 0
-  sig <- if (proc_cv > 0) sqrt(log(1 + proc_cv^2)) else 0
+  cv_i <- proc_cv * (sys$r / stats::median(sys$r))^proc_r_power
+  sig_i <- matrix(sqrt(log(1 + cv_i^2)), n, S, byrow = TRUE)          # by species
+  sig <- proc_cv
+  sig_impl <- if (impl_cv > 0) sqrt(log(1 + impl_cv^2)) else 0
 
   nkeep <- if (keep == "all") years else min(avg_years, years)
   Bk <- array(NA_real_, c(nkeep, n, S)); Ck <- Bk; Fk <- Bk
@@ -225,11 +243,15 @@ ms_simulate <- function(sys, caps, years = 100, gamma = 1.5,
     if (!is.null(hcr)) {
       # a rule returns multipliers on the caps (n x G), or list(mult, open) where
       # open (n x M, 0-1) is the share of each metier's ground/season left open
-      ctl <- hcr(list(B = B, K = K, year = y, sys = sys))
+      ctl <- hcr(list(B = B, K = K, year = y, sys = sys, idx = idx, nd = nd))
       if (is.list(ctl)) {
         if (!is.null(ctl$mult)) E_cap_y <- caps * ctl$mult
         if (!is.null(ctl$open)) opm <- opm * ctl$open
       } else E_cap_y <- caps * ctl
+    }
+    if (sig_impl > 0 || impl_bias != 0) {                    # implementation error
+      zi <- matrix(rnorm(nd * G), nd, G)[idx, , drop = FALSE]
+      E_cap_y <- E_cap_y * exp(impl_bias + sig_impl * zi - sig_impl^2 / 2)
     }
     E_seg <- pmin(E_seg, E_cap_y); if (phi == 0) E_seg <- E_cap_y
     Bm <- B
@@ -265,16 +287,18 @@ ms_simulate <- function(sys, caps, years = 100, gamma = 1.5,
       rowSums(matrix(Eg_y[, g, ], n, M) * cost_m) * cseg[, g]), n, G))
     # growth on start-of-year biomass with process error
     if (sig > 0) {
-      z <- matrix(rnorm(n * S), n, S)
+      z <- matrix(rnorm(nd * S), nd, S)
+      if (proc_rho_sp > 0) z <- sqrt(1 - proc_rho_sp) * z + sqrt(proc_rho_sp) * stats::rnorm(nd)
+      z <- z[idx, , drop = FALSE]
       eps <- if (y == 1 || rho == 0) z else rho * eps + sqrt(1 - rho^2) * z
-      pe <- exp(sig * eps - sig^2 / 2)
+      pe <- exp(sig_i * eps - sig_i^2 / 2)
     } else pe <- 1
     keep_idx <- if (keep == "all") y else y - (years - nkeep)
     if (keep_idx >= 1) {
       Bk[keep_idx, , ] <- B; Ck[keep_idx, , ] <- C_y; Fk[keep_idx, , ] <- F_y; Ek[keep_idx, , ] <- Em_y; Egk[keep_idx, , , ] <- Eg_y
       Rk[keep_idx, ] <- revenue; Pk[keep_idx, ] <- revenue - costs; Esk[keep_idx, , ] <- E_seg
     }
-    B <- pmax(B + r * B * (1 - B / K) * pe - C_y, 1e-6 * K)
+    B <- pmax((B + r * B * (1 - B / K) - C_y) * pe, 1e-6 * K)     # JABBA-type process error
     # entry / exit below the cap
     if (phi > 0) {
       for (g in seq_len(G)) {
@@ -513,10 +537,14 @@ ms_tune <- function(sys, shares = c(demersal = 0.35, pelagic = 0.35, mixed = 0.3
 #' highest) follows the same ramp, and they are left out of the effort rule.
 #' `max_change` limits the annual change of each segment's fraction.
 #'
+#' `Btrig` (effort rule) and `Btrig_close` (closure) may be vectors with one
+#' value per row of the simulation, so a grid of triggers runs in one call.
+#'
 #' Create a new rule for every simulation run (it keeps the last fraction and
 #' the assessment error between years).
 hcr_effort <- function(sys, Btrig = 0.8, Blim = 0.25, assess_cv = 0.2, assess_rho = 0,
-                       own_q = 0.2, close = NULL, close_q = 0.5, max_change = Inf) {
+                       own_q = 0.2, close = NULL, close_q = 0.5, max_change = Inf,
+                       Btrig_close = Btrig) {
   S <- sys$S; G <- sys$G; M <- sys$M
   qmax <- apply(sys$Q, 2, max)
   own <- sapply(seq_len(G), function(g) {
@@ -526,22 +554,24 @@ hcr_effort <- function(sys, Btrig = 0.8, Blim = 0.25, assess_cv = 0.2, assess_rh
   if (length(ic)) own[ic, ] <- FALSE
   drive <- sys$Q >= close_q * matrix(qmax, M, S, byrow = TRUE)          # M x S
   sig <- if (assess_cv > 0) sqrt(log(1 + assess_cv^2)) else 0
-  ramp <- function(d) pmin(1, pmax(0, (d - Blim) / (Btrig - Blim)))
+  ramp <- function(d, bt) pmin(1, pmax(0, (d - Blim) / (bt - Blim)))
   prev <- NULL; eps <- NULL
   rule <- function(st) {
     n <- nrow(st$B)
     if (st$year == 1) { prev <<- NULL; eps <<- NULL }
-    z <- matrix(stats::rnorm(n * S), n, S)
+    nd <- st$nd %||% n; idx <- st$idx %||% seq_len(n)
+    z <- matrix(stats::rnorm(nd * S), nd, S)[idx, , drop = FALSE]
+    bt <- rep_len(Btrig, n); btc <- rep_len(Btrig_close, n)
     eps <<- if (is.null(eps) || assess_rho == 0) z else assess_rho * eps + sqrt(1 - assess_rho^2) * z
     bb <- st$B / (st$K / 2) * exp(sig * eps - sig^2 / 2)              # assessed B/Bmsy
     mult <- matrix(sapply(seq_len(G), function(g)
-      if (any(own[, g])) ramp(apply(bb[, own[, g], drop = FALSE], 1, min)) else rep(1, n)), n, G)
+      if (any(own[, g])) ramp(apply(bb[, own[, g], drop = FALSE], 1, min), bt) else rep(1, n)), n, G)
     if (is.finite(max_change) && !is.null(prev))
       mult <- pmin(pmax(mult, prev * (1 - max_change)), prev * (1 + max_change))
     prev <<- mult
     if (!length(ic)) return(mult)
     opm <- matrix(1, n, M)
-    for (i in ic) for (m in which(drive[, i])) opm[, m] <- pmin(opm[, m], ramp(bb[, i]))
+    for (i in ic) for (m in which(drive[, i])) opm[, m] <- pmin(opm[, m], ramp(bb[, i], btc))
     list(mult = mult, open = opm)
   }
   attr(rule, "own") <- own; attr(rule, "drive") <- drive
@@ -549,21 +579,61 @@ hcr_effort <- function(sys, Btrig = 0.8, Blim = 0.25, assess_cv = 0.2, assess_rh
 }
 
 #' Performance of projection runs (named list of ms_sim with keep = "all")
+perf_rows <- function(x, rows = NULL, years = NULL, Bpa = 0.5, Blim = 0.25) {
+  sys <- x$sys; ny <- dim(x$B)[1]; rows <- rows %||% seq_len(dim(x$B)[2])
+  yr <- years %||% seq(max(1, ny - 19), ny)
+  bb <- sweep(x$B[yr, rows, , drop = FALSE], 3, sys$K / 2, "/")
+  Ey <- apply(x$E_seg[yr, rows, , drop = FALSE], 1:2, sum)              # years x sims
+  aav <- colMeans(abs(diff(Ey)) / pmax(Ey[-nrow(Ey), , drop = FALSE], 1e-9))
+  pst <- apply(bb < Bpa, 3, mean)
+  data.frame(
+    yield = round(mean(apply(x$C[yr, rows, , drop = FALSE], 1:2, sum))),
+    profit = round(mean(x$profit[yr, rows])),
+    days = round(mean(Ey)),
+    P_any_below_Blim = round(mean(apply(bb < Blim, 1:2, any)), 3),
+    P_any_below_Bpa = round(mean(apply(bb < Bpa, 1:2, any)), 3),
+    worst_P_below_Bpa = round(max(pst), 3),
+    worst_stock = sys$species[which.max(pst)],
+    median_min_BBmsy = round(stats::median(apply(bb, 1:2, min)), 2),
+    AAV_effort = round(stats::median(aav), 3))
+}
+
 ms_performance <- function(runs, years = NULL, Bpa = 0.5, Blim = 0.25) {
-  do.call(rbind, lapply(names(runs), function(nm) {
-    x <- runs[[nm]]; sys <- x$sys; ny <- dim(x$B)[1]
-    yr <- years %||% seq(max(1, ny - 19), ny)
-    bb <- sweep(x$B[yr, , , drop = FALSE], 3, sys$K / 2, "/")
-    Ey <- apply(x$E_seg[yr, , , drop = FALSE], 1:2, sum)                # years x sims
-    aav <- colMeans(abs(diff(Ey)) / pmax(Ey[-nrow(Ey), , drop = FALSE], 1e-9))
-    data.frame(run = nm,
-      yield = round(mean(apply(x$C[yr, , , drop = FALSE], 1:2, sum))),
-      profit = round(mean(x$profit[yr, ])),
-      days = round(mean(Ey)),
-      P_any_below_Blim = round(mean(apply(bb < Blim, 1:2, any)), 3),
-      P_any_below_Bpa = round(mean(apply(bb < Bpa, 1:2, any)), 3),
-      worst_P_below_Bpa = round(max(apply(bb < Bpa, 3, mean)), 3),
-      median_min_BBmsy = round(stats::median(apply(bb, 1:2, min)), 2),
-      AAV_effort = round(stats::median(aav), 3))
-  }))
+  do.call(rbind, lapply(names(runs), function(nm)
+    cbind(run = nm, perf_rows(runs[[nm]], years = years, Bpa = Bpa, Blim = Blim))))
+}
+
+#' Tune the triggers of hcr_effort() to a risk criterion
+#'
+#' Runs a grid of effort-rule triggers (and closure triggers, if `close` is
+#' given) in one vectorised call with common random numbers: every grid point
+#' sees the same process and assessment errors. The tuned rule maximises the
+#' objective among the grid points that meet the risk limit.
+#'
+#' @param triggers       effort-rule triggers (B/Bmsy)
+#' @param close_triggers closure triggers; NULL = same as the effort trigger
+#' @param risk           named limit on a perf_rows() column, e.g.
+#'   c(worst_P_below_Bpa = 0.05) (every stock below Bpa at most 5% of the time)
+#' @param objective      perf_rows() column to maximise ("yield" or "profit")
+#' @param E_ref          reference days by segment (the caps the rule scales)
+#' @param ...            passed to ms_simulate() (gamma, capacity, proc_cv, ...)
+ms_tune_hcr <- function(sys, triggers = seq(0.5, 1.2, by = 0.05), close = NULL,
+                        close_triggers = NULL, risk = c(worst_P_below_Bpa = 0.05),
+                        objective = "yield", E_ref, B_init, E_init = E_ref,
+                        nsim = 200, years = 50, eval_years = 31:50, seed = 1,
+                        Blim = 0.25, assess_cv = 0.2, max_change = Inf, ...) {
+  grid <- if (is.null(close) || is.null(close_triggers)) data.frame(Btrig = triggers, Btrig_close = triggers)
+          else expand.grid(Btrig = triggers, Btrig_close = close_triggers)
+  k <- nrow(grid); n <- k * nsim
+  rep_rows <- function(v, m) matrix(v, n, m, byrow = TRUE)
+  rule <- hcr_effort(sys, Btrig = rep(grid$Btrig, each = nsim), Btrig_close = rep(grid$Btrig_close, each = nsim),
+                     Blim = Blim, close = close, assess_cv = assess_cv, max_change = max_change)
+  x <- ms_simulate(sys, rep_rows(E_ref, sys$G), years, B_init = rep_rows(B_init, sys$S),
+                   E_init = rep_rows(E_init, sys$G), hcr = rule, crn = nsim, seed = seed, keep = "all", ...)
+  tab <- cbind(grid, do.call(rbind, lapply(seq_len(k), function(j)
+    perf_rows(x, rows = (j - 1) * nsim + seq_len(nsim), years = eval_years))))
+  if (is.null(close)) tab$Btrig_close <- NULL
+  ok <- tab[[names(risk)]] <= risk
+  best <- if (any(ok)) tab[ok, ][which.max(tab[ok, objective]), ] else NULL
+  list(table = tab, best = best, risk = risk, objective = objective)
 }

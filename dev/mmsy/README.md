@@ -104,30 +104,47 @@ Run the scripts from the repository root, with cpueTargeting installed.
    * Blim → Bpa;
    * result: P(B < Blim) = 0, mean yield 581.
 
-## Feedback control (`hcr_effort()`, `scripts/11_feedback.R`)
+## Feedback control (`hcr_effort()`, `scripts/11_feedback.R`, `scripts/12_tune_trigger.R`)
 
-**The rule.** Each year the assessed B/Bmsy is the true value times a lognormal assessment error (CV 0.2).
+**Uncertainty in the projections.**
 
-* Each segment's days are a fraction of its status-quo days. The fraction ramps from 0 at Blim (0.25 Bmsy) to 1 at the trigger (0.8 Bmsy) of the most depleted stock the segment can catch substantially (catchability ≥ 20% of the stock's highest).
-* **Optional closure.** A choke stock in `close` is protected by a closure instead. The open share (area or season) of the métiers that drive it (catchability ≥ 50% of its highest; for Dentex, the shallow reef) follows the same ramp, and the stock is left out of the effort rule.
-* **Optional change limit.** `max_change` limits each segment's annual change.
-* **Engine.** A rule may return `list(mult, open)`. A partly closed métier fishes only its open share, and its value per day scales with that share.
+* **Process error, JABBA form:** B_t+1 = (B_t + rB_t(1 − B_t/K) − C_t) · exp(η_t), with AR(1) 0.3 in time.
+  * The SD of η for species i is 0.1 × r_i / median r (`proc_r_power = 1`), so more productive species are more variable. The range is 0.06 (blackspot seabream) to 0.25 (dolphinfish, chub mackerel).
+  * An optional correlation across species (`proc_rho_sp`) is off by default.
+  * A CV of 0.2 is far too large in this form. With CV 0.2 the stocks crash even under the rules: P(any stock < Blim) is 0.67 without control.
+* **Assessment error:** lognormal CV 0.2 on the B/Bmsy the rule sees.
+* **Implementation error:** lognormal CV 0.1 on the effort caps by segment (`impl_cv`, `impl_bias`).
 
-**Results.** 200 simulations, 50 years, process error CV 0.2 (AR1 0.3), from the tuned status quo (yield 1,745, profit 1,489). Performance is over years 31–50.
+**The rule (`hcr_effort()`).**
 
-| Run | Yield | Profit | Days | P(any stock < Bpa) | Median weakest B/Bmsy | Effort variability |
-|---|---|---|---|---|---|---|
-| No control (open access) | 1,738 | 1,481 | 1,516 | 1.00 | 0.40 | 0.03 |
-| Effort rule, trigger 0.8 Bmsy | 1,613 | 2,677 | 763 | 0.70 | 0.48 | 0.12 |
-| Effort rule + Dentex reef closure | 1,694 | 2,516 | 915 | 0.02 | 0.60 | 0.12 |
-| Effort rule, ±20% per year | 1,629 | 2,643 | 786 | 0.83 | 0.46 | 0.05 |
-| Effort rule + closure, ±20% per year | 1,709 | 2,472 | 946 | 0.03 | 0.59 | 0.05 |
-| Effort rule + closure, no assessment error | 1,743 | 2,320 | 1,060 | 0.00 | 0.58 | 0.02 |
+* Each segment's days are a fraction of its status-quo days. The fraction ramps from 0 at Blim (0.25 Bmsy) to 1 at the trigger, applied to the most depleted stock the segment can catch substantially (catchability ≥ 20% of the stock's highest).
+* **Optional closure.** A choke stock in `close` is protected by a closure instead. The open share (area or season) of the métiers that drive it (catchability ≥ 50% of its highest; for Dentex, the shallow reef) ramps with its own trigger (`Btrig_close`), and the stock is left out of the effort rule.
+* `max_change` limits the annual change.
+* A rule may return `list(mult, open)`. A partly closed métier fishes only its open share.
 
-* **The effort rule alone halves the days and lifts profit by 80%, but Dentex stays at about Bpa (median 0.48).** The remaining days go to the reef.
-* **Adding the reef closure solves the choke.** Dentex reaches 0.66 B/Bmsy, the risk of any stock below Bpa drops to 2%, yield is within 3% of the status quo, and profit is up 70%. With the closure the effort rule needs fewer cuts (915 days against 763).
-* **The ±20% limit halves effort variability at almost no cost.** It also softens the first years, when the rule otherwise cuts hard because nearly every stock starts below 0.8 Bmsy.
-* **Assessment error (CV 0.2) costs about 50 t of yield** and a little risk.
+**Fixed trigger 0.8 Bmsy.** 200 simulations; performance over years 31–50. The deterministic status quo has yield 1,745 and profit 1,489.
+
+| Run | Yield | Profit | Days | P(any < Blim) | Worst stock P(B < Bpa) |
+|---|---|---|---|---|---|
+| No control | 1,667 | 1,500 | 1,529 | 0.066 | 0.92 (Dentex) |
+| Effort rule | 1,467 | 2,642 | 690 | 0.004 | 0.60 (Dentex) |
+| Effort rule + reef closure | 1,557 | 2,539 | 832 | 0.004 | 0.054 (Dentex) |
+| Effort rule + closure, ±20% per year | 1,583 | 2,509 | 867 | 0 | 0.053 |
+| Effort rule + closure, no assessment error | 1,617 | 2,374 | 945 | 0 | 0.056 (blackspot seabream) |
+
+**The trigger as a tuning parameter (`ms_tune_hcr()`).**
+
+* A grid of triggers runs in one vectorised call with common random numbers (`crn`): every trigger sees the same process, assessment and implementation errors.
+* The tuned rule has the highest yield among the triggers that meet the risk limit: every stock below Bpa at most 5% of the time (years 31–50).
+
+| Rule | Tuned trigger(s) | Yield | Profit | Days |
+|---|---|---|---|---|
+| Effort rule only | none up to 1.5 Bmsy meets the limit (1.5 gives 15%) | — | — | — |
+| Effort rule + closure, one shared trigger | 0.85 | 1,538 | 2,587 | 801 |
+| Separate triggers | effort 0.6, closure 3.0 | 1,606 | 2,209 | 1,023 |
+
+* **The closure decouples the choke species.** With separate triggers, the effort rule can be lenient (0.6), while the reef is partly closed until Dentex is well above Bmsy. A permanent full closure is close behind (1,572).
+* **Yield is about 4% below no control, with profit up 47% and the risk limit met.** With one shared trigger, yield is lower and profit higher.
 
 ## Tuning the fleet to an open-access equilibrium (current defaults)
 

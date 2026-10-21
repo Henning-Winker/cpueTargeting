@@ -62,10 +62,10 @@ Csq <- matrix(capacity, nsim, 3)                              # registered fleet
 E0 <- matrix(oa$E_seg, nsim, 3, byrow = TRUE)
 Cmm <- matrix(o_y$caps, nsim, 3, byrow = TRUE)
 runs_t <- list(
-  "No control (open access)" = ms_simulate(sys, Csq, 50, gamma = 1.5, B_init = B0, E_init = E0, proc_cv = 0.2, rho = 0.3, seed = 1, keep = "all"),
-  "Status quo effort + segment HCR" = ms_simulate(sys, matrix(oa$E_seg, nsim, 3, byrow = TRUE), 50, gamma = 1.5, B_init = B0, E_init = E0, hcr = hcr_hs(), proc_cv = 0.2, rho = 0.3, seed = 1, keep = "all"),
-  "Fixed cap at safeguarded MMSY" = ms_simulate(sys, Cmm, 50, gamma = 1.5, B_init = B0, E_init = E0, proc_cv = 0.2, rho = 0.3, seed = 1, keep = "all"))
-sub2 <- paste0("From the tuned open-access status quo; 200 simulations, process error CV 0.2 (AR1 0.3); median and 90% band.\n",
+  "No control (open access)" = ms_simulate(sys, Csq, 50, gamma = 1.5, B_init = B0, E_init = E0, proc_cv = 0.1, rho = 0.3, impl_cv = 0.1, seed = 1, keep = "all"),
+  "Status quo effort + segment HCR" = ms_simulate(sys, matrix(oa$E_seg, nsim, 3, byrow = TRUE), 50, gamma = 1.5, B_init = B0, E_init = E0, hcr = hcr_hs(), proc_cv = 0.1, rho = 0.3, impl_cv = 0.1, seed = 1, keep = "all"),
+  "Fixed cap at safeguarded MMSY" = ms_simulate(sys, Cmm, 50, gamma = 1.5, B_init = B0, E_init = E0, proc_cv = 0.1, rho = 0.3, impl_cv = 0.1, seed = 1, keep = "all"))
+sub2 <- paste0("From the tuned open-access status quo; 200 simulations, process error SD 0.1 x r/median r (JABBA form, AR1 0.3), implementation CV 0.1; median and 90% band.\n",
                "HCR: each segment's status-quo days ramp from 0 at Blim to full at Bpa of the most depleted stock it can catch substantially.")
 save_fig(plot_traj_species(runs_t, sys, "BBmsy") + labs(title = "Stock status over time", subtitle = sub2), "traj_status.png", 10, 5.3)
 save_fig(plot_traj_species(runs_t, sys, "FFmsy") + labs(title = "Fishing mortality over time", subtitle = sub2), "traj_F.png", 10, 5.3)
