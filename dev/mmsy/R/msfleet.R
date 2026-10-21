@@ -36,6 +36,7 @@ ms_system <- function(L, depth_cut = 300, preference = 0,
                       loyalty = c(demersal = 0.8, pelagic = 0.8, mixed = 0),
                       price = NULL, cost_share = 0.4, cost_mode = c("relative", "common"),
                       cost_ground = c(shallow = 1, deep = 1.5),
+                      eff_home = NULL, eff_away = NULL, cost_seg = NULL,
                       season = TRUE) {
   s   <- L$settings
   sp  <- L$species
@@ -74,6 +75,15 @@ ms_system <- function(L, depth_cut = 300, preference = 0,
   G <- length(segments)
   home_mat <- matrix(0, G, M, dimnames = list(names(segments), met$name))
   for (g in names(segments)) home_mat[g, home[[g]] %||% met$name] <- 1
+  # fishing efficiency by segment and metier (mean of the vessel effects of the segment;
+  # in simulate_logbook terms the type multiplier on q_vessel): multiplies catchability, so a day of a
+  # specialist on its home metiers removes more fish than a day of a generalist
+  # defaults: the type efficiencies of the logbook settings (1 if absent), on and
+  # off the home metiers; daily cost proportional to efficiency (smaller, cheaper
+  # vessels), so generalists stay viable at the specialists' break-even
+  te <- s$type_efficiency %||% setNames(rep(1, length(segments)), names(segments))
+  eff_home <- eff_home %||% te; eff_away <- eff_away %||% te; cost_seg <- cost_seg %||% te
+  eff <- home_mat * eff_home[names(segments)] + (1 - home_mat) * eff_away[names(segments)]
 
   # costs per unit effort: cost_share of mean unfished revenue rate, by ground
   # cost_mode "common":   cost_share x mean unfished revenue rate, x ground factor
@@ -87,7 +97,8 @@ ms_system <- function(L, depth_cut = 300, preference = 0,
   structure(list(
     species = sp$species, group = sp$group, r = sp$r, K = sp$B0, price = price,
     metiers = met, Q = Q, avail = avail, month_w = month_w,
-    segments = segments, home = home_mat, loyalty = loyalty[names(segments)],
+    segments = segments, home = home_mat, loyalty = loyalty[names(segments)], eff = eff,
+    cost_seg = cost_seg[names(segments)],   # daily cost of a segment relative to the specialists
     cost = setNames(cost, met$name), rev0 = setNames(rev0, met$name),
     S = ns, M = M, G = G), class = "ms_system")
 }
@@ -99,23 +110,28 @@ ms_system <- function(L, depth_cut = 300, preference = 0,
 #' Allocate segment effort to metiers
 #'
 #' share_gm = loyalty_g * P(m | home_g) + (1 - loyalty_g) * P(m | all)
-#' P(m | set) proportional to open_m * w0_m * pmax(profit_m, 0)^gamma
-#' gamma = 0: profit-blind (equal shares, or w0); larger gamma: stronger
-#' preference for the most profitable metier. Returns an n x M matrix of
-#' effort by metier.
-#' @param profit n x M expected profit per unit effort
+#' P(m | set) proportional to open_m * pmax(profit_gm, 0)^gamma, with the
+#' segment's own profit per unit (nominal) effort
+#'   profit_gm = eff_gm * value_m - cost_m
+#' gamma = 0: profit-blind (equal shares); larger gamma: stronger preference
+#' for the most profitable metier. Returns an n x M matrix of nominal effort
+#' by metier, with attributes "by_seg" (n x G x M nominal effort) and
+#' "effective" (n x M effort weighted by efficiency, which drives F).
+#' @param value  n x M expected revenue per unit of effective effort
+#' @param cost   n x M cost per unit of nominal effort
 #' @param E_seg  n x G effort by segment
 #' @param open   n x M or length-M 0/1 (closures)
-allocate_effort <- function(sys, profit, E_seg, gamma, open = 1, w0 = NULL, by_seg = FALSE) {
-  n <- nrow(profit); M <- sys$M
-  pr <- pmax(profit, 0)
-  util <- if (gamma == 0) matrix(1, n, M) else pr^gamma
-  if (!is.null(w0)) util <- util * (if (is.matrix(w0)) w0 else matrix(w0, n, M, byrow = TRUE))
-  util <- util * (if (is.matrix(open)) open else matrix(open, n, M, byrow = TRUE))
-  E_m <- matrix(0, n, M)
-  E_gm <- if (by_seg) array(0, c(n, sys$G, M)) else NULL
+allocate_effort <- function(sys, value, E_seg, gamma, open = 1, cost = 0, by_seg = TRUE) {
+  n <- nrow(value); M <- sys$M
+  cost <- if (is.matrix(cost)) cost else matrix(cost, n, M, byrow = TRUE)
+  op <- if (is.matrix(open)) open else matrix(open, n, M, byrow = TRUE)
+  E_m <- matrix(0, n, M); E_eff <- E_m
+  E_gm <- array(0, c(n, sys$G, M))
   all_set <- rep(1, M)
   for (g in seq_len(sys$G)) {
+    effg <- matrix(sys$eff[g, ], n, M, byrow = TRUE)
+    util <- if (gamma == 0) matrix(1, n, M) else pmax(value * effg - cost * sys$cost_seg[g], 0)^gamma
+    util <- util * op
     for (part in c("home", "free")) {
       lam <- if (part == "home") sys$loyalty[g] else 1 - sys$loyalty[g]
       if (lam == 0) next
@@ -124,11 +140,11 @@ allocate_effort <- function(sys, profit, E_seg, gamma, open = 1, w0 = NULL, by_s
       tot <- rowSums(u)
       p <- u / ifelse(tot > 0, tot, 1)          # rows with no profitable option: no effort
       E_add <- p * (lam * E_seg[, g])
-      E_m <- E_m + E_add
-      if (by_seg) E_gm[, g, ] <- E_gm[, g, ] + E_add
+      E_m <- E_m + E_add; E_eff <- E_eff + E_add * effg
+      E_gm[, g, ] <- E_gm[, g, ] + E_add
     }
   }
-  if (by_seg) attr(E_m, "by_seg") <- E_gm
+  attr(E_m, "by_seg") <- E_gm; attr(E_m, "effective") <- E_eff
   E_m
 }
 
@@ -173,8 +189,7 @@ ms_simulate <- function(sys, caps, years = 100, gamma = 1.5,
   w_fixed <- NULL
   if (behaviour == "fixed") {
     # shares frozen at the unfished allocation (per unit segment effort)
-    v0 <- (K * matrix(price, n, S, byrow = TRUE)) %*% tQ - cost_m
-    w_fixed <- v0  # used through allocate_effort with gamma at unfished profit
+    w_fixed <- (K * matrix(price, n, S, byrow = TRUE)) %*% tQ   # unfished revenue rate, frozen
   }
   cpue_last <- (B * matrix(price, n, S, byrow = TRUE)) %*% tQ   # value per effort, last year
   eps <- 0
@@ -192,32 +207,34 @@ ms_simulate <- function(sys, caps, years = 100, gamma = 1.5,
     } else E_cap_y <- caps
     E_seg <- pmin(E_seg, E_cap_y); if (phi == 0) E_seg <- E_cap_y
     Bm <- B
-    C_y <- matrix(0, n, S); F_y <- C_y; Em_y <- matrix(0, n, M); rev_m <- matrix(0, n, M); Eg_y <- array(0, c(n, G, M))
+    C_y <- matrix(0, n, S); F_y <- C_y; Em_y <- matrix(0, n, M); rev_m <- matrix(0, n, M); Eg_y <- array(0, c(n, G, M)); Eeff_y <- Em_y
     for (mo in 1:12) {
       av <- matrix(sys$avail[mo, ], n, S, byrow = TRUE)
       Bav <- Bm * av
       if (behaviour == "fixed") {
-        E_m <- allocate_effort(sys, w_fixed, E_seg * sys$month_w[mo], gamma, op, by_seg = TRUE)
+        E_m <- allocate_effort(sys, w_fixed, E_seg * sys$month_w[mo], gamma, op, cost = cost_m)
       } else {
         exp_val <- if (info == "current") (Bav * matrix(price, n, S, byrow = TRUE)) %*% tQ
                    else cpue_last
-        E_m <- allocate_effort(sys, exp_val - cost_m, E_seg * sys$month_w[mo], gamma, op, by_seg = TRUE)
+        E_m <- allocate_effort(sys, exp_val, E_seg * sys$month_w[mo], gamma, op, cost = cost_m)
       }
-      Fm <- (E_m %*% Q) * av                       # n x S fishing mortality this month
+      E_eff <- attr(E_m, "effective")
+      Fm <- (E_eff %*% Q) * av                     # n x S fishing mortality this month
       Cm <- Bm * (1 - exp(-Fm))
       # catch by metier (proportional split of each species' catch by F share)
       share_m <- array(0, c(n, M))
       Fs <- pmax(Fm, 1e-12)
       for (m in seq_len(M)) {
-        Fim <- outer(E_m[, m], Q[m, ]) * av
+        Fim <- outer(E_eff[, m], Q[m, ]) * av
         rev_m[, m] <- rev_m[, m] + rowSums((Cm * Fim / Fs) %*% diag(price, S))
       }
       Bm <- Bm - Cm
-      C_y <- C_y + Cm; F_y <- F_y + Fm; Em_y <- Em_y + E_m; Eg_y <- Eg_y + attr(E_m, "by_seg")
+      C_y <- C_y + Cm; F_y <- F_y + Fm; Em_y <- Em_y + E_m; Eg_y <- Eg_y + attr(E_m, "by_seg"); Eeff_y <- Eeff_y + E_eff
     }
-    cpue_last <- ifelse(Em_y > 0, rev_m / pmax(Em_y, 1e-12), cpue_last)
+    cpue_last <- ifelse(Eeff_y > 0, rev_m / pmax(Eeff_y, 1e-12), cpue_last)   # per effective effort
     revenue <- as.vector(C_y %*% price)
-    costs <- rowSums(Em_y * cost_m)
+    costs <- rowSums(matrix(sapply(seq_len(G), function(g)
+      rowSums(matrix(Eg_y[, g, ], n, M) * cost_m) * sys$cost_seg[g]), n, G))
     # growth on start-of-year biomass with process error
     if (sig > 0) {
       z <- matrix(rnorm(n * S), n, S)
@@ -233,9 +250,10 @@ ms_simulate <- function(sys, caps, years = 100, gamma = 1.5,
     # entry / exit of effort within the cap
     # entry / exit below the cap, driven by each segment's own profit margin
     if (phi > 0) {
-      rpe <- rev_m / pmax(Em_y, 1e-12)                 # revenue per unit effort by metier
-      rev_g <- sapply(seq_len(G), function(g) rowSums(matrix(Eg_y[, g, ], n, M) * rpe))
-      cost_g <- sapply(seq_len(G), function(g) rowSums(matrix(Eg_y[, g, ], n, M) * cost_m))
+      rpe <- rev_m / pmax(Eeff_y, 1e-12)               # revenue per unit effective effort
+      rev_g <- sapply(seq_len(G), function(g)
+        rowSums(matrix(Eg_y[, g, ], n, M) * matrix(sys$eff[g, ], n, M, byrow = TRUE) * rpe))
+      cost_g <- sapply(seq_len(G), function(g) rowSums(matrix(Eg_y[, g, ], n, M) * cost_m) * sys$cost_seg[g])
       rev_g <- matrix(rev_g, n, G); cost_g <- matrix(cost_g, n, G)
       margin <- ifelse(rev_g > 0, (rev_g - cost_g) / rev_g, -1)
       E_seg <- pmin(E_cap_y, pmax(E_seg, 1e-4 * E_cap_y) * exp(phi * margin))
@@ -348,8 +366,12 @@ ms_optimise <- function(sys, objective = c("yield", "revenue", "profit"),
 
 #' Open-access (status quo) equilibrium: caps non-binding, effort set by profit
 ms_open_access <- function(sys, years = 500, cap = 1e4, ...) {
-  x <- ms_simulate(sys, matrix(cap, 1, sys$G), years = years, ...)
+  x <- ms_simulate(sys, matrix(rep_len(cap, sys$G), 1, sys$G), years = years, ...)
   s <- ms_summary(x)
   list(E_seg = setNames(colMeans(x$E_seg[, 1, , drop = FALSE][, 1, ]), names(sys$segments)),
        B = colMeans(x$B[, 1, ]), summary = s, BBmsy = attr(s, "BBmsy")[1, ], FFmsy = attr(s, "FFmsy")[1, ])
 }
+
+#' Status quo: capacity-limited equilibrium. Each segment has `capacity` days
+#' (vector or scalar); profit decides how many are used (economic exit).
+ms_status_quo <- function(sys, capacity = 1000, ...) ms_open_access(sys, cap = capacity, ...)

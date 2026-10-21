@@ -2,11 +2,15 @@
 for (f in c("merge_logbook_settings", "simulate_grf", "habitat_density",
            "dispersal_kernels", "movement_operator", "logbook_settings"))
   assign(f, get(f, asNamespace("cpueTargeting")))
-#' Logbook settings balanced for the fleet system: Seriola troll catchability
-#' 0.8 -> 0.4 (with 0.8 the reef + troll by-catch collapses it under open access)
+#' Logbook settings balanced for the fleet system:
+#' * Seriola troll catchability 0.8 -> 0.4 (with 0.8 the reef + troll by-catch
+#'   collapses it under open access);
+#' * mixed vessels fish at 0.75 of the specialists' efficiency (type multiplier
+#'   on the random vessel effect; used by simulate_logbook() and ms_system()).
 ms_settings <- function() {
   st <- logbook_settings()
   st$tactics["Pelagic", "Seriola dumerili"] <- 0.4
+  st$type_efficiency <- c(demersal = 1, pelagic = 1, mixed = 0.75)
   st
 }
 

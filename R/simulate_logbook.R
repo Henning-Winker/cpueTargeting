@@ -27,7 +27,10 @@
 #'   (`entry_share`, `creep`), early exits (`exit_share`). The default has
 #'   demersal and pelagic specialists with loyalty 0.8 and mixed vessels that
 #'   choose purely by expected value. (`allowed`, from earlier versions, is
-#'   still accepted and means `home` with loyalty 1.)
+#'   still accepted and means `home` with loyalty 1.) `type_efficiency`
+#'   multiplies the catchability of each vessel type (on top of the random
+#'   vessel effect), e.g. `c(demersal = 1, pelagic = 1, mixed = 0.75)` for
+#'   generalists that fish less efficiently than specialists (default 1).
 #' * `trips`: trips per year (default: an increase, cut by 20% with the
 #'   closure); `preference`: how strongly effort concentrates on the most
 #'   valuable cells and tactics.
@@ -87,6 +90,7 @@ logbook_settings <- function() {
     home = list(demersal = c("Reef", "Sediment"), pelagic = "Pelagic",
                 mixed = c("Reef", "Sediment", "Pelagic")),
     loyalty = c(demersal = 0.8, pelagic = 0.8, mixed = 0),  # share of trips on home tactics
+    type_efficiency = c(demersal = 1, pelagic = 1, mixed = 1), # catchability multiplier by vessel type
     vessel_cv = 0.25,
     entry_share = 0.3,           # share of vessels entering after year 1
     creep = 0.02,                # efficiency gain per year of later entry
@@ -234,7 +238,9 @@ simulate_logbook <- function(settings = logbook_settings(), seed = NULL, plots =
   exit_years <- max(2, ceiling(0.3 * ny_yr)):max(2, ny_yr - 1)
   exit[early] <- exit_years[sample.int(length(exit_years), length(early), replace = TRUE)]
   sig_v <- cv_to_sdlog(s$vessel_cv)
-  q_vessel <- stats::rlnorm(nv, -sig_v^2 / 2, sig_v) * exp(s$creep * (entry - 1))
+  te <- s$type_efficiency[types]
+  te[is.na(te)] <- 1
+  q_vessel <- stats::rlnorm(nv, -sig_v^2 / 2, sig_v) * exp(s$creep * (entry - 1)) * as.numeric(te)
 
   trips_year <- if (!is.null(s$trips)) rep_len(s$trips, ny_yr) else {
     base <- 400 + 800 * stats::plogis((seq_len(ny_yr) - 8) / 2.5)
@@ -422,7 +428,7 @@ merge_logbook_settings <- function(settings) {
   if (!is.list(settings)) stop("`settings` must be a list.", call. = FALSE)
   def <- logbook_settings()
   whole <- c("species", "tactics", "price", "trips", "closure", "vessel_types", "home",
-             "loyalty")
+             "loyalty", "type_efficiency")
   # earlier versions: `allowed` = home tactics without leaving them
   if (!is.null(settings$allowed) && is.null(settings$home)) {
     settings$home <- settings$allowed

@@ -102,7 +102,38 @@ Run the scripts from the repository root, with cpueTargeting installed.
    * Blim → Bpa;
    * result: P(B < Blim) = 0, mean yield 581.
 
-## Balanced reference system (current defaults)
+## Specialist efficiency and the capacity-limited status quo (current defaults)
+
+**Type efficiency.** Specialists fish more efficiently than generalists.
+
+* `simulate_logbook()` has a new setting, `type_efficiency`, which multiplies the random vessel effect by vessel type. The default is 1 for all types, so existing results are unchanged.
+* `ms_settings()` sets mixed vessels to 0.75.
+* `ms_system()` uses the same values as the segment efficiency (`eff_home`, `eff_away`). Efficiency multiplies catchability, so F comes from effective effort, and each segment chooses métiers by its own profit, eff × revenue − cost.
+
+**Daily cost follows efficiency** (`cost_seg`, default = efficiency): smaller, cheaper vessels. With equal daily costs, a mixed segment 25% less efficient is excluded:
+
+* under open access it disappears;
+* with capacity limits it is squeezed out once the fishery is overexploited, because it can't break even where the specialists do.
+
+At a daily cost of 0.85 it is excluded from 1,000–1,500 days per segment upwards.
+
+**Status quo** (`ms_status_quo()`): capacity-limited, with 1,000 days per segment (a third of the fleet each). Profit decides how many days are used.
+
+* All segments use their full capacity.
+* Yield 1,815, profit 535.
+* Seriola 0.42 (below Bpa), albacore 0.67, median B/Bmsy about 0.9.
+
+**Safeguarded optima** (γ = 1.5, caps limited to capacity):
+
+| Option | Days (dem/pel/mix) | Yield | Profit |
+|---|---|---|---|
+| Safeguarded MMSY, one cap | 672 per segment | 1,846 | 920 |
+| Safeguarded MMSY, caps each ≥ 20% | 558/469/857 | 1,847 | 1,084 |
+| MMEY, one cap | 196 per segment | 1,352 | 2,322 |
+
+**Segment HCR** (responsibility by catchability): all three segments answer for Seriola. Each cuts back to about 700–800 days, Seriola moves up to just below Bpa, and yield is unchanged.
+
+## Balanced reference system
 
 The first version was unbalanced in two ways:
 
