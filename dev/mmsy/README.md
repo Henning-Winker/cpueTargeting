@@ -216,6 +216,22 @@ For reference, the sum of single-species MSY is 1,884, and the status quo is 1,5
   * Median-centred, the mean multiplier exp(σ²/2) > 1 grows with σ: higher yield, a softer collapse, but still more volatile.
 * **An operating model conditioned on JABBA estimates should use `"median"`,** because r and K are then estimated under the same convention.
 
+### Effort/catchability noise in every run (`effort_cv`, `effort_rho`)
+
+Implementation error (`impl_cv`) multiplies the caps, so it only acts when a cap binds. In unregulated runs (caps = capacity) it has no effect.
+
+`effort_cv` / `effort_rho` add an annual lognormal multiplier (mean 1, AR(1)) on each segment's effective effort, for weather, fuel, markets and catchability. It acts in every run.
+
+**Check** (JABBA proc.dyn, median-centred, SD by r, years 31–50). The CV of F is the median over stocks and simulations.
+
+| effort_cv (ρ 0.5) | No control: yield | No control: P(any < Blim) | No control: CV of F | Rule 0.6/3: yield | Rule 0.6/3: worst P(B < Bpa) | Rule 0.6/3: CV of F |
+|---|---|---|---|---|---|---|
+| 0 | 1,687 | 0.73 | 0.62 | 1,518 | 0.18 | 0.73 |
+| 0.2 | 1,681 | 0.79 | 0.78 | 1,440 | 0.25 | 0.79 |
+
+* **F already varies a lot without exogenous noise** (CV about 0.6). Volatile stocks change profitability, and fishers reallocate between métiers. The behavioural feedback is itself a large source of F variability by stock.
+* **Effort noise adds to it** and raises the risk under the rule.
+
 ### Assessments of species complexes (`scripts/17_complexes.R`)
 
 Catch and CPUE are often pooled across taxa (e.g. "reef fish"), and the complex is assessed as one unit. `hcr_effort(complexes = list(name = stocks), complex_index = "biomass" | "cpue")` makes the rule see:

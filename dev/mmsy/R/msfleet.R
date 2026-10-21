@@ -198,6 +198,10 @@ allocate_effort <- function(sys, value, E_seg, gamma, open = 1, cost = 0, by_seg
 #'   sd_i,t = sd_i * ((B_i,t / K_i) / proc_dep_ref)^(-proc_dep_power), capped at
 #'   proc_sd_max; sd_i applies at B/K = proc_dep_ref (Bmsy). proc_dep_power > 0:
 #'   stocks become more volatile at low abundance; < 0: less volatile
+#' @param effort_cv,effort_rho effort/catchability noise by segment, in every run
+#'   (regulated or not): an annual lognormal multiplier on effective effort
+#'   (weather, fuel, markets, catchability), AR(1) effort_rho, mean 1. Unlike the
+#'   implementation error it acts when no cap binds.
 #' @param impl_cv,impl_bias implementation error on the effort caps by segment:
 #'   realised cap = cap * exp(bias + N(-s^2/2, s^2)), s from impl_cv
 #' @param crn     common random numbers: rows i and i + crn share the same process
@@ -221,7 +225,7 @@ ms_simulate <- function(sys, caps, years = 100, gamma = 1.5,
                         proc_dep_pars = c(a = 0.128, c = 0.223, d = 1.326),
                         proc_dep_power = 0, proc_dep_ref = 0.5, proc_sd_max = 1,
                         proc_center = c("mean", "median"),
-                        impl_cv = 0, impl_bias = 0,
+                        impl_cv = 0, impl_bias = 0, effort_cv = 0, effort_rho = 0,
                         seed = NULL, crn = NULL, keep = c("final", "all"),
                         avg_years = 10) {
   behaviour <- match.arg(behaviour); info <- match.arg(info); keep <- match.arg(keep)
@@ -258,6 +262,8 @@ ms_simulate <- function(sys, caps, years = 100, gamma = 1.5,
   sig_i <- matrix(proc_sd, n, S, byrow = TRUE)                       # by species, at proc_dep_ref
   sig <- max(proc_sd)
   sig_impl <- if (impl_cv > 0) sqrt(log(1 + impl_cv^2)) else 0
+  sig_eff <- if (effort_cv > 0) sqrt(log(1 + effort_cv^2)) else 0
+  qdev <- matrix(1, n, G); edev <- NULL
 
   nkeep <- if (keep == "all") years else min(avg_years, years)
   Bk <- array(NA_real_, c(nkeep, n, S)); Ck <- Bk; Fk <- Bk
@@ -278,6 +284,11 @@ ms_simulate <- function(sys, caps, years = 100, gamma = 1.5,
         if (!is.null(ctl$open)) opm <- opm * ctl$open
       } else E_cap_y <- caps * ctl
     }
+    if (sig_eff > 0) {                                        # effort / catchability noise
+      ze <- matrix(rnorm(nd * G), nd, G)[idx, , drop = FALSE]
+      edev <- if (is.null(edev) || effort_rho == 0) ze else effort_rho * edev + sqrt(1 - effort_rho^2) * ze
+      qdev <- exp(sig_eff * edev - sig_eff^2 / 2)
+    }
     if (sig_impl > 0 || impl_bias != 0) {                    # implementation error
       zi <- matrix(rnorm(nd * G), nd, G)[idx, , drop = FALSE]
       E_cap_y <- E_cap_y * exp(impl_bias + sig_impl * zi - sig_impl^2 / 2)
@@ -289,13 +300,13 @@ ms_simulate <- function(sys, caps, years = 100, gamma = 1.5,
       av <- matrix(sys$avail[mo, ], n, S, byrow = TRUE)
       Bav <- Bm * av
       if (behaviour == "fixed") {
-        E_m <- allocate_effort(sys, w_fixed * opm, E_seg * sys$month_w[mo], gamma, opm > 0, cost = cost_m, emult = emult, cseg = cseg)
+        E_m <- allocate_effort(sys, w_fixed * opm, E_seg * sys$month_w[mo], gamma, opm > 0, cost = cost_m, emult = emult * qdev, cseg = cseg)
       } else {
         exp_val <- if (info == "current") (Bav * matrix(price, n, S, byrow = TRUE)) %*% tQ
                    else cpue_last
         # a partly closed metier fishes only its open share: value per day scales with it
         E_m <- allocate_effort(sys, exp_val * (if (info == "current") opm else 1), E_seg * sys$month_w[mo],
-                               gamma, opm > 0, cost = cost_m, emult = emult, cseg = cseg)
+                               gamma, opm > 0, cost = cost_m, emult = emult * qdev, cseg = cseg)
       }
       E_eff <- attr(E_m, "effective") * opm         # effective effort on the open share
       Fm <- (E_eff %*% Q) * av                     # n x S fishing mortality this month
