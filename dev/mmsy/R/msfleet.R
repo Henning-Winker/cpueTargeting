@@ -101,13 +101,14 @@ ms_system <- function(L, depth_cut = 300, preference = 0,
 #' @param profit n x M expected profit per unit effort
 #' @param E_seg  n x G effort by segment
 #' @param open   n x M or length-M 0/1 (closures)
-allocate_effort <- function(sys, profit, E_seg, gamma, open = 1, w0 = NULL) {
+allocate_effort <- function(sys, profit, E_seg, gamma, open = 1, w0 = NULL, by_seg = FALSE) {
   n <- nrow(profit); M <- sys$M
   pr <- pmax(profit, 0)
   util <- if (gamma == 0) matrix(1, n, M) else pr^gamma
   if (!is.null(w0)) util <- util * (if (is.matrix(w0)) w0 else matrix(w0, n, M, byrow = TRUE))
   util <- util * (if (is.matrix(open)) open else matrix(open, n, M, byrow = TRUE))
   E_m <- matrix(0, n, M)
+  E_gm <- if (by_seg) array(0, c(n, sys$G, M)) else NULL
   all_set <- rep(1, M)
   for (g in seq_len(sys$G)) {
     for (part in c("home", "free")) {
@@ -117,9 +118,12 @@ allocate_effort <- function(sys, profit, E_seg, gamma, open = 1, w0 = NULL) {
       u <- util * matrix(acc, n, M, byrow = TRUE)
       tot <- rowSums(u)
       p <- u / ifelse(tot > 0, tot, 1)          # rows with no profitable option: no effort
-      E_m <- E_m + p * (lam * E_seg[, g])
+      E_add <- p * (lam * E_seg[, g])
+      E_m <- E_m + E_add
+      if (by_seg) E_gm[, g, ] <- E_gm[, g, ] + E_add
     }
   }
+  if (by_seg) attr(E_m, "by_seg") <- E_gm
   E_m
 }
 
@@ -139,8 +143,8 @@ allocate_effort <- function(sys, profit, E_seg, gamma, open = 1, w0 = NULL) {
 #' @param gamma   preference exponent (0 = profit-blind)
 #' @param behaviour "dynamic" (reallocate every month) or "fixed"
 #'   (shares frozen at the unfished allocation: the classical shared-q model)
-#' @param phi     entry/exit rate: effort_t+1 = min(cap, E_t * exp(phi * profit margin));
-#'   0 = effort always at the cap
+#' @param phi     entry/exit rate of each segment: E_t+1 = min(cap, E_t * exp(phi * margin_g)),
+#'   margin_g = segment profit / segment revenue; 0 = effort always at the cap
 #' @param open    metier access (length M, or function(year) -> length M)
 #' @param hcr     optional function(state) -> n x G multiplier on caps
 #' @param B_init  n x S initial biomass (default K)
@@ -174,7 +178,7 @@ ms_simulate <- function(sys, caps, years = 100, gamma = 1.5,
   nkeep <- if (keep == "all") years else min(avg_years, years)
   Bk <- array(NA_real_, c(nkeep, n, S)); Ck <- Bk; Fk <- Bk
   Ek <- array(NA_real_, c(nkeep, n, M)); Rk <- matrix(NA_real_, nkeep, n); Pk <- Rk
-  Esk <- array(NA_real_, c(nkeep, n, G))
+  Esk <- array(NA_real_, c(nkeep, n, G)); Egk <- array(NA_real_, c(nkeep, n, G, M))
 
   for (y in seq_len(years)) {
     op <- open_fun(y)
@@ -183,16 +187,16 @@ ms_simulate <- function(sys, caps, years = 100, gamma = 1.5,
     } else E_cap_y <- caps
     E_seg <- pmin(E_seg, E_cap_y); if (phi == 0) E_seg <- E_cap_y
     Bm <- B
-    C_y <- matrix(0, n, S); F_y <- C_y; Em_y <- matrix(0, n, M); rev_m <- matrix(0, n, M)
+    C_y <- matrix(0, n, S); F_y <- C_y; Em_y <- matrix(0, n, M); rev_m <- matrix(0, n, M); Eg_y <- array(0, c(n, G, M))
     for (mo in 1:12) {
       av <- matrix(sys$avail[mo, ], n, S, byrow = TRUE)
       Bav <- Bm * av
       if (behaviour == "fixed") {
-        E_m <- allocate_effort(sys, w_fixed, E_seg * sys$month_w[mo], gamma, op)
+        E_m <- allocate_effort(sys, w_fixed, E_seg * sys$month_w[mo], gamma, op, by_seg = TRUE)
       } else {
         exp_val <- if (info == "current") (Bav * matrix(price, n, S, byrow = TRUE)) %*% tQ
                    else cpue_last
-        E_m <- allocate_effort(sys, exp_val - cost_m, E_seg * sys$month_w[mo], gamma, op)
+        E_m <- allocate_effort(sys, exp_val - cost_m, E_seg * sys$month_w[mo], gamma, op, by_seg = TRUE)
       }
       Fm <- (E_m %*% Q) * av                       # n x S fishing mortality this month
       Cm <- Bm * (1 - exp(-Fm))
@@ -204,7 +208,7 @@ ms_simulate <- function(sys, caps, years = 100, gamma = 1.5,
         rev_m[, m] <- rev_m[, m] + rowSums((Cm * Fim / Fs) %*% diag(price, S))
       }
       Bm <- Bm - Cm
-      C_y <- C_y + Cm; F_y <- F_y + Fm; Em_y <- Em_y + E_m
+      C_y <- C_y + Cm; F_y <- F_y + Fm; Em_y <- Em_y + E_m; Eg_y <- Eg_y + attr(E_m, "by_seg")
     }
     cpue_last <- ifelse(Em_y > 0, rev_m / pmax(Em_y, 1e-12), cpue_last)
     revenue <- as.vector(C_y %*% price)
@@ -217,17 +221,22 @@ ms_simulate <- function(sys, caps, years = 100, gamma = 1.5,
     } else pe <- 1
     keep_idx <- if (keep == "all") y else y - (years - nkeep)
     if (keep_idx >= 1) {
-      Bk[keep_idx, , ] <- B; Ck[keep_idx, , ] <- C_y; Fk[keep_idx, , ] <- F_y; Ek[keep_idx, , ] <- Em_y
+      Bk[keep_idx, , ] <- B; Ck[keep_idx, , ] <- C_y; Fk[keep_idx, , ] <- F_y; Ek[keep_idx, , ] <- Em_y; Egk[keep_idx, , , ] <- Eg_y
       Rk[keep_idx, ] <- revenue; Pk[keep_idx, ] <- revenue - costs; Esk[keep_idx, , ] <- E_seg
     }
     B <- pmax(B + r * B * (1 - B / K) * pe - C_y, 1e-6 * K)
     # entry / exit of effort within the cap
+    # entry / exit below the cap, driven by each segment's own profit margin
     if (phi > 0) {
-      margin <- ifelse(revenue > 0, (revenue - costs) / revenue, -1)
-      E_seg <- pmin(E_cap_y, E_seg * exp(phi * margin))
+      rpe <- rev_m / pmax(Em_y, 1e-12)                 # revenue per unit effort by metier
+      rev_g <- sapply(seq_len(G), function(g) rowSums(matrix(Eg_y[, g, ], n, M) * rpe))
+      cost_g <- sapply(seq_len(G), function(g) rowSums(matrix(Eg_y[, g, ], n, M) * cost_m))
+      rev_g <- matrix(rev_g, n, G); cost_g <- matrix(cost_g, n, G)
+      margin <- ifelse(rev_g > 0, (rev_g - cost_g) / rev_g, -1)
+      E_seg <- pmin(E_cap_y, pmax(E_seg, 0.01 * E_cap_y) * exp(phi * margin))
     }
   }
-  out <- list(B = Bk, C = Ck, F = Fk, E_metier = Ek, E_seg = Esk, revenue = Rk, profit = Pk,
+  out <- list(B = Bk, C = Ck, F = Fk, E_metier = Ek, E_seg_metier = Egk, E_seg = Esk, revenue = Rk, profit = Pk,
               caps = caps, sys = sys,
               settings = list(gamma = gamma, behaviour = behaviour, info = info, phi = phi,
                               years = years, proc_cv = proc_cv))
@@ -254,4 +263,80 @@ ms_summary <- function(x, Bpa = 0.5, Blim = 0.25) {
   FFmsy <- sweep(apply(x$F, c(2, 3), mean), 2, sys$r / 2, "/"); colnames(FFmsy) <- sys$species
   attr(out, "BBmsy") <- BBmsy; attr(out, "FFmsy") <- FFmsy; attr(out, "catch") <- Cbar
   out
+}
+
+# -----------------------------------------------------------------
+# 5. Constrained optimisation: MMSY / MMEY with a Bpa safeguard
+# -----------------------------------------------------------------
+
+#' Maximise an equilibrium objective over segment effort caps
+#'
+#' Finds the effort caps that maximise total yield (or revenue, or profit)
+#' at equilibrium subject to every constrained stock staying at or above
+#' Bpa: B_i / Bmsy_i >= Bpa for all i in `species`.
+#'
+#' The search is a vectorised zooming grid in log1p(effort) space: a grid of
+#' n^d candidates is run in one call, the best feasible one is kept, and the
+#' box shrinks around it. This is robust to the kinks and small cycles of a
+#' behavioural fleet, which defeat gradient-based optimisers.
+#'
+#' @param levers  segments whose caps are optimised, or "total" for one global
+#'   cap split in proportion `ratio` across all segments
+#' @param fixed   named caps for segments not in `levers` (e.g. the free
+#'   agent: mixed = 40)
+#' @param ratio   split of the global cap when levers = "total"
+#' @param upper   upper bound of each cap
+#' @param species names of the stocks under the safeguard (default all)
+#' @param min_share viability floor: every segment's cap must be at least this
+#'   share of the total cap (e.g. 0.2)
+#' @param ...     passed to ms_simulate() (gamma, behaviour, phi, open, ...)
+#' @return list: caps, summary row, B/Bmsy and F/Fmsy, effort by segment and
+#'   metier, the binding stock(s), and the search history
+ms_optimise <- function(sys, objective = c("yield", "revenue", "profit"),
+                        levers = names(sys$segments), fixed = NULL,
+                        ratio = rep(1 / sys$G, sys$G), upper = 3000,
+                        Bpa = 0.5, species = sys$species, min_share = 0, n = NULL, zoom = 5,
+                        years = 150, ...) {
+  objective <- match.arg(objective)
+  seg <- names(sys$segments)
+  d <- if (identical(levers, "total")) 1 else length(levers)
+  n <- n %||% c(41, 19, 11)[min(d, 3)]
+  lo <- rep(0, d); hi <- rep(log1p(upper), d)
+  to_caps <- function(X) {                      # X: k x d in log1p space
+    E <- expm1(X)
+    if (identical(levers, "total")) return(outer(E[, 1], ratio))
+    caps <- matrix(0, nrow(E), sys$G, dimnames = list(NULL, seg))
+    caps[, levers] <- E
+    for (g in names(fixed)) caps[, g] <- fixed[[g]]
+    caps
+  }
+  isp <- match(species, sys$species)
+  best <- NULL; hist <- list()
+  for (z in seq_len(zoom)) {
+    axes <- lapply(seq_len(d), function(k) seq(lo[k], hi[k], length.out = n))
+    X <- as.matrix(expand.grid(axes))
+    caps <- to_caps(X)
+    sm <- ms_summary(ms_simulate(sys, caps, years = years, ...), Bpa = Bpa)
+    BB <- attr(sm, "BBmsy")
+    feas <- apply(BB[, isp, drop = FALSE], 1, min) >= Bpa &
+      apply(caps, 1, min) >= min_share * rowSums(caps)
+    val <- sm[[objective]]; val[!feas] <- -Inf
+    i <- which.max(val)
+    hist[[z]] <- data.frame(zoom = z, caps, value = sm[[objective]], feasible = feas)
+    if (!is.finite(val[i])) break             # nothing feasible (e.g. free agent too large)
+    best <- list(X = X[i, ], caps = caps[i, ], summary = sm[i, ], BBmsy = BB[i, ],
+                 FFmsy = attr(sm, "FFmsy")[i, ])
+    step <- (hi - lo) / (n - 1)
+    lo <- pmax(0, X[i, ] - 2 * step); hi <- pmin(log1p(upper), X[i, ] + 2 * step)
+  }
+  if (is.null(best)) return(list(feasible = FALSE, history = do.call(rbind, hist)))
+  # rerun the optimum to keep effort by segment and metier
+  x <- ms_simulate(sys, matrix(best$caps, 1), years = years, ...)
+  best$E_seg <- setNames(colMeans(x$E_seg[, 1, , drop = FALSE][, 1, ]), seg)
+  best$E_seg_metier <- matrix(apply(x$E_seg_metier[, 1, , , drop = FALSE], c(3, 4), mean),
+                              sys$G, sys$M, dimnames = list(seg, sys$metiers$name))
+  best$binding <- sys$species[isp][abs(best$BBmsy[isp] - Bpa) < 0.05]
+  best$feasible <- TRUE; best$objective <- objective
+  best$history <- do.call(rbind, hist)
+  best
 }

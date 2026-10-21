@@ -16,6 +16,9 @@ Run the scripts from the repository root, with cpueTargeting installed.
 | `scripts/02_segment_grid.R`, `02b_report_grid.R` | 3D grid of segment caps (9,261 scenarios) and constrained optima |
 | `scripts/03_checks.R` | Validation checks, sensitivity to γ, and a higher Dentex price |
 | `scripts/04_hcr_demo.R` | Stochastic run with a segment-specific hockey-stick HCR |
+| `scripts/06_optimise.R` | Constrained MMSY by lever set; demersal and pelagic caps with the mixed segment as a free agent; leakage |
+| `scripts/07_viability_closure.R` | Constrained MMSY with a segment viability floor and a closure of the shallow reef métier |
+| `scripts/08_fig_options.R` | Summary figure `figs/opt_options.png` |
 | `R/plots.R`, `scripts/05_plots.R` | Figures of stock status, F, effort and yield, saved to `figs/` (equilibrium against effort, Kobe plots at the constrained optima, projections) |
 
 ## System
@@ -99,6 +102,27 @@ Run the scripts from the repository root, with cpueTargeting installed.
    * Blim → Bpa;
    * result: P(B < Blim) = 0, mean yield 581.
 
+## Safeguarded MMSY: optimisation results
+
+`ms_optimise()` maximises equilibrium yield, revenue or profit over effort caps, subject to every stock staying at or above Bpa. Two more constraints are optional:
+
+* a viability floor (`min_share`);
+* métier closures (`open`).
+
+It uses a vectorised zooming grid in log(1 + effort). Gradient methods fail on the kinks and small cycles of a behavioural fleet.
+
+All runs below use a profit-seeking fleet (γ = 1.5) with entry and exit (`phi = 0.5`).
+
+* **Economic exit is not enough.** With entry and exit, effort leaves unprofitable segments and profit settles at about zero. Dentex still collapses, because the other reef species keep the reef métier profitable.
+* **Effort caps alone are choke-limited.** Safeguarded yield:
+  * one global cap: 288;
+  * segment caps with each segment ≥ 20%: 404;
+  * otherwise the optimiser closes the demersal fleet (yield 841–863).
+
+  Yield and revenue give the same optimum.
+* **The mixed segment as a free agent.** Even uncontrolled, about 87% of its effort goes to demersal métiers. At 20 effort units it uses up Dentex's whole safe budget, so the demersal cap must be near zero. No caps on the specialists meet Bpa once mixed effort is somewhere between 40 and 60. Tightening the demersal cap moves only a little more mixed effort onto demersal métiers (about 15.5 → 17.6).
+* **A métier measure decouples the choke species.** Closing the shallow reef métier raises safeguarded yield to about 1,270, 4.4 times the global-cap value. Greater amberjack (AMB) becomes the binding stock, and the split between segments then hardly matters. Dentex is unexploited (B/Bmsy 1.98), so a partial or seasonal closure should do better still.
+
 ## Design decisions still open
 
 * **Biomass pools.** Use one pool per species, or sub-pools by ground with exchange? Sub-pools would add local depletion and hyperstability.
@@ -108,3 +132,15 @@ Run the scripts from the repository root, with cpueTargeting installed.
 * **Constraints.** Every species at or above Bpa, or a rule such as 2/3 of species; and segment viability (minimum share or minimum profit).
 * **Optimiser.** Replace the coarse log grid with `optim` or a finer grid near the optimum.
 * **Fleet dynamics.** Effort creep and entry and exit below the cap (`phi > 0`).
+
+## Towards a package and Shiny app
+
+* **Engine (pure R, no Shiny):**
+  * `ms_system()`, built from defaults (the logbook landscape) or from user tables: species (r, K, price, group), métier × species catchability, segments (share, home métiers, loyalty), costs;
+  * `ms_simulate()`, `ms_optimise()`, HCR constructors, `ms_summary()`, plots.
+* **Shiny:**
+  1. **Set-up:** defaults, or uploaded or edited tables. The catchability matrix could come from catch composition by cluster (cpueTargeting step 6).
+  2. **Equilibrium explorer:** effort sliders by segment, closures, γ and loyalty, with live status, F, yield and the métier allocation.
+  3. **Optimiser:** objective, Bpa, viability floor, levers, and which segments are free agents.
+  4. **Projections:** HCR choice, uncertainty, trade-off plots.
+* **Speed:** an equilibrium takes milliseconds; an optimisation takes 7–50 s, depending on the number of levers.
