@@ -545,6 +545,11 @@ ms_tune <- function(sys, shares = c(demersal = 0.35, pelagic = 0.35, mixed = 0.3
 #' `Btrig` (effort rule) and `Btrig_close` (closure) may be vectors with one
 #' value per row of the simulation, so a grid of triggers runs in one call.
 #'
+#' `assign`: nominal assignment of stocks to segments for management, a named
+#' list segment -> stock names (as in practice: a species is "managed" through
+#' one fleet although others catch it). It replaces the catchability-based
+#' responsibility; segments without stocks are not constrained by the rule.
+#'
 #' `assessed`: names of the stocks with an assessment (default all). The rule
 #' sees only these; a stock in `close` must be assessed.
 #'
@@ -552,12 +557,16 @@ ms_tune <- function(sys, shares = c(demersal = 0.35, pelagic = 0.35, mixed = 0.3
 #' the assessment error between years).
 hcr_effort <- function(sys, Btrig = 0.8, Blim = 0.25, assess_cv = 0.2, assess_rho = 0,
                        own_q = 0.2, close = NULL, close_q = 0.5, max_change = Inf,
-                       Btrig_close = Btrig, assessed = NULL) {
+                       Btrig_close = Btrig, assessed = NULL, assign = NULL) {
   S <- sys$S; G <- sys$G; M <- sys$M
   qmax <- apply(sys$Q, 2, max)
   own <- sapply(seq_len(G), function(g) {
     acc <- if (sys$loyalty[g] > 0) sys$home[g, ] > 0 else rep(TRUE, M)
     apply(sys$Q[acc, , drop = FALSE], 2, max) >= own_q * qmax })     # S x G
+  if (!is.null(assign)) {
+    own[] <- FALSE
+    for (g in names(assign)) own[sys$species %in% assign[[g]], match(g, names(sys$segments))] <- TRUE
+  }
   if (!is.null(assessed)) {
     if (!all(close %in% assessed)) stop("a stock in `close` must be assessed")
     own[!sys$species %in% assessed, ] <- FALSE

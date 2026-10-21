@@ -336,6 +336,11 @@ Métiers: five small-scale tactics, three trawl grounds, and two (optionally thr
 * **Scads/horse mackerels and Indo-Pacific mackerel** are shared by the purse seine, the trawl (pair trawl on the mid and outer shelf catches pelagics), and small-scale gillnets. The anchovy métier also takes their juveniles.
 * **Shrimp, crab, croakers, catfish, cuttlefish** are shared between the inner-shelf trawl and the coastal small-scale gears. Juveniles are caught inshore and adults offshore.
 * **Rays and sharks** are trawl by-catch, plus small-scale gillnets and hooks. They are the low-r choke group.
+* **Management assignment.** In practice each group is nominally assigned to one fleet for management (e.g. squid → trawl, mackerels/scads → purse seine, crab and shrimp → small-scale), although others catch it. `hcr_effort(assign = ...)` implements this.
+
+  In the Atlantic example, assignment by group with an unmanaged generalist still met the risk limit with the closure, but the generalist took 60% more days and the specialists were cut by 12–14% (`scripts/16_assignment.R`).
+
+  For the Gulf of Thailand, compare: (a) responsibility by catchability; (b) nominal assignment with small-scale unmanaged (most days); (c) nominal assignment with small-scale managed through the coastal-zone rules.
 * **Trawl-only stocks** are threadfin bream, lizardfish and bigeyes. They are controlled by trawl effort alone, which makes them a useful contrast. Small-scale has loyalty 0 and switches between its five tactics by profit. Trawl has loyalty about 0.8 to its trawl grounds.
 
 **Effort composition (vessel-days)**

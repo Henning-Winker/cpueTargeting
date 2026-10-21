@@ -23,6 +23,7 @@ Run the scripts from the repository root, with cpueTargeting installed.
 | `scripts/12_tune_trigger.R` | `ms_tune_hcr()`: tunes the effort and closure triggers to the risk limit; `figs/tune_trigger*.png` |
 | `scripts/13_assessed_subset.R` | Management based on four assessed stocks |
 | `scripts/14_yield_curves.R` | Equilibrium yield over effort for four conceptual treatments; `figs/yield_curves.png` |
+| `scripts/16_assignment.R` | Responsibility by catchability against nominal assignment of stocks to fleets (`hcr_effort(assign =)`) |
 | `scripts/09_tune.R` | `ms_tune()`: daily costs that make 35/35/30% of active days an open-access equilibrium, for two status targets |
 | `R/plots.R`, `scripts/05_plots.R` | Figures of stock status, F, effort and yield, saved to `figs/`. Covers equilibrium against effort, Kobe plots of the status quo against the safeguarded optima, and projections from the status quo. Uses the balanced defaults |
 
@@ -168,6 +169,22 @@ For reference, the sum of single-species MSY is 1,884, and the status quo is 1,5
 
 * **The closure decouples the choke species.** With separate triggers, the effort rule can be lenient (0.6), while the reef is partly closed until Dentex is well above Bmsy. A permanent full closure is close behind (1,572).
 * **Yield is about 4% below no control, with profit up 47% and the risk limit met.** With one shared trigger, yield is lower and profit higher.
+
+### Nominal assignment of stocks to fleets (`scripts/16_assignment.R`)
+
+In practice a species is often managed through one fleet, although others catch it. `hcr_effort(assign = list(segment = stocks))` replaces the responsibility by catchability. Segments without stocks are not constrained.
+
+Results: effort rule + Dentex closure, 2-year lag, triggers tuned to the 5% risk limit (100 simulations per grid point). Days by segment come from 200 simulations, years 31–50.
+
+| Responsibility | Tuned triggers | Yield | Profit | Days (dem/pel/mix) | Worst P(B < Bpa) |
+|---|---|---|---|---|---|
+| By catchability (every segment that catches a stock) | 0.6 / 3 | 1,603 | 2,206 | 320/442/265 | 0.044 |
+| Nominal (demersal → demersal, pelagic → pelagic), mixed unmanaged | 0.7 / 3 | 1,633 | 2,130 | 283/378/423 | 0.025 |
+| Nominal + mixed answers for all stocks | 0.6 / 3 | 1,602 | 2,197 | — | 0.046 |
+
+* **Nominal assignment still meets the risk limit here,** because the closure protects the choke stock.
+* **The cost shifts between fleets.** The unmanaged generalist takes 60% more days (265 → 423), and the specialists are cut further to compensate (demersal −12%, pelagic −14%).
+* **This is a leakage and equity effect.** In the Gulf of Thailand, small-scale is about 82% of the days, so leaving it unmanaged would matter much more.
 
 ### Management based on four assessed stocks (`scripts/13_assessed_subset.R`)
 
