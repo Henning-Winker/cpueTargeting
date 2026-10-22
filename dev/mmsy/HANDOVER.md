@@ -100,12 +100,12 @@ Rule (year y, data year y − 2):  cap_g = E_ref,g · ramp(min_{i ∈ own_g} B̂
 
 ## 5. Proposed new package
 
-Working name: `mmsyfleet` (alternatives: `mixfishHS`, `fleetMMSY`). It should be stand-alone and **not depend on cpueTargeting**. The Atlantic example ships as tables (`dev/mmsy/extdata/atlantic_*.csv`, exported by `scripts/15_export_tables.R`). `derive_landscape()` stays in cpueTargeting as the way the tables were made.
+Name: **`mmsyFM`** (package) in the GitHub repository **`mmsy-fm`**. R package names cannot contain hyphens. It should be stand-alone and **not depend on cpueTargeting**. The Atlantic example ships as tables (`dev/mmsy/extdata/atlantic_*.csv`, exported by `scripts/15_export_tables.R`). `derive_landscape()` stays in cpueTargeting as the way the tables were made.
 
 ### Layout
 
 ```
-mmsyfleet/
+mmsy-fm/   (package mmsyFM)
 ├── DESCRIPTION            Imports: stats, ggplot2; Suggests: shiny, bslib, DT, patchwork, ggrepel, testthat, knitr, rmarkdown
 ├── NAMESPACE              (roxygen2)
 ├── R/
@@ -122,14 +122,14 @@ mmsyfleet/
 │   └── utils.R
 ├── inst/
 │   ├── extdata/           atlantic_*.csv, gulf_of_thailand_*.csv
-│   └── shiny/mmsyfleet/   app.R + modules (set-up, equilibrium explorer, optimiser, feedback/MSE, tuning)
+│   └── shiny/mmsyFM/   app.R + modules (set-up, equilibrium explorer, optimiser, feedback/MSE, tuning)
 ├── tests/testthat/        see the checks below
 ├── vignettes/             intro, conceptual yield curves, harvest strategies, Gulf of Thailand case study
 ├── _pkgdown.yml           site in docs/
 └── .github/workflows/     R-CMD-check.yaml, pkgdown.yaml
 ```
 
-`run_app()` exported: `shiny::runApp(system.file("shiny/mmsyfleet", package = "mmsyfleet"))`.
+`run_app()` exported: `shiny::runApp(system.file("shiny/mmsyFM", package = "mmsyFM"))`.
 
 ### Shiny tabs
 
@@ -154,7 +154,7 @@ The grid computations run in about 10–60 s, so use `shiny::ExtendedTask` or a 
 
 ### Steps for tomorrow
 
-1. Create the repository (e.g. `Henning-Winker/mmsyfleet`) and run `usethis::create_package()`, `use_mit_license()`, `use_testthat()`, `use_github_action("check-standard")`, `use_pkgdown_github_pages()`.
+1. Create the repository `Henning-Winker/mmsy-fm` (package `mmsyFM`) and run `usethis::create_package()`, `use_mit_license()`, `use_testthat()`, `use_github_action("check-standard")`, `use_pkgdown_github_pages()`.
 2. Copy `dev/mmsy/R/msfleet.R` and `plots.R`, split into the files above, and add roxygen headers. The functions already have roxygen-style comments.
 3. Write `ms_system()` from tables, the main refactor: it currently builds from the logbook landscape. Add `atlantic_system()` reading `inst/extdata/atlantic_*.csv`.
 4. Port the checks to `tests/testthat`.
