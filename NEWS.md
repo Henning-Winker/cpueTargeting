@@ -1,3 +1,21 @@
+# cpueTargeting (development version)
+
+## Export to assessment models
+
+* `index_set()`: collects one or several standardised indices (models of a
+  `cpue_fit`, a named list of fits for scenarios, or data frames with `year`,
+  `index`, `se_log`) into one table, with optional year range and
+  normalisation; the common input of the exporters below.
+* `as_jabba()`: `cpue` and `se` data frames for JABBA (`build_jabba()`) and
+  JABBA3 (`jb3_data()`).
+* `as_FLIndexBiomass()`, `as_FLIndices()`: FLR `FLIndexBiomass` (one series)
+  or named `FLIndices` (several), with the log-scale SE in `index.var` (the
+  JABBA3 convention) and optional `startf`/`endf`. `FLCore` is suggested, not
+  required.
+* `as_spict()`: SPiCT `obsI`, `timeI`, `stdevfacI` and a prior on the
+  observation SD of each index (`priors$logsdi`).
+* The real-data guide shows the exports in step 9.
+
 # cpueTargeting 0.4.0
 
 ## Selection tools, predictive checks and logbook guides

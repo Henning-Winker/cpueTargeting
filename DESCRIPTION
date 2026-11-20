@@ -31,9 +31,11 @@ Imports:
     utils
 Suggests:
     cluster,
+    FLCore,
     knitr,
     mgcv,
     rmarkdown,
     testthat (>= 3.0.0)
+Additional_repositories: https://flr-project.org/R
 VignetteBuilder: knitr
 Config/testthat/edition: 3
