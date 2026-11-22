@@ -1,3 +1,23 @@
+# cpueTargeting (development version)
+
+## Fitting years and frozen targeting
+
+* `add_targeting(fit_years = )`: estimate the PCA (centring, scaling,
+  rotation), the Optimal Coordinates test and the cluster centres from the
+  operations of some years only, and project all operations onto the PC axes
+  and assign them to the nearest cluster centre. Use it to keep years with
+  inconsistent recording out of the estimation, or to fit a reference period
+  and predict new years.
+* `predict_targeting()` (or `add_targeting(reference = )`): reuse the
+  targeting of an earlier run without re-estimating anything, so that adding
+  a year does not change the PC scores and tactics of earlier years (no
+  retrospective shift from the targeting step). Operations of the reference
+  with unchanged composition keep their tactic exactly; new or revised ones
+  are assigned to the nearest reference centre.
+* `composition_pca(fit = )` and `cluster_tactics(fit = )` support this;
+  `cluster_tactics()` now returns the cluster centres as an attribute, and
+  `select_tactics()` reuses the fitting years.
+
 # cpueTargeting 0.4.0
 
 ## Selection tools, predictive checks and logbook guides

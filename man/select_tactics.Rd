@@ -38,7 +38,8 @@ Coordinates test is run again on the subset).}
 \code{x}; species without catches in the subset are dropped automatically).}
 
 \item{...}{Further arguments for \code{\link[=add_targeting]{add_targeting()}}; by default the
-clustering method, \code{on} and \code{transform} of the previous call are reused.}
+clustering method, \code{on}, \code{transform} and \code{fit_years} of the previous call
+are reused.}
 }
 \value{
 The subsetted \code{cpue_data} object with new targeting covariates.

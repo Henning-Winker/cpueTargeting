@@ -12,7 +12,8 @@ cluster_tactics(
   n_pc = pca$oc$npc,
   seed = 1,
   samples = 100,
-  sampsize = 250
+  sampsize = 250,
+  fit = pca$fit
 )
 }
 \arguments{
@@ -34,9 +35,17 @@ as in the guidelines) or the first \code{n_pc} PC scores (\code{"pcs"}).}
 
 \item{samples, sampsize}{CLARA settings: number of samples and sample size
 (default 250, as in the guidelines).}
+
+\item{fit}{Optional logical vector: cluster these operations only and
+assign the others to the nearest cluster centre (default: \code{pca$fit}, i.e.
+the operations used to fit the PCA).}
 }
 \value{
-An integer vector of clusters, numbered by decreasing size.
+An integer vector of clusters, numbered by decreasing size (in the
+fitted operations), with attribute \code{centres}: the cluster centres in the
+clustering space (CLARA medoids, k-means centres or, for hclust, cluster
+means; row names are the cluster numbers), used to assign new
+operations to the nearest centre.
 }
 \description{
 Cluster operations into fishing tactics

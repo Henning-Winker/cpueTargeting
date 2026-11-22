@@ -336,6 +336,26 @@ tactic_table(x2)
 >   share removed by year and compare the index with and without the
 >   selection.
 
+### Fitting years and updating the index
+
+By default the PCA and the clusters are estimated from all operations, so
+adding a year changes the PC scores and tactics of all earlier years and can
+shift the whole index. Estimate them on a reference period and predict the
+rest, or freeze the targeting of the last assessment when updating:
+
+```{r frozen-targeting, eval = FALSE}
+# estimate on 2000-2019, predict the PCs and tactics of all years
+x_ref <- add_targeting(x, fit_years = 2000:2019)
+# update: freeze last year's targeting, assign new trips to its tactics
+x_new <- predict_targeting(x_new, reference = x_last_assessment)
+```
+
+Years with recording problems (e.g. a change of species coding, or a year
+extracted for the target only) can thus be kept out of the estimation of the
+targeting covariates. Check the PC scores and tactics of predicted years
+with `plot_targeting()`: their composition should resemble that of the
+fitting years.
+
 ## Step 7. Fit the standardisation models
 
 `fit_cpue()` fits a set of GAMs (`mgcv`) to the CPUE of one species and
