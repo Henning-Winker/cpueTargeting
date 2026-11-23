@@ -29,8 +29,9 @@ year (e.g. 0 and 2/12 for January-February); \code{NA} leaves them unset.}
 Converts standardised indices to \code{FLIndexBiomass} objects of the FLR
 package \code{FLCore}, the native index input of \code{JABBA3} (\code{jb3_data()}), with
 the index in \code{index} and the \strong{log-scale standard error in \code{index.var}}
-(the JABBA3 convention). Several series (models or scenarios) are returned
-as a named \code{FLIndices}. Requires the suggested package \code{FLCore}
+(the JABBA3 convention, also used by \code{ss3diags2::ss3_indices()}, with
+\code{distribution = "lognormal"}). Several series (models or scenarios) are
+returned as a named \code{FLIndices}. Requires the suggested package \code{FLCore}
 (\url{https://flr-project.org}).
 }
 \details{

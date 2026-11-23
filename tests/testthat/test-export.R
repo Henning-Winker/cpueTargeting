@@ -78,6 +78,7 @@ test_that("as_FLIndexBiomass() and as_FLIndices() follow the JABBA3 convention",
   expect_equal(as.numeric(dimnames(FLCore::index(fi))$year), s$year)
   expect_equal(unname(fi@range[c("startf", "endf")]), c(0, 2 / 12))
   expect_equal(FLCore::name(fi), "Cluster")
+  expect_equal(fi@distribution, "lognormal")
   expect_error(as_FLIndexBiomass(f, model = c("Base", "Cluster")), "as_FLIndices")
   fl <- as_FLIndices(list(jf = f, winter = f), model = "Cluster",
                      years = c(2001:2005, 2008:2012))
@@ -96,4 +97,24 @@ test_that("FLIndices are read back by JABBA3 as the JABBA tables", {
   back <- JABBA3::flr2jbdat(FLCore::FLQuant(1, dimnames = list(age = "all", year = jb$cpue$year)), fl)
   expect_equal(unname(as.matrix(back$cpue[, -1])), unname(as.matrix(jb$cpue[, -1])))
   expect_equal(unname(as.matrix(back$se[, -1])), unname(as.matrix(jb$se[, -1])))
+})
+
+test_that("as_ss3() returns the SS3 CPUE block", {
+  f <- fit_two()
+  ss <- as_ss3(f, model = c("Base", "Cluster"), fleet = c(5, 6), month = c(2, 7),
+               exclude = 2000:2001)
+  expect_named(ss, c("#_yr", "month", "fleet", "obs", "stderr", "comment"))
+  s <- index_set(f, model = c("Base", "Cluster"))
+  expect_equal(ss$obs, s$index)
+  expect_equal(ss$stderr, s$se_log)
+  expect_equal(abs(ss$`#_yr`), s$year)
+  expect_true(all(ss$`#_yr`[s$year %in% 2000:2001] < 0))
+  expect_true(all(ss$`#_yr`[!s$year %in% 2000:2001] > 0))
+  expect_match(ss$comment[ss$`#_yr` == -2000][1], "^#_ .* excluded$")
+  expect_equal(unique(ss$fleet[grepl("Cluster", ss$comment)]), 6L)
+  expect_equal(unique(ss$month[grepl("Base", ss$comment)]), 2)
+  r <- as_ss3(f, names = "r4ss", comment = FALSE)
+  expect_named(r, c("year", "month", "index", "obs", "se_log"))
+  expect_equal(unique(as_ss3(list(a = f, b = f))$fleet), 1:2)
+  expect_error(as_ss3(f, model = c("Base", "Cluster"), fleet = 1), "one number per series")
 })

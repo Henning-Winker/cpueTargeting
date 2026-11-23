@@ -9,11 +9,15 @@
 * `as_jabba()`: `cpue` and `se` data frames for JABBA (`build_jabba()`) and
   JABBA3 (`jb3_data()`).
 * `as_FLIndexBiomass()`, `as_FLIndices()`: FLR `FLIndexBiomass` (one series)
-  or named `FLIndices` (several), with the log-scale SE in `index.var` (the
-  JABBA3 convention) and optional `startf`/`endf`. `FLCore` is suggested, not
+  or named `FLIndices` (several), with the log-scale SE in `index.var` and
+  `distribution = "lognormal"` (the JABBA3 and ss3diags2 convention) and
+  optional `startf`/`endf`. `FLCore` is suggested, not
   required.
 * `as_spict()`: SPiCT `obsI`, `timeI`, `stdevfacI` and a prior on the
   observation SD of each index (`priors$logsdi`).
+* `as_ss3()`: Stock Synthesis CPUE block as in the data file (`#_yr`, `month`,
+  `fleet`, `obs`, `stderr` and a `#_` comment), with excluded years written as
+  negative years; `names = "r4ss"` gives the `r4ss` column names.
 * The real-data guide shows the exports in step 9.
 
 # cpueTargeting 0.4.0

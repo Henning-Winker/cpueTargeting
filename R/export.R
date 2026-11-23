@@ -131,8 +131,9 @@ as_jabba <- function(x, ...) {
 #' Converts standardised indices to `FLIndexBiomass` objects of the FLR
 #' package `FLCore`, the native index input of `JABBA3` (`jb3_data()`), with
 #' the index in `index` and the **log-scale standard error in `index.var`**
-#' (the JABBA3 convention). Several series (models or scenarios) are returned
-#' as a named `FLIndices`. Requires the suggested package `FLCore`
+#' (the JABBA3 convention, also used by `ss3diags2::ss3_indices()`, with
+#' `distribution = "lognormal"`). Several series (models or scenarios) are
+#' returned as a named `FLIndices`. Requires the suggested package `FLCore`
 #' (<https://flr-project.org>).
 #'
 #' The timing of the index within the year is stored in the `startf` and
@@ -191,7 +192,9 @@ as_FLIndices <- function(x, ..., units = "NA", startf = NA, endf = NA, desc = ""
   e <- s$se_log[match(yrs, s$year)]
   q <- FLCore::FLQuant(v, dimnames = list(age = "all", year = yrs), units = units)
   fi <- FLCore::FLIndexBiomass(index = q, name = s$name[1], desc = desc)
-  FLCore::index.var(fi) <- FLCore::FLQuant(e, dimnames = list(age = "all", year = yrs))
+  FLCore::index.var(fi) <- FLCore::FLQuant(e, dimnames = list(age = "all", year = yrs),
+                                           units = "se")
+  fi@distribution <- "lognormal"
   if (!is.na(startf) || !is.na(endf)) {
     rg <- fi@range
     if (!is.na(startf)) rg["startf"] <- startf
@@ -260,5 +263,68 @@ as_spict <- function(x, ..., timing = 0, sdi_sd = 0.5) {
   out$priors <- if (is.na(sdi_sd)) list() else
     list(logsdi = if (length(nms) == 1) unname(pri[[1]]) else unname(pri))
   out$sdI <- sdI
+  out
+}
+
+#' Indices as Stock Synthesis (SS3) CPUE input
+#'
+#' Returns the CPUE/abundance-index block of an SS3 data file (v3.30): one row
+#' per observation with year, month, fleet, observation and log-scale standard
+#' error, and a comment naming the index. Write it with [utils::write.csv()]
+#' (e.g. `ss3idx.csv`) and paste the rows into the data file.
+#'
+#' Observations to keep in the file but exclude from the likelihood are
+#' written with a negative year (SS3 convention), e.g. years with inconsistent
+#' recording.
+#'
+#' @inheritParams index_set
+#' @param ... Passed to [index_set()] (`model`, `years`, `normalise`).
+#' @param fleet SS3 fleet/survey number of each index (default `1, 2, ...` in
+#'   the order of the series; remap to the fleet numbers of the SS3 model).
+#' @param month Month of each index (recycled). In SS3 v3.30 month 1.0 is the
+#'   start of January and decimals are allowed: e.g. 2.0 for the middle of
+#'   January-February, 1.5 for the middle of December-February (mid-January),
+#'   7.0 for the middle of the year.
+#' @param exclude Years written with a negative year (excluded in SS3).
+#' @param names `"ss3"` (default): columns `#_yr`, `month`, `fleet`, `obs`,
+#'   `stderr` as in the data file; `"r4ss"`: `year`, `month`, `index`, `obs`,
+#'   `se_log` as in `r4ss::SS_readdat()` / `SS_writedat()`.
+#' @param comment If `TRUE`, a last column `comment` with `#_` and the index
+#'   name (and `excluded` for negative years), read as a comment by SS3.
+#' @return A data frame with one row per observation.
+#' @seealso [index_set()], [as_jabba()], [as_FLIndices()]
+#' @export
+#' @examples
+#' sim <- simulate_logbook(seed = 1, plots = FALSE)
+#' x <- cpue_data(sim$logbook, year = "year", species = "species",
+#'                catch = "kg", id = "trip", vessel = "vessel")
+#' x <- add_targeting(select_species(x, keep = "Pagellus bogaraveo"))
+#' fit <- fit_cpue(x, "Pagellus bogaraveo", models = c("Base", "Cluster"))
+#' ss3 <- as_ss3(fit, model = c("Base", "Cluster"), fleet = c(5, 6),
+#'               month = 7, normalise = TRUE, exclude = 2000:2002)
+#' head(ss3)
+#' \dontrun{
+#' write.csv(ss3, "ss3idx.csv", row.names = FALSE, quote = FALSE)
+#' }
+as_ss3 <- function(x, ..., fleet = NULL, month = 1, exclude = NULL,
+                   names = c("ss3", "r4ss"), comment = TRUE) {
+  names <- match.arg(names)
+  s <- index_set(x, ...)
+  nms <- unique(s$name)
+  if (is.null(fleet)) fleet <- seq_along(nms)
+  if (length(fleet) != length(nms)) {
+    stop("`fleet` needs one number per series (", length(nms), ").", call. = FALSE)
+  }
+  month <- rep_len(month, length(nms))
+  j <- match(s$name, nms)
+  off <- s$year %in% exclude
+  out <- data.frame(year = ifelse(off, -s$year, s$year), month = month[j],
+                    fleet = as.integer(fleet[j]), obs = s$index, se_log = s$se_log)
+  if (names == "ss3") {
+    names(out) <- c("#_yr", "month", "fleet", "obs", "stderr")
+  } else {
+    names(out) <- c("year", "month", "index", "obs", "se_log")
+  }
+  if (comment) out$comment <- paste0("#_ ", s$name, ifelse(off, " excluded", ""))
   out
 }

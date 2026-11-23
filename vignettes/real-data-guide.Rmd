@@ -530,7 +530,10 @@ model from it:
   suggested) with the log SE in `index.var`, the native index input of
   JABBA3; several series give a named `FLIndices`;
 * `as_spict()`: `obsI`, `timeI` and `stdevfacI` for SPiCT, with a prior on
-  the observation SD of each index in `priors$logsdi`.
+  the observation SD of each index in `priors$logsdi`;
+* `as_ss3()`: the CPUE block of a Stock Synthesis data file (`#_yr`,
+  `month`, `fleet`, `obs`, `stderr`, `#_` comment), with excluded years as
+  negative years.
 
 ```{r export-models}
 jb <- as_jabba(fit, model = c("Cluster+S", "DPC+S"), normalise = TRUE)
@@ -538,6 +541,9 @@ head(jb$cpue)
 head(jb$se)
 si <- as_spict(fit, model = "DPC+S", timing = 0.5)
 str(si)
+ss3 <- as_ss3(fit, model = c("Cluster+S", "DPC+S"), fleet = c(3, 4), month = 7)
+head(ss3)
+# write.csv(ss3, "ss3idx.csv", row.names = FALSE, quote = FALSE)
 ```
 
 ```{r export-flr, eval = requireNamespace("FLCore", quietly = TRUE)}
