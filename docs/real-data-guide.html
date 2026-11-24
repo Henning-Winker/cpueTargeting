@@ -1944,7 +1944,7 @@ clusters, Winker et al. 2014). It adds the PC scores (<code>PC1</code>,
 <code>PC2</code>, …) and the tactic (<code>FT</code>) to the data.</p>
 <pre class="r"><code>x &lt;- add_targeting(x)
 x$targeting$pca</code></pre>
-<pre><code>## &lt;cpue_pca&gt; 12798 operations, 4 species, transform: fourth_root 
+<pre><code>## &lt;cpue_pca&gt; 12798 operations , 4 species, transform: fourth_root 
 ##  PC eigenvalue share cumulative
 ##   1      2.011 0.503      0.503
 ##   2      1.074 0.269      0.771
@@ -2037,6 +2037,23 @@ the share removed by year and compare the index with and without the
 selection.</li>
 </ul>
 </blockquote>
+</div>
+<div id="fitting-years-and-updating-the-index" class="section level3">
+<h3>Fitting years and updating the index</h3>
+<p>By default the PCA and the clusters are estimated from all
+operations, so adding a year changes the PC scores and tactics of all
+earlier years and can shift the whole index. Estimate them on a
+reference period and predict the rest, or freeze the targeting of the
+last assessment when updating:</p>
+<pre class="r"><code># estimate on 2000-2019, predict the PCs and tactics of all years
+x_ref &lt;- add_targeting(x, fit_years = 2000:2019)
+# update: freeze last year&#39;s targeting, assign new trips to its tactics
+x_new &lt;- predict_targeting(x_new, reference = x_last_assessment)</code></pre>
+<p>Years with recording problems (e.g. a change of species coding, or a
+year extracted for the target only) can thus be kept out of the
+estimation of the targeting covariates. Check the PC scores and tactics
+of predicted years with <code>plot_targeting()</code>: their composition
+should resemble that of the fitting years.</p>
 </div>
 </div>
 <div id="step-7.-fit-the-standardisation-models" class="section level2">
@@ -2329,6 +2346,117 @@ the species’ relative abundances may have diverged.</li>
 covariate values), <code>relative</code> is scaled to its mean, and
 <code>se_log</code> is the standard error of the log index, the usual
 input to stock assessment models.</p>
+<div id="input-for-assessment-models" class="section level3">
+<h3>Input for assessment models</h3>
+<p>The standardised indices can be passed directly to surplus production
+models. <code>index_set()</code> collects one or several indices (models
+of one fit, or a named list of fits for scenarios), optionally
+restricted to a range of years and normalised to mean 1; the exporters
+build the input of each model from it:</p>
+<ul>
+<li><code>as_jabba()</code>: the <code>cpue</code> and <code>se</code>
+data frames of JABBA (<code>JABBA::build_jabba()</code>), also accepted
+by JABBA3 (<code>JABBA3::jb3_data()</code>);</li>
+<li><code>as_FLIndexBiomass()</code> / <code>as_FLIndices()</code>: FLR
+objects (package <code>FLCore</code>, suggested) with the log SE in
+<code>index.var</code>, the native index input of JABBA3; several series
+give a named <code>FLIndices</code>;</li>
+<li><code>as_spict()</code>: <code>obsI</code>, <code>timeI</code> and
+<code>stdevfacI</code> for SPiCT, with a prior on the observation SD of
+each index in <code>priors$logsdi</code>;</li>
+<li><code>as_ss3()</code>: the CPUE block of a Stock Synthesis data file
+(<code>#_yr</code>, <code>month</code>, <code>fleet</code>,
+<code>obs</code>, <code>stderr</code>, <code>#_</code> comment), with
+excluded years as negative years.</li>
+</ul>
+<pre class="r"><code>jb &lt;- as_jabba(fit, model = c(&quot;Cluster+S&quot;, &quot;DPC+S&quot;), normalise = TRUE)
+head(jb$cpue)</code></pre>
+<pre><code>##   year Cluster+S    DPC+S
+## 1 2000 0.9320355 1.021119
+## 2 2001 0.9400433 1.047375
+## 3 2002 1.0988357 1.089998
+## 4 2003 0.9656093 1.023842
+## 5 2004 0.9287616 1.037933
+## 6 2005 0.9477603 1.008637</code></pre>
+<pre class="r"><code>head(jb$se)</code></pre>
+<pre><code>##   year  Cluster+S      DPC+S
+## 1 2000 0.07366987 0.05723977
+## 2 2001 0.06424672 0.05119003
+## 3 2002 0.06951106 0.05467163
+## 4 2003 0.07097953 0.05604453
+## 5 2004 0.07823038 0.06021755
+## 6 2005 0.06905820 0.05456156</code></pre>
+<pre class="r"><code>si &lt;- as_spict(fit, model = &quot;DPC+S&quot;, timing = 0.5)
+str(si)</code></pre>
+<pre><code>## List of 5
+##  $ obsI     :List of 1
+##   ..$ DPC+S: num [1:30] 7.8 8 8.33 7.82 7.93 ...
+##  $ timeI    :List of 1
+##   ..$ DPC+S: num [1:30] 2000 2002 2002 2004 2004 ...
+##  $ stdevfacI:List of 1
+##   ..$ DPC+S: num [1:30] 1.18 1.06 1.13 1.16 1.24 ...
+##  $ priors   :List of 1
+##   ..$ logsdi: num [1:3] -3.03 0.5 1
+##  $ sdI      : Named num 0.0484
+##   ..- attr(*, &quot;names&quot;)= chr &quot;DPC+S&quot;</code></pre>
+<pre class="r"><code>ss3 &lt;- as_ss3(fit, model = c(&quot;Cluster+S&quot;, &quot;DPC+S&quot;), fleet = c(3, 4), month = 7)
+head(ss3)</code></pre>
+<pre><code>##   #_yr month fleet      obs     stderr      comment
+## 1 2000     7     3 4.163222 0.07366987 #_ Cluster+S
+## 2 2001     7     3 4.198991 0.06424672 #_ Cluster+S
+## 3 2002     7     3 4.908286 0.06951106 #_ Cluster+S
+## 4 2003     7     3 4.313189 0.07097953 #_ Cluster+S
+## 5 2004     7     3 4.148597 0.07823038 #_ Cluster+S
+## 6 2005     7     3 4.233461 0.06905820 #_ Cluster+S</code></pre>
+<pre class="r"><code># write.csv(ss3, &quot;ss3idx.csv&quot;, row.names = FALSE, quote = FALSE)</code></pre>
+<pre class="r"><code>fl &lt;- as_FLIndices(fit, model = c(&quot;Cluster+S&quot;, &quot;DPC+S&quot;), normalise = TRUE)
+fl</code></pre>
+<pre><code>## An object of class &quot;FLIndices&quot;
+## [[1]]
+## An object of class &quot;FLIndexBiomass&quot;
+## 
+## Name: Cluster+S 
+## Description:  
+## Distribution :  lognormal 
+## Quant: age 
+## Dims:  age   year    unit    season  area    iter
+##  1   30  1   1   1   1   
+## 
+## Range:  min  max pgroup  minyear maxyear startf  endf 
+##  NA  NA  NA  2000    2029    NA  NA  
+## 
+## 
+## [[2]]
+## An object of class &quot;FLIndexBiomass&quot;
+## 
+## Name: DPC+S 
+## Description:  
+## Distribution :  lognormal 
+## Quant: age 
+## Dims:  age   year    unit    season  area    iter
+##  1   30  1   1   1   1   
+## 
+## Range:  min  max pgroup  minyear maxyear startf  endf 
+##  NA  NA  NA  2000    2029    NA  NA  
+## 
+## 
+## Slot &quot;names&quot;:
+## [1] &quot;Cluster+S&quot; &quot;DPC+S&quot;    
+## 
+## Slot &quot;desc&quot;:
+## character(0)
+## 
+## Slot &quot;lock&quot;:
+## [1] FALSE</code></pre>
+<pre class="r"><code># JABBA3 with FLR inputs (catch as FLQuant) or the JABBA data frames
+d &lt;- JABBA3::jb3_data(catch, fl, index.time = 0.5)
+d &lt;- JABBA3::jb3_data(catch_df, jb$cpue, jb$se)
+# SPiCT
+inp &lt;- list(obsC = catch_df$catch, timeC = catch_df$year)
+inp[c(&quot;obsI&quot;, &quot;timeI&quot;, &quot;stdevfacI&quot;)] &lt;- si[c(&quot;obsI&quot;, &quot;timeI&quot;, &quot;stdevfacI&quot;)]
+inp$priors$logsdi &lt;- si$priors$logsdi
+spict_fit &lt;- spict::fit.spict(inp)</code></pre>
+</div>
 </div>
 <div id="processing-log" class="section level2">
 <h2>Processing log</h2>
