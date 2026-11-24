@@ -1,5 +1,31 @@
 # cpueTargeting (development version)
 
+## Consistency checks over the time series
+
+* `data_consistency()`: runs the three checks below on a `cpue_data` object
+  and returns one table of flagged years. Run it on the full data, before
+  `select_species()`.
+* `species_consistency()`: share of operations recording each species by
+  year; abrupt steps (appearance, disappearance, increase, decrease), candidate
+  breaks typed as coding changes (species replaced), extraction or recording
+  changes (species lost) or new species, consistent blocks of years, and
+  candidate replacement pairs ranked by the timing, the similarity of the
+  occurrence loss and gain, and the vessels recording them. `suggested` gives
+  a harmonisation map to confirm with the code lists. Plots:
+  `plot_species_consistency()` (`"heatmap"`, `"years"`, `"pairs"`).
+* `harmonise_species()`: merge species codes in an existing `cpue_data`
+  object (e.g. the confirmed suggestions), recorded in the processing log.
+* `vessel_consistency()`: active, new and leaving vessels, overlap of the
+  vessel set with the previous year, share of operations by new and
+  single-year vessels, cohorts of first appearance; flags abrupt changes of
+  the vessel set. Plots: `plot_vessel_consistency()` (`"turnover"`,
+  `"cohort"`).
+* `composition_consistency()`: yearly species per operation, single-species
+  operations, diversity, catch per operation, whole-number catches (recording
+  precision) and the occurrence and share of the target, with outlying years
+  flagged by a robust z-score. Plot: `plot_composition_consistency()`.
+* The real-data guide has a new step 1b on these checks.
+
 ## Fitting years and frozen targeting
 
 * `add_targeting(fit_years = )`: estimate the PCA (centring, scaling,
