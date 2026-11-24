@@ -13,6 +13,8 @@ add_targeting(
   transform = "fourth_root",
   species = x$species,
   seed = 1,
+  fit_years = NULL,
+  reference = NULL,
   ...
 )
 }
@@ -27,11 +29,18 @@ add_targeting(
 
 \item{transform, species}{Passed to \code{\link[=composition_pca]{composition_pca()}}.}
 
+\item{fit_years}{Optional years whose operations are used to estimate the
+PCA, the OC test and the clusters (default: all years).}
+
+\item{reference}{Optional earlier targeting to reuse unchanged (see
+Details); other settings are then taken from it.}
+
 \item{...}{Further arguments for \code{\link[=cluster_tactics]{cluster_tactics()}}.}
 }
 \value{
 The \code{cpue_data} object with the new columns and a \code{targeting}
-element (PCA, settings and cluster composition).
+element (PCA, settings, cluster centres, fitting years and cluster
+composition).
 }
 \description{
 One step that runs \code{\link[=composition_pca]{composition_pca()}}, the Optimal Coordinates test and
@@ -46,6 +55,29 @@ added; the DPC approach uses the first \code{n_pc});
 These are the targeting covariates of the DPC and Cluster models. Check
 them with \code{\link[=plot_oc]{plot_oc()}}, \code{\link[=plot_biplot]{plot_biplot()}}, \code{\link[=tactic_table]{tactic_table()}} and
 \code{\link[=plot_targeting]{plot_targeting()}} before using them.
+
+\strong{Fitting years and freezing the targeting.} By default the PCA, the OC
+test and the clusters are estimated from all operations, so adding a year
+of data changes the PC scores and clusters of all earlier years (and can
+shift the whole index). Two options keep them fixed:
+\itemize{
+\item \code{fit_years}: estimate the PCA (centring, scaling and rotation), the OC
+test and the cluster centres from the operations of these years only;
+all operations are then projected onto the PC axes
+(\code{\link[stats:prcomp]{stats::predict.prcomp()}}) and assigned to the nearest cluster centre.
+Useful to exclude years with inconsistent recording from the estimation,
+or to fit on a reference period and predict new years.
+\item \code{reference}: reuse the targeting of an earlier run (a \code{cpue_data} object
+after \code{add_targeting()}, or its \code{targeting} element) without
+re-estimating anything: the composition of every operation is projected
+onto the reference PCA and assigned to the reference cluster centres.
+This freezes the targeting covariates when an index is updated with a
+new year. See also \code{\link[=predict_targeting]{predict_targeting()}}.
+}
+
+Operations outside the fitting years are only as well described as their
+composition resembles that of the fitting years; check the PC scores and
+clusters of predicted years with \code{\link[=plot_targeting]{plot_targeting()}}.
 }
 \examples{
 \dontrun{
@@ -54,5 +86,9 @@ plot_oc(x)
 plot_biplot(x)
 tactic_table(x)
 plot_targeting(x)$time
+# estimate on 2005-2024, predict the PCs and tactics of all years
+x <- add_targeting(x, fit_years = 2005:2024)
+# freeze the targeting of last year's assessment for the update
+x_new <- add_targeting(x_new, reference = x_last_year)
 }
 }
