@@ -589,6 +589,53 @@ export_index(fit, "cpue_index_DPC.csv", model = "DPC+S")
 values), `relative` is scaled to its mean, and `se_log` is the standard
 error of the log index, the usual input to stock assessment models.
 
+### Input for assessment models
+
+The standardised indices can be passed directly to surplus production
+models. `index_set()` collects one or several indices (models of one fit, or
+a named list of fits for scenarios), optionally restricted to a range of
+years and normalised to mean 1; the exporters build the input of each
+model from it:
+
+* `as_jabba()`: the `cpue` and `se` data frames of JABBA
+  (`JABBA::build_jabba()`), also accepted by JABBA3 (`JABBA3::jb3_data()`);
+* `as_FLIndexBiomass()` / `as_FLIndices()`: FLR objects (package `FLCore`,
+  suggested) with the log SE in `index.var`, the native index input of
+  JABBA3; several series give a named `FLIndices`;
+* `as_spict()`: `obsI`, `timeI` and `stdevfacI` for SPiCT, with a prior on
+  the observation SD of each index in `priors$logsdi`;
+* `as_ss3()`: the CPUE block of a Stock Synthesis data file (`#_yr`,
+  `month`, `fleet`, `obs`, `stderr`, `#_` comment), with excluded years as
+  negative years.
+
+```{r export-models}
+jb <- as_jabba(fit, model = c("Cluster+S", "DPC+S"), normalise = TRUE)
+head(jb$cpue)
+head(jb$se)
+si <- as_spict(fit, model = "DPC+S", timing = 0.5)
+str(si)
+ss3 <- as_ss3(fit, model = c("Cluster+S", "DPC+S"), fleet = c(3, 4), month = 7)
+head(ss3)
+# write.csv(ss3, "ss3idx.csv", row.names = FALSE, quote = FALSE)
+```
+
+```{r export-flr, eval = requireNamespace("FLCore", quietly = TRUE)}
+fl <- as_FLIndices(fit, model = c("Cluster+S", "DPC+S"), normalise = TRUE)
+fl
+```
+
+```{r export-use, eval = FALSE}
+# JABBA3 with FLR inputs (catch as FLQuant) or the JABBA data frames
+d <- JABBA3::jb3_data(catch, fl, index.time = 0.5)
+d <- JABBA3::jb3_data(catch_df, jb$cpue, jb$se)
+# SPiCT
+inp <- list(obsC = catch_df$catch, timeC = catch_df$year)
+inp[c("obsI", "timeI", "stdevfacI")] <- si[c("obsI", "timeI", "stdevfacI")]
+inp$priors$logsdi <- si$priors$logsdi
+spict_fit <- spict::fit.spict(inp)
+```
+
+
 ## Processing log
 
 The log records every step, how many operations it removed, and the
