@@ -111,6 +111,79 @@ x
 x <- subset(x, month %in% 1:12, note = "all months (example)")
 ```
 
+## Step 1b. Check consistency over time
+
+Long series often change how they are recorded: species codes are split,
+merged or renamed when databases change, an extraction may cover only some
+species in some years, the vessel set can change with the data source, and
+the recording precision or units can change. Because the targeting
+covariates are computed from the catch composition, such changes look like
+changes in targeting and can bias the index. Check them on the full data,
+before choosing the species set.
+
+`data_consistency()` runs three checks and returns one table of flags:
+
+* `species_consistency()`: abrupt appearance, disappearance or steps in the
+  share of operations recording each species; years where several species
+  change together are candidate **breaks**, and species that disappear are
+  paired with species that appear at the same time, recorded at a similar
+  rate by the same vessels (candidate **replacements**);
+* `vessel_consistency()`: active, new and leaving vessels, overlap of the
+  vessel set with the previous year and the share of operations by new
+  vessels;
+* `composition_consistency()`: species per operation, single-species
+  operations, diversity, catch per operation, whole-number catches and the
+  occurrence and share of the target, with outlying years flagged.
+
+The example data are consistent. To show what the checks find, we create a
+copy in which two species are recorded under new codes from 2015 and the
+last year was extracted for the target species only, from new vessels.
+
+```{r consistency}
+dc <- data_consistency(x, target = "Anoplopoma fimbria")
+dc
+bad <- logbook
+late <- bad$year >= 2015
+bad$species[late & bad$species == "Eopsetta jordani"] <- "Eopsetta sp."
+bad$species[late & bad$species == "Sebastes crameri"] <- "Sebastes spp."
+last <- max(bad$year)
+bad <- bad[bad$year < last | bad$species == "Anoplopoma fimbria", ]
+bad$vessel[bad$year == last] <- paste0("new_", bad$vessel[bad$year == last])
+x_bad <- cpue_data(bad, year = "year", species = "species", catch = "kg",
+                   effort = "hours", id = "trip", vessel = "vessel",
+                   synonyms = c("Sablefish" = "Anoplopoma fimbria"))
+dc_bad <- data_consistency(x_bad, target = "Anoplopoma fimbria")
+dc_bad
+```
+
+```{r consistency-plots, fig.height = 4}
+plot_species_consistency(dc_bad$species)
+plot_species_consistency(dc_bad$species, "pairs")
+plot_vessel_consistency(dc_bad$vessels)
+plot_composition_consistency(dc_bad$composition)
+```
+
+Confirmed replacements are merged with `harmonise_species()` (or with
+`synonyms` in `cpue_data()`), and years with a different extraction are
+removed or re-extracted:
+
+```{r harmonise}
+x_fix <- harmonise_species(x_bad, dc_bad$species$suggested)
+x_fix <- subset(x_fix, year < last, note = "last year extracted for target only")
+data_consistency(x_fix, target = "Anoplopoma fimbria")
+```
+
+> **Guidelines**
+>
+> * Run the checks **before** `select_species()`, which removes species.
+> * Suggested replacements are inferred from timing, rate and vessels only:
+>   **confirm them with the code lists** of the data provider before merging.
+> * A break where species are lost and none replace them (e.g. one species
+>   per operation in one year) points to an extraction for some species only;
+>   do not use that year until it is re-extracted.
+> * If codes cannot be harmonised, start the series after the last break or
+>   restrict the composition to species recorded consistently.
+
 ## Step 2. Explore the fleet
 
 Standardisation corrects for the non-random allocation of effort. First look
