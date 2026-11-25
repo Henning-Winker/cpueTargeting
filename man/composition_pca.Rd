@@ -27,7 +27,7 @@ Kaiser-Guttman part of the OC test (eigenvalue >= 1) assumes this.}
 \item{fit}{Optional logical vector (one value per operation): estimate the
 PCA (centring, scaling, rotation) and the OC test on these operations
 only and project all operations onto the axes with
-\code{\link[stats:predict.prcomp]{stats::predict.prcomp()}}. Used by \code{\link[=add_targeting]{add_targeting()}} with \code{fit_years}.}
+\code{\link[stats:prcomp]{stats::predict.prcomp()}}. Used by \code{\link[=add_targeting]{add_targeting()}} with \code{fit_years}.}
 }
 \value{
 An object of class \code{cpue_pca} with \code{pca} (the \code{\link[stats:prcomp]{stats::prcomp()}}

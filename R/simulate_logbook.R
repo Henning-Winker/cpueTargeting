@@ -109,7 +109,54 @@ logbook_settings <- function() {
       round_to = 0.5,
       underreport = list(max_price = 3, below_kg = 2, prob = 0.5),
       synonyms = c("Pagellus bogaraveo" = "Blackspot seabream"),
-      synonym_rate = 0.1)
+      synonym_rate = 0.1),
+    landing = NULL               # optional landing sites, see landing_settings()
+  )
+}
+
+#' Landing sites, fishing ranges and calendar for the logbook simulator
+#'
+#' Optional layer for [simulate_logbook()] (`settings$landing`). Each vessel is
+#' based at a home landing site on the coast (the inshore edge, `x = 0.5`),
+#' chosen by `site_mix` (weights of each vessel type by site type). Trips
+#' choose cells by expected value as before, but the weight of each cell is
+#' multiplied by a reach kernel of the vessel type: `exp(-(d / range)^2)`
+#' (`range_shape = "decay"`) or `d <= range` (`"hard"`), where `d` is the
+#' distance in cells from the home site. Trips then get a calendar day (a
+#' fishing day of the month, at most one trip per vessel and day where
+#' possible) and a landing hour (departure + hours fished + travel).
+#'
+#' With `landing = NULL` (default) the simulator is unchanged, seed for seed.
+#'
+#' @param vessel_types Names of the vessel types (segments), which must match
+#'   `settings$vessel_types`. The defaults fit [logbook_settings()].
+#' @param range Fishing range of each vessel type, in cells.
+#' @return A list with `sites` (site, type, x, y in cells), `site_mix` (site
+#'   types x vessel types), `range`, `range_shape`, `cell_km` and `calendar`
+#'   (`days_off`, ISO weekdays without fishing; `depart`, range of departure
+#'   hours; `speed_kmh`).
+#' @export
+#' @examples
+#' \dontrun{
+#' s <- logbook_settings()
+#' s$landing <- landing_settings()
+#' sim <- simulate_logbook(s, seed = 1)
+#' head(sim$landings)
+#' sim$Plots$sites
+#' }
+landing_settings <- function(vessel_types = c("demersal", "pelagic", "mixed"),
+                             range = c(demersal = 10, pelagic = 30, mixed = 15)) {
+  types <- c("Harbour", "Beach", "Jetty")
+  mix <- matrix(1, 3, length(vessel_types), dimnames = list(types, vessel_types))
+  list(
+    sites = data.frame(site = sprintf("LS%d", 1:9), type = rep(types, 3),
+                       x = 0.5, y = round(seq(3, 38, length.out = 9)),
+                       stringsAsFactors = FALSE),
+    site_mix = mix,
+    range = range[vessel_types],
+    range_shape = "decay",
+    cell_km = 2.5,
+    calendar = list(days_off = 7, depart = c(4, 7), speed_kmh = 15)
   )
 }
 
@@ -236,6 +283,23 @@ simulate_logbook <- function(settings = logbook_settings(), seed = NULL, plots =
   sig_v <- cv_to_sdlog(s$vessel_cv)
   q_vessel <- stats::rlnorm(nv, -sig_v^2 / 2, sig_v) * exp(s$creep * (entry - 1))
 
+  # Landing sites (optional): home site of each vessel and reach of each cell
+  land <- s$landing
+  if (!is.null(land)) {
+    st <- land$sites
+    mix <- as.matrix(land$site_mix)
+    v_site <- vapply(seq_len(nv), function(v) {
+      p <- mix[st$type, types[v]]
+      sample.int(nrow(st), 1, prob = p)
+    }, integer(1))
+    d_site <- sqrt(outer(x, st$x, "-")^2 + outer(y, st$y, "-")^2)  # cells
+    reach <- lapply(stats::setNames(names(s$vessel_types), names(s$vessel_types)),
+                    function(ty) {
+      r <- land$range[[ty]]
+      if (identical(land$range_shape, "hard")) (d_site <= r) * 1 else exp(-(d_site / r)^2)
+    })
+  }
+
   trips_year <- if (!is.null(s$trips)) rep_len(s$trips, ny_yr) else {
     base <- 400 + 800 * stats::plogis((seq_len(ny_yr) - 8) / 2.5)
     cut <- if (!is.null(s$closure)) ifelse(seq_len(ny_yr) >= s$closure$year, 0.8, 1) else 1
@@ -279,14 +343,29 @@ simulate_logbook <- function(settings = logbook_settings(), seed = NULL, plots =
         for (g in names(groups)) {
           allowed <- groups[[g]]$tac
           if (groups[[g]]$n == 0 || !length(allowed)) next
-          w <- value[, allowed, drop = FALSE]^s$preference
+          w_all <- value[, allowed, drop = FALSE]^s$preference
+          pool_all <- active[act_types == ty]
+          # without landing sites: one group; with: trips split among home sites
+          parts <- if (is.null(land)) {
+            list(list(n = groups[[g]]$n, pool = pool_all, site = NA_integer_))
+          } else {
+            vs <- v_site[pool_all]
+            us <- sort(unique(vs))
+            nn <- stats::rmultinom(1, groups[[g]]$n, tabulate(match(vs, us)))[, 1]
+            lapply(seq_along(us), function(i) {
+              list(n = nn[i], pool = pool_all[vs == us[i]], site = us[i])
+            })
+          }
+          for (pt in parts) {
+          if (pt$n == 0) next
+          pool <- pt$pool
+          w <- if (is.na(pt$site)) w_all else w_all * reach[[ty]][, pt$site]
           if (sum(w) <= 0) next
-          alloc <- stats::rmultinom(1, groups[[g]]$n, as.vector(w) / sum(w))[, 1]
+          alloc <- stats::rmultinom(1, pt$n, as.vector(w) / sum(w))[, 1]
           idx <- rep.int(seq_along(alloc), alloc)
           k <- length(idx)
           cell <- (idx - 1) %% n_cells + 1
           tac <- allowed[(idx - 1) %/% n_cells + 1]
-          pool <- active[act_types == ty]
           vessel <- pool[sample.int(length(pool), k, replace = TRUE)]
           trip <- trip_counter + seq_len(k)
           trip_counter <- trip_counter + k
@@ -306,11 +385,12 @@ simulate_logbook <- function(settings = logbook_settings(), seed = NULL, plots =
             wt <- w[, t]
             if (length(j) && sum(wt) > 0) cell2[j] <- sample.int(n_cells, length(j), TRUE, prob = wt)
           }
-          month_sets[[paste(ty, g)]] <- data.frame(
+          month_sets[[paste(ty, g, pt$site)]] <- data.frame(
             trip = c(trip, trip[two]), set = rep(1:2, c(k, sum(two))),
             year = yr, month = m, vessel = c(vessel, vessel[two]),
             vessel_type = ty, loyal = g == "home", tactic = c(tac, tac2[two]),
-            cell = c(cell, cell2[two]), stringsAsFactors = FALSE)
+            cell = c(cell, cell2[two]), site = pt$site, stringsAsFactors = FALSE)
+          }
         }
       }
       if (!length(month_sets)) next
@@ -357,6 +437,7 @@ simulate_logbook <- function(settings = logbook_settings(), seed = NULL, plots =
   tot <- rowSums(trip_catch)
   kg_scale <- if (any(tot > 0)) lb$kg_trip / stats::median(tot[tot > 0]) else 1
   kg <- trip_catch * kg_scale
+  kg_true <- kg                  # true landed kg, before the reporting distortions
   if (!is.null(lb$underreport)) {
     low <- which(sp$price <= lb$underreport$max_price)
     for (i in low) {
@@ -388,6 +469,43 @@ simulate_logbook <- function(settings = logbook_settings(), seed = NULL, plots =
   logbook <- logbook[order(logbook$trip, logbook$species), ]
   rownames(logbook) <- NULL
 
+  # Landing sites: site, calendar day and landing hour of each trip
+  landings <- sites <- vessels <- NULL
+  if (!is.null(land)) {
+    cal <- land$calendar
+    trips$site <- st$site[first$site]
+    trips$site_type <- st$type[first$site]
+    trips$distance <- d_site[cbind(first$cell, first$site)] * land$cell_km
+    fdays <- list()
+    for (ym in unique(paste(trips$year, trips$month))) {
+      p <- as.integer(strsplit(ym, " ")[[1]])
+      dd <- seq(as.Date(sprintf("%d-%02d-01", p[1], p[2])), by = "day", length.out = 31)
+      dd <- dd[as.integer(format(dd, "%m")) == p[2]]
+      fdays[[ym]] <- as.integer(format(dd[!(as.integer(format(dd, "%u")) %in% cal$days_off)], "%d"))
+    }
+    day <- integer(nrow(trips))
+    for (idx in split(seq_len(nrow(trips)), paste(trips$year, trips$month, trips$vessel))) {
+      dn <- fdays[[paste(trips$year[idx[1]], trips$month[idx[1]])]]
+      day[idx] <- dn[sample.int(length(dn), length(idx), replace = length(idx) > length(dn))]
+    }
+    trips$date <- as.Date(sprintf("%d-%02d-%02d", trips$year, trips$month, day))
+    trips$quarter <- (trips$month - 1) %/% 3 + 1
+    trips$week <- (as.integer(format(trips$date, "%j")) - 1) %/% 7 + 1
+    trips$weekday <- as.integer(format(trips$date, "%u"))
+    depart <- stats::runif(nrow(trips), cal$depart[1], cal$depart[2])
+    trips$hour <- pmin(depart + trips$hours + 2 * trips$distance / cal$speed_kmh, 23.9)
+    meta <- trips[c("trip", "date", "year", "quarter", "month", "week", "weekday", "hour",
+                    "site", "site_type", "vessel", "vessel_type", "hours", "tactic",
+                    "tactic2", "n_sets", "depth", "habitat", "distance")]
+    meta$vessel <- sprintf("V%02d", meta$vessel)
+    landings <- data.frame(meta, W = rowSums(kg_true), kg_true, check.names = FALSE)
+    sites <- st
+    vessels <- data.frame(vessel = sprintf("V%02d", seq_len(nv)), vessel_type = types,
+                          site = st$site[v_site], site_type = st$type[v_site],
+                          entry = entry + s$start_year - 1, exit = exit + s$start_year - 1,
+                          efficiency = q_vessel, stringsAsFactors = FALSE)
+  }
+
   years_cal <- seq_len(ny_yr) + s$start_year - 1
   truth <- do.call(rbind, lapply(seq_len(ns), function(i) {
     data.frame(year = years_cal, species = spn[i], group = sp$group[i],
@@ -412,6 +530,11 @@ simulate_logbook <- function(settings = logbook_settings(), seed = NULL, plots =
               env = env, density = density,
               prices = data.frame(year = years_cal, price, check.names = FALSE),
               settings = s)
+  if (!is.null(land)) {
+    out$landings <- landings
+    out$sites <- sites
+    out$vessels <- vessels
+  }
   if (plots) out$Plots <- plot_logbook_om(out)
   out
 }
@@ -422,7 +545,7 @@ merge_logbook_settings <- function(settings) {
   if (!is.list(settings)) stop("`settings` must be a list.", call. = FALSE)
   def <- logbook_settings()
   whole <- c("species", "tactics", "price", "trips", "closure", "vessel_types", "home",
-             "loyalty")
+             "loyalty", "landing")
   # earlier versions: `allowed` = home tactics without leaving them
   if (!is.null(settings$allowed) && is.null(settings$home)) {
     settings$home <- settings$allowed
@@ -454,6 +577,25 @@ merge_logbook_settings <- function(settings) {
     stop("`loyalty` needs a value between 0 and 1 for every vessel type.", call. = FALSE)
   }
   if (s$n_years < 4) stop("`n_years` must be at least 4.", call. = FALSE)
+  if (!is.null(s$landing)) {
+    l <- s$landing
+    vt <- names(s$vessel_types)
+    if (!all(c("site", "type", "x", "y") %in% names(l$sites))) {
+      stop("`landing$sites` needs columns site, type, x, y.", call. = FALSE)
+    }
+    mix <- as.matrix(l$site_mix)
+    if (!all(vt %in% colnames(mix)) || !all(unique(l$sites$type) %in% rownames(mix))) {
+      stop("`landing$site_mix` needs a row per site type and a column per vessel type.",
+           call. = FALSE)
+    }
+    if (any(colSums(mix[unique(l$sites$type), vt, drop = FALSE]) <= 0)) {
+      stop("Every vessel type needs a site type with positive weight in `site_mix`.",
+           call. = FALSE)
+    }
+    if (!all(vt %in% names(l$range))) {
+      stop("`landing$range` needs a value for every vessel type.", call. = FALSE)
+    }
+  }
   s
 }
 
@@ -493,7 +635,7 @@ plot_logbook_om <- function(sim) {
                            value = sim$truth$relative, what = "true biomass"),
                 data.frame(year = sim$nominal$year, species = sim$nominal$species,
                            value = sim$nominal$relative, what = "nominal CPUE"))
-  list(
+  p <- list(
     env = ggplot(env, aes(x = .data$x, y = .data$y)) +
       geom_raster(aes(fill = .data$depth)) +
       geom_point(data = reef_cells, shape = 15, size = 0.7, colour = "grey15") +
@@ -526,4 +668,52 @@ plot_logbook_om <- function(sim) {
       labs(x = "Year", y = "Relative to mean", colour = NULL) + theme_bw() +
       theme(strip.text = element_text(size = 7), legend.position = "bottom")
   )
+  if (!is.null(sim$sites)) p$sites <- plot_landing_sites(sim)
+  p
+}
+
+#' Map of landing sites and fishing ranges
+#'
+#' Depth map with the landing sites of [simulate_logbook()] (when
+#' `settings$landing` is set), a range circle per site and vessel type, and the
+#' share of trips fished in each cell.
+#' @param sim Output of [simulate_logbook()] with landing sites.
+#' @return A ggplot.
+#' @export
+plot_landing_sites <- function(sim) {
+  if (is.null(sim$sites)) stop("No landing sites in `sim`.", call. = FALSE)
+  st <- sim$sites
+  rng <- sim$settings$landing$range
+  th <- seq(-pi / 2, pi / 2, length.out = 60)
+  circles <- do.call(rbind, lapply(names(rng), function(ty) {
+    do.call(rbind, lapply(seq_len(nrow(st)), function(i) {
+      used <- any(sim$vessels$site == st$site[i] & sim$vessels$vessel_type == ty)
+      if (!used) return(NULL)
+      data.frame(x = st$x[i] + rng[[ty]] * cos(th), y = st$y[i] + rng[[ty]] * sin(th),
+                 group = paste(ty, st$site[i]), vessel_type = ty)
+    }))
+  }))
+  tr <- sim$trips
+  effort <- as.data.frame(table(X = tr$X, Y = tr$Y), stringsAsFactors = FALSE)
+  effort <- effort[effort$Freq > 0, ]
+  effort$X <- as.numeric(effort$X)
+  effort$Y <- as.numeric(effort$Y)
+  nx <- max(sim$env$x)
+  ny <- max(sim$env$y)
+  ggplot(sim$env, aes(x = .data$x, y = .data$y)) +
+    geom_raster(aes(fill = .data$depth)) +
+    scale_fill_viridis_c(option = "mako", direction = -1) +
+    geom_point(data = effort, aes(x = .data$X, y = .data$Y, size = .data$Freq),
+               inherit.aes = FALSE, colour = "white", alpha = 0.35) +
+    geom_path(data = circles, aes(x = .data$x, y = .data$y, group = .data$group,
+                                  colour = .data$vessel_type), inherit.aes = FALSE) +
+    geom_point(data = st, aes(x = .data$x, y = .data$y, shape = .data$type),
+               inherit.aes = FALSE, size = 3, fill = "orange", colour = "black") +
+    geom_text(data = st, aes(x = .data$x, y = .data$y, label = .data$site),
+              inherit.aes = FALSE, hjust = -0.4, size = 3, colour = "white") +
+    scale_shape_manual(values = c(21, 22, 23, 24, 25)[seq_along(unique(st$type))]) +
+    scale_size_area(max_size = 3, guide = "none") +
+    coord_equal(xlim = c(0, nx), ylim = c(0, ny), expand = FALSE) +
+    labs(x = "x (offshore ->)", y = "y", fill = "Depth (m)", colour = "Range",
+         shape = "Site type") + theme_bw()
 }
