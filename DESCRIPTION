@@ -1,6 +1,6 @@
 Package: cpueTargeting
 Title: Simulators and Tools for CPUE Targeting and Standardization
-Version: 0.4.0
+Version: 0.4.1
 Authors@R: person("Henning", "Winker", role = c("aut", "cre"),
     email = "henning.winker@fao.org")
 Description: Multispecies operating models for exploring spatial and
