@@ -64,7 +64,7 @@ shift the whole index). Two options keep them fixed:
 \item \code{fit_years}: estimate the PCA (centring, scaling and rotation), the OC
 test and the cluster centres from the operations of these years only;
 all operations are then projected onto the PC axes
-(\code{\link[stats:predict.prcomp]{stats::predict.prcomp()}}) and assigned to the nearest cluster centre.
+(\code{\link[stats:prcomp]{stats::predict.prcomp()}}) and assigned to the nearest cluster centre.
 Useful to exclude years with inconsistent recording from the estimation,
 or to fit on a reference period and predict new years.
 \item \code{reference}: reuse the targeting of an earlier run (a \code{cpue_data} object

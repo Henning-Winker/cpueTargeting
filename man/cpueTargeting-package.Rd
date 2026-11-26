@@ -16,10 +16,5 @@ for real catch and effort data (\code{\link[=cpue_data]{cpue_data()}}, \code{\li
 \author{
 \strong{Maintainer}: Henning Winker \email{henning.winker@fao.org}
 
-Authors:
-\itemize{
-  \item Henning Winker \email{henning.winker@fao.org}
-}
-
 }
 \keyword{internal}

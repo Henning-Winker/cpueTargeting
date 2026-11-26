@@ -112,3 +112,31 @@ test_that("the toolbox recovers the tactics from the logbook", {
   share_pelagic <- tapply(pelagic, x$data$FT, mean)
   expect_gt(max(share_pelagic) - min(share_pelagic), 0.4)
 })
+
+test_that("landing sites are optional and leave default runs unchanged", {
+  s <- logbook_settings()
+  s$n_years <- 4
+  a <- simulate_logbook(s, seed = 3, plots = FALSE)
+  s2 <- s
+  s2$landing <- NULL
+  b <- simulate_logbook(s2, seed = 3, plots = FALSE)
+  expect_identical(a$logbook, b$logbook)
+  expect_null(a$landings)
+})
+
+test_that("landing sites give sites, dates and true landings within range", {
+  s <- logbook_settings()
+  s$n_years <- 4
+  s$landing <- landing_settings()
+  s$landing$range_shape <- "hard"
+  sim <- simulate_logbook(s, seed = 3, plots = FALSE)
+  l <- sim$landings
+  expect_true(all(l$site %in% sim$sites$site))
+  expect_true(all(l$weekday != 7))
+  expect_equal(nrow(l), nrow(sim$trips))
+  sp <- sim$settings$species$species
+  expect_equal(l$W, unname(rowSums(l[sp])))
+  rng <- s$landing$range[l$vessel_type] * s$landing$cell_km
+  expect_true(all(l$distance <= rng + 1e-8))
+  expect_true(all(l$site == sim$vessels$site[match(l$vessel, sim$vessels$vessel)]))
+})
