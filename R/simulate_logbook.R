@@ -24,7 +24,10 @@
 #'   tactics of each type), `loyalty` (share of a type's trips restricted to
 #'   its home tactics; the other trips choose among all tactics by expected
 #'   value), vessel catchability CV, late entries with efficiency creep
-#'   (`entry_share`, `creep`), early exits (`exit_share`). The default has
+#'   (`entry_share`, `creep`), early exits (`exit_share`); optional
+#'   `entry_years` and `exit_years` give the years in which they happen
+#'   (default: entries in years 2 to 70% of the period, exits from 30% of the
+#'   period to the year before last). The default has
 #'   demersal and pelagic specialists with loyalty 0.8 and mixed vessels that
 #'   choose purely by expected value. (`allowed`, from earlier versions, is
 #'   still accepted and means `home` with loyalty 1.)
@@ -272,13 +275,15 @@ simulate_logbook <- function(settings = logbook_settings(), seed = NULL, plots =
   nv <- length(types)
   entry <- rep(1L, nv)
   late <- sample.int(nv, round(s$entry_share * nv))
-  late_years <- 2:max(2, ceiling(0.7 * ny_yr))
+  late_years <- if (!is.null(s$entry_years)) s$entry_years[s$entry_years >= 2 & s$entry_years <= ny_yr]
+                else 2:max(2, ceiling(0.7 * ny_yr))
   entry[late] <- late_years[sample.int(length(late_years), length(late), replace = TRUE)]
   exit <- rep(ny_yr, nv)
   candidates <- setdiff(seq_len(nv), late)
   early <- candidates[sample.int(length(candidates), min(length(candidates),
                                                           round(s$exit_share * nv)))]
-  exit_years <- max(2, ceiling(0.3 * ny_yr)):max(2, ny_yr - 1)
+  exit_years <- if (!is.null(s$exit_years)) s$exit_years[s$exit_years >= 1 & s$exit_years < ny_yr]
+                else max(2, ceiling(0.3 * ny_yr)):max(2, ny_yr - 1)
   exit[early] <- exit_years[sample.int(length(exit_years), length(early), replace = TRUE)]
   sig_v <- cv_to_sdlog(s$vessel_cv)
   q_vessel <- stats::rlnorm(nv, -sig_v^2 / 2, sig_v) * exp(s$creep * (entry - 1))

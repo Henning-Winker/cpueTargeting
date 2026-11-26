@@ -36,7 +36,10 @@ then a pelagic boom, then neutral prices).
 tactics of each type), \code{loyalty} (share of a type's trips restricted to
 its home tactics; the other trips choose among all tactics by expected
 value), vessel catchability CV, late entries with efficiency creep
-(\code{entry_share}, \code{creep}), early exits (\code{exit_share}). The default has
+(\code{entry_share}, \code{creep}), early exits (\code{exit_share}); optional
+\code{entry_years} and \code{exit_years} give the years in which they happen
+(default: entries in years 2 to 70\% of the period, exits from 30\% of the
+period to the year before last). The default has
 demersal and pelagic specialists with loyalty 0.8 and mixed vessels that
 choose purely by expected value. (\code{allowed}, from earlier versions, is
 still accepted and means \code{home} with loyalty 1.)
