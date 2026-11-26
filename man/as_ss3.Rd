@@ -42,7 +42,7 @@ A data frame with one row per observation.
 \description{
 Returns the CPUE/abundance-index block of an SS3 data file (v3.30): one row
 per observation with year, month, fleet, observation and log-scale standard
-error, and a comment naming the index. Write it with \code{\link[utils:write.table]{utils::write.csv()}}
+error, and a comment naming the index. Write it with \code{\link[utils:write.csv]{utils::write.csv()}}
 (e.g. \code{ss3idx.csv}) and paste the rows into the data file.
 }
 \details{
